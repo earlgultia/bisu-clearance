@@ -2165,7 +2165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                     </div>
                     <div class="hero-mini-card">
                         <strong><?php echo SITE_VERSION; ?></strong>
-                        <span>refined mobile-ready release</span>
+                        <span>new and improved messaging UI</span>
                     </div>
                 </div>
             </div>
@@ -2208,9 +2208,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <!-- Features Section -->
     <section class="features" id="features">
         <div class="section-title">
-            <div class="section-kicker"><i class="fas fa-sparkles"></i> What Improved In 1.3.0</div>
+            <div class="section-kicker"><i class="fas fa-sparkles"></i> What's New In Beta 1.3.0</div>
             <h2>Why Choose Our System?</h2>
-            <p>Designed to make your clearance process seamless and hassle-free</p>
+            <p>Beta 1.3.0 includes a new and improved messaging UI for clearer, faster communication.</p>
         </div>
         <div class="features-grid">
             <div class="feature-card">
