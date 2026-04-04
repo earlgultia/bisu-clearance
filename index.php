@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             --font-body: 'Plus Jakarta Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             --font-display: 'Space Grotesk', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             --header-height: 68px;
-            --header-offset: 68px;
+            --header-offset: 84px;
             /* Light Mode Colors */
             --primary: #412886;
             --primary-dark: #2e1d5e;
@@ -348,7 +348,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         header {
             background: color-mix(in srgb, var(--header-bg) 84%, transparent);
             color: var(--text-primary);
-            padding: calc(0.45rem + env(safe-area-inset-top)) max(14px, 3.5%) 0.45rem;
+            padding: 0.45rem max(14px, 3.5%) 0.45rem;
+            height: var(--header-offset);
             position: fixed;
             width: 100%;
             top: 0;
@@ -1829,11 +1830,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         @media (max-width: 768px) {
             :root {
                 --header-height: 62px;
-                --header-offset: 62px;
+                --header-offset: 76px;
             }
 
             header {
-                padding-top: calc(0.35rem + env(safe-area-inset-top));
+                padding-top: 0.35rem;
             }
 
             nav {
@@ -2477,23 +2478,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         const navToggle = document.getElementById('navToggle');
         const navLinks = document.getElementById('navLinks');
         const navBackdrop = document.getElementById('navBackdrop');
-
-        const syncHeaderHeight = () => {
-            const header = document.getElementById('header');
-            if (!header) {
-                return;
-            }
-
-            const measuredHeight = Math.ceil(header.getBoundingClientRect().height);
-            if (measuredHeight > 0) {
-                // Keep nav sizing stable; only update body offset to prevent header growth loops on mobile resize.
-                document.documentElement.style.setProperty('--header-offset', `${measuredHeight}px`);
-            }
-        };
-
-        syncHeaderHeight();
-        window.addEventListener('load', syncHeaderHeight);
-        window.addEventListener('resize', syncHeaderHeight);
 
         const closeMobileNav = () => {
             navLinks?.classList.remove('open');
