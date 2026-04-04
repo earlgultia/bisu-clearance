@@ -81,18 +81,12 @@ $active_tab = $_GET['tab'] ?? 'dashboard';
 $profile_pic = null;
 
 // Get current school year and semesters
-$current_year = date('Y');
-$current_month = date('n');
-// Determine current semester based on month
-if ($current_month >= 6 && $current_month <= 10) {
-    $current_semester = '1st Semester';
-} elseif ($current_month >= 11 || $current_month <= 3) {
-    $current_semester = '2nd Semester';
-} else {
-    $current_semester = 'Summer';
-}
-$school_year = ($current_month >= 6 ? $current_year . '-' . ($current_year + 1) : ($current_year - 1) . '-' . $current_year);
-$semesters = ['1st Semester', '2nd Semester', 'Summer'];
+$current_year = (int) date('Y');
+// Clearance applications always start in 2nd Semester.
+$current_semester = '2nd Semester';
+// Roll school year forward automatically when calendar year changes.
+$school_year = ($current_year - 1) . '-' . $current_year;
+$semesters = [$current_semester];
 $student_contacts = [];
 $student_messages = [];
 $inbox_messages = [];
@@ -1297,11 +1291,13 @@ if (isset($_POST['upload_proof'])) {
 // Handle clearance application
 if (isset($_POST['apply_clearance'])) {
     $clearance_type = $_POST['clearance_type'] ?? '';
-    $semester = $_POST['semester'] ?? '';
-    $school_year_selected = $_POST['school_year'] ?? '';
+    // Enforce fixed semester and year server-side.
+    $semester = '2nd Semester';
+    $apply_year = (int) date('Y');
+    $school_year_selected = ($apply_year - 1) . '-' . $apply_year;
 
-    if (empty($clearance_type) || empty($semester) || empty($school_year_selected)) {
-        $error = "Please select all fields.";
+    if (empty($clearance_type)) {
+        $error = "Please select a clearance type.";
     } else {
         try {
             // Check if student already has pending clearance
@@ -6323,27 +6319,14 @@ function getOrganizationIcon($org_type)
                             <div class="form-row">
                                 <div class="form-group">
                                     <label><i class="fas fa-calendar"></i> School Year</label>
-                                    <select name="school_year" class="form-control" required>
-                                        <option value="">Select year</option>
-                                        <option value="<?php echo $school_year; ?>" selected>
-                                            <?php echo $school_year; ?>
-                                        </option>
-                                        <option value="<?php echo ($current_year - 1) . '-' . $current_year; ?>">
-                                            <?php echo ($current_year - 1) . '-' . $current_year; ?>
-                                        </option>
-                                    </select>
+                                    <input type="hidden" name="school_year" value="<?php echo htmlspecialchars($school_year); ?>">
+                                    <input type="text" class="form-control" value="<?php echo htmlspecialchars($school_year); ?>" readonly>
                                 </div>
 
                                 <div class="form-group">
                                     <label><i class="fas fa-clock"></i> Semester</label>
-                                    <select name="semester" class="form-control" required>
-                                        <option value="">Select semester</option>
-                                        <?php foreach ($semesters as $semester): ?>
-                                            <option value="<?php echo $semester; ?>" <?php echo ($semester == $current_semester) ? 'selected' : ''; ?>>
-                                                <?php echo $semester; ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                    <input type="hidden" name="semester" value="<?php echo htmlspecialchars($current_semester); ?>">
+                                    <input type="text" class="form-control" value="<?php echo htmlspecialchars($current_semester); ?>" readonly>
                                 </div>
                             </div>
 
