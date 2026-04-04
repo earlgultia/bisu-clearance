@@ -248,6 +248,248 @@ if (isset($_POST['add_staff'])) {
 }
 
 // ============================================
+// HANDLE UPDATE ORGANIZATION
+// ============================================
+if (isset($_POST['update_organization'])) {
+    $org_id = (int) ($_POST['org_id'] ?? 0);
+    $org_name = trim($_POST['org_name'] ?? '');
+    $org_type = trim($_POST['org_type'] ?? '');
+    $org_email = trim($_POST['org_email'] ?? '');
+    $org_status = trim($_POST['org_status'] ?? 'active');
+    $org_password = $_POST['org_password'] ?? '';
+
+    $valid_types = ['clinic', 'town', 'college', 'ssg'];
+    $valid_status = ['active', 'inactive'];
+
+    if ($org_id <= 0 || empty($org_name) || empty($org_type) || empty($org_email) || empty($org_status)) {
+        $error = "All required organization fields must be filled.";
+    } elseif (!in_array($org_type, $valid_types, true)) {
+        $error = "Invalid organization type.";
+    } elseif (!in_array($org_status, $valid_status, true)) {
+        $error = "Invalid organization status.";
+    } elseif (!filter_var($org_email, FILTER_VALIDATE_EMAIL)) {
+        $error = "Please enter a valid organization email address.";
+    } elseif (!empty($org_password) && strlen($org_password) < 8) {
+        $error = "Organization password must be at least 8 characters.";
+    } else {
+        try {
+            $db = Database::getInstance();
+
+            $db->query("SELECT org_id, org_name FROM student_organizations WHERE org_id = :id");
+            $db->bind(':id', $org_id);
+            $existing_org = $db->single();
+
+            if (!$existing_org) {
+                $error = "Organization not found.";
+            } else {
+                $db->query("SELECT org_id FROM student_organizations WHERE (org_name = :name OR org_email = :email) AND org_id != :id");
+                $db->bind(':name', $org_name);
+                $db->bind(':email', $org_email);
+                $db->bind(':id', $org_id);
+
+                if ($db->single()) {
+                    $error = "Another organization already uses this name or email.";
+                } else {
+                    $office_id = null;
+                    switch ($org_type) {
+                        case 'clinic':
+                            $office_id = 6;
+                            break;
+                        case 'town':
+                            $office_id = 7;
+                            break;
+                        case 'college':
+                            $office_id = 8;
+                            break;
+                        case 'ssg':
+                            $office_id = 9;
+                            break;
+                    }
+
+                    if (!empty($org_password)) {
+                        $db->query("UPDATE student_organizations
+                                    SET org_name = :name,
+                                        org_type = :type,
+                                        org_email = :email,
+                                        org_password = :password,
+                                        status = :status,
+                                        office_id = :office_id,
+                                        dashboard_type = :dashboard_type
+                                    WHERE org_id = :id");
+                        $db->bind(':password', password_hash($org_password, PASSWORD_DEFAULT));
+                    } else {
+                        $db->query("UPDATE student_organizations
+                                    SET org_name = :name,
+                                        org_type = :type,
+                                        org_email = :email,
+                                        status = :status,
+                                        office_id = :office_id,
+                                        dashboard_type = :dashboard_type
+                                    WHERE org_id = :id");
+                    }
+
+                    $db->bind(':name', $org_name);
+                    $db->bind(':type', $org_type);
+                    $db->bind(':email', $org_email);
+                    $db->bind(':status', $org_status);
+                    $db->bind(':office_id', $office_id);
+                    $db->bind(':dashboard_type', $org_type);
+                    $db->bind(':id', $org_id);
+
+                    if ($db->execute()) {
+                        if (class_exists('ActivityLogModel')) {
+                            $logModel = new ActivityLogModel();
+                            $logModel->log($director_id, 'UPDATE_ORGANIZATION', "Updated organization ID {$org_id}: {$org_name}");
+                        }
+
+                        $_SESSION['success_message'] = "Organization updated successfully!";
+                        header("Location: sas_dashboard.php?tab=organizations");
+                        exit();
+                    } else {
+                        $error = "Failed to update organization.";
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Error updating organization: " . $e->getMessage());
+            $error = "Database error occurred.";
+        }
+    }
+}
+
+// ============================================
+// HANDLE UPDATE STAFF
+// ============================================
+if (isset($_POST['update_staff'])) {
+    $staff_id = (int) ($_POST['staff_id'] ?? 0);
+    $fname = trim($_POST['fname'] ?? '');
+    $lname = trim($_POST['lname'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $assignment = trim($_POST['assignment'] ?? '');
+    $password = $_POST['password'] ?? '';
+
+    $valid_assignments = ['clinic', 'town_org', 'college_org', 'ssg'];
+
+    if ($staff_id <= 0 || empty($fname) || empty($lname) || empty($email) || empty($assignment)) {
+        $error = "All required staff fields must be filled.";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = "Please enter a valid staff email address.";
+    } elseif (!in_array($assignment, $valid_assignments, true)) {
+        $error = "Invalid staff assignment.";
+    } elseif (!empty($password) && strlen($password) < 8) {
+        $error = "Staff password must be at least 8 characters.";
+    } else {
+        try {
+            $db = Database::getInstance();
+
+            $db->query("SELECT users_id, fname, lname FROM users
+                        WHERE users_id = :id
+                        AND office_id = :office_id
+                        AND user_role_id = (SELECT user_role_id FROM user_role WHERE user_role_name = 'office_staff')");
+            $db->bind(':id', $staff_id);
+            $db->bind(':office_id', $sas_office_id);
+            $existing_staff = $db->single();
+
+            if (!$existing_staff) {
+                $error = "Staff member not found or not authorized for this office.";
+            } else {
+                $db->query("SELECT users_id FROM users WHERE emails = :email AND users_id != :id");
+                $db->bind(':email', $email);
+                $db->bind(':id', $staff_id);
+
+                if ($db->single()) {
+                    $error = "Another account already uses this email.";
+                } else {
+                    if (!empty($password)) {
+                        $db->query("UPDATE users
+                                    SET fname = :fname,
+                                        lname = :lname,
+                                        emails = :email,
+                                        assignment = :assignment,
+                                        password = :password
+                                    WHERE users_id = :id");
+                        $db->bind(':password', password_hash($password, PASSWORD_DEFAULT));
+                    } else {
+                        $db->query("UPDATE users
+                                    SET fname = :fname,
+                                        lname = :lname,
+                                        emails = :email,
+                                        assignment = :assignment
+                                    WHERE users_id = :id");
+                    }
+
+                    $db->bind(':fname', $fname);
+                    $db->bind(':lname', $lname);
+                    $db->bind(':email', $email);
+                    $db->bind(':assignment', $assignment);
+                    $db->bind(':id', $staff_id);
+
+                    if ($db->execute()) {
+                        if (class_exists('ActivityLogModel')) {
+                            $logModel = new ActivityLogModel();
+                            $logModel->log($director_id, 'UPDATE_STAFF', "Updated staff ID {$staff_id}: {$fname} {$lname}");
+                        }
+
+                        $_SESSION['success_message'] = "Staff member updated successfully!";
+                        header("Location: sas_dashboard.php?tab=staff");
+                        exit();
+                    } else {
+                        $error = "Failed to update staff member.";
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Error updating staff: " . $e->getMessage());
+            $error = "Database error occurred.";
+        }
+    }
+}
+
+// ============================================
+// HANDLE DELETE STAFF
+// ============================================
+if (isset($_POST['delete_staff'])) {
+    $staff_id = (int) ($_POST['staff_id'] ?? 0);
+
+    if ($staff_id > 0) {
+        try {
+            $db = Database::getInstance();
+
+            $db->query("SELECT users_id, fname, lname FROM users
+                        WHERE users_id = :id
+                        AND office_id = :office_id
+                        AND user_role_id = (SELECT user_role_id FROM user_role WHERE user_role_name = 'office_staff')");
+            $db->bind(':id', $staff_id);
+            $db->bind(':office_id', $sas_office_id);
+            $staff = $db->single();
+
+            if (!$staff) {
+                $error = "Staff member not found or not authorized for this office.";
+            } else {
+                $db->query("DELETE FROM users WHERE users_id = :id");
+                $db->bind(':id', $staff_id);
+
+                if ($db->execute()) {
+                    if (class_exists('ActivityLogModel')) {
+                        $logModel = new ActivityLogModel();
+                        $logModel->log($director_id, 'DELETE_STAFF', "Deleted staff: {$staff['fname']} {$staff['lname']}");
+                    }
+
+                    $_SESSION['success_message'] = "Staff member deleted successfully!";
+                    header("Location: sas_dashboard.php?tab=staff");
+                    exit();
+                } else {
+                    $error = "Failed to delete staff member.";
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Error deleting staff: " . $e->getMessage());
+            $error = "Database error occurred.";
+        }
+    }
+}
+
+// ============================================
 // HANDLE APPROVE CLEARANCE
 // ============================================
 if (isset($_POST['approve_clearance'])) {
@@ -281,17 +523,89 @@ if (isset($_POST['approve_clearance'])) {
                 throw new Exception("This clearance has already been processed");
             }
 
+            // Backfill missing organization_clearance rows for this exact SAS clearance.
+            $current_clearance_id = (int) $current['clearance_id'];
+            $current_college_id = isset($current['college_id']) ? (int) $current['college_id'] : 0;
+            $college_org_condition = "1=1";
+            if ($current_college_id > 0) {
+                $college_org_condition = "(
+                    so.org_type <> 'college'
+                    OR so.college_id IS NULL
+                    OR so.college_id = {$current_college_id}
+                    OR NOT EXISTS (
+                        SELECT 1
+                        FROM student_organizations so_match
+                        WHERE so_match.org_type = 'college'
+                          AND COALESCE(so_match.status, 'active') = 'active'
+                          AND so_match.college_id = {$current_college_id}
+                    )
+                )";
+            }
+
+            $syncOrgQuery = "INSERT INTO organization_clearance (clearance_id, org_id, office_id, status, created_at, updated_at)
+                             SELECT {$current_clearance_id}, so.org_id, so.office_id, 'pending', NOW(), NOW()
+                             FROM student_organizations so
+                             LEFT JOIN organization_clearance oc
+                               ON oc.clearance_id = {$current_clearance_id}
+                              AND oc.org_id = so.org_id
+                             WHERE COALESCE(so.status, 'active') = 'active'
+                               AND so.office_id IS NOT NULL
+                               AND {$college_org_condition}
+                               AND oc.org_clearance_id IS NULL";
+            $db->query($syncOrgQuery);
+            if (!$db->execute()) {
+                error_log("Warning: SAS approval sync failed for clearance_id=" . $current_clearance_id);
+            }
+
+            // Recover legacy invalid enum writes (approve/reject) stored as empty status.
+            $db->query("UPDATE organization_clearance
+                        SET status = CASE
+                            WHEN LOWER(IFNULL(remarks, '')) REGEXP 'reject|declin|deny|disapprov' THEN 'rejected'
+                            ELSE 'approved'
+                        END,
+                        updated_at = NOW()
+                        WHERE clearance_id = :clearance_id
+                        AND status = ''");
+            $db->bind(':clearance_id', $current_clearance_id);
+            if (!$db->execute()) {
+                error_log("Warning: SAS status normalization failed for clearance_id=" . $current_clearance_id);
+            }
+
+                        // Reconcile clinic organization decision from the matching clinic-office clearance.
+                        $db->query("UPDATE organization_clearance oc
+                                                JOIN student_organizations so
+                                                    ON oc.org_id = so.org_id
+                                                 AND so.org_type = 'clinic'
+                                                 AND COALESCE(so.status, 'active') = 'active'
+                                                JOIN clearance c_sas
+                                                    ON c_sas.clearance_id = oc.clearance_id
+                                                 AND c_sas.office_id = :sas_office_id
+                                                JOIN clearance c_clinic
+                                                    ON c_clinic.users_id = c_sas.users_id
+                                                 AND c_clinic.semester = c_sas.semester
+                                                 AND c_clinic.school_year = c_sas.school_year
+                                                 AND c_clinic.office_id = so.office_id
+                                                SET oc.status = c_clinic.status,
+                                                        oc.remarks = CONCAT(IFNULL(oc.remarks, ''), ' | Synced from clinic clearance #', c_clinic.clearance_id),
+                                                        oc.processed_by = COALESCE(c_clinic.processed_by, oc.processed_by),
+                                                        oc.processed_date = COALESCE(c_clinic.processed_date, oc.processed_date),
+                                                        oc.updated_at = NOW()
+                                                WHERE oc.clearance_id = :clearance_id
+                                                    AND c_clinic.status IN ('approved', 'rejected')");
+                        $db->bind(':sas_office_id', $sas_office_id);
+                        $db->bind(':clearance_id', $current_clearance_id);
+                        if (!$db->execute()) {
+                                error_log("Warning: SAS clinic reconciliation failed for clearance_id=" . $current_clearance_id);
+                        }
+
             // Check if all organizations under SAS have approved
-            $db->query("SELECT COUNT(*) as total,
-                       SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved
+            $db->query("SELECT COUNT(DISTINCT oc.org_id) as total,
+                       COUNT(DISTINCT CASE WHEN oc.status = 'approved' THEN oc.org_id END) as approved
                        FROM organization_clearance oc
-                       JOIN clearance c ON oc.clearance_id = c.clearance_id
-                       WHERE c.users_id = :user_id
-                       AND c.semester = :semester
-                       AND c.school_year = :school_year");
-            $db->bind(':user_id', $current['users_id']);
-            $db->bind(':semester', $current['semester']);
-            $db->bind(':school_year', $current['school_year']);
+                       JOIN student_organizations so ON oc.org_id = so.org_id
+                       WHERE oc.clearance_id = :clearance_id
+                       AND COALESCE(so.status, 'active') = 'active'");
+            $db->bind(':clearance_id', $current['clearance_id']);
             $org_check = $db->single();
 
             if ($org_check['total'] > 0 && $org_check['approved'] < $org_check['total']) {
@@ -591,10 +905,89 @@ try {
                 ORDER BY step_order");
     $stats['all_offices'] = $db->resultSet();
 
+    // Recover legacy invalid enum writes (approve/reject) stored as empty status.
+    $db->query("UPDATE organization_clearance
+                SET status = CASE
+                    WHEN LOWER(IFNULL(remarks, '')) REGEXP 'reject|declin|deny|disapprov' THEN 'rejected'
+                    WHEN processed_by IS NULL AND processed_date IS NULL THEN 'pending'
+                    ELSE 'approved'
+                END,
+                updated_at = NOW()
+                WHERE status = ''");
+    if (!$db->execute()) {
+        error_log("Warning: SAS global organization status normalization failed");
+    }
+
+        // Backfill missing organization_clearance rows for all pending SAS clearances.
+        $syncAllPendingOrgRows = "INSERT INTO organization_clearance (clearance_id, org_id, office_id, status, created_at, updated_at)
+                                                            SELECT c.clearance_id, so.org_id, so.office_id, 'pending', NOW(), NOW()
+                                                            FROM clearance c
+                                                            JOIN users u ON c.users_id = u.users_id
+                                                            JOIN student_organizations so
+                                                                ON COALESCE(so.status, 'active') = 'active'
+                                                             AND so.office_id IS NOT NULL
+                                                            LEFT JOIN organization_clearance oc
+                                                                ON oc.clearance_id = c.clearance_id
+                                                             AND oc.org_id = so.org_id
+                                                            WHERE c.office_id = :sync_office_id
+                                                                AND c.status = 'pending'
+                                                                AND (
+                                                                        so.org_type <> 'college'
+                                                                        OR so.college_id IS NULL
+                                                                        OR so.college_id = u.college_id
+                                                                        OR NOT EXISTS (
+                                                                                SELECT 1
+                                                                                FROM student_organizations so_match
+                                                                                WHERE so_match.org_type = 'college'
+                                                                                    AND COALESCE(so_match.status, 'active') = 'active'
+                                                                                    AND so_match.college_id = u.college_id
+                                                                        )
+                                                                )
+                                                                AND oc.org_clearance_id IS NULL";
+        $db->query($syncAllPendingOrgRows);
+        $db->bind(':sync_office_id', $sas_office_id);
+        if (!$db->execute()) {
+                error_log("Warning: SAS pending org sync failed for office_id=" . $sas_office_id);
+        }
+
+    // Reconcile clinic organization decisions for pending SAS clearances from clinic-office clearance status.
+    $db->query("UPDATE organization_clearance oc
+                JOIN student_organizations so
+                  ON oc.org_id = so.org_id
+                 AND so.org_type = 'clinic'
+                 AND COALESCE(so.status, 'active') = 'active'
+                JOIN clearance c_sas
+                  ON c_sas.clearance_id = oc.clearance_id
+                 AND c_sas.office_id = :sas_office_id
+                 AND c_sas.status = 'pending'
+                JOIN clearance c_clinic
+                  ON c_clinic.users_id = c_sas.users_id
+                 AND c_clinic.semester = c_sas.semester
+                 AND c_clinic.school_year = c_sas.school_year
+                 AND c_clinic.office_id = so.office_id
+                SET oc.status = c_clinic.status,
+                    oc.remarks = CONCAT(IFNULL(oc.remarks, ''), ' | Synced from clinic clearance #', c_clinic.clearance_id),
+                    oc.processed_by = COALESCE(c_clinic.processed_by, oc.processed_by),
+                    oc.processed_date = COALESCE(c_clinic.processed_date, oc.processed_date),
+                    oc.updated_at = NOW()
+                WHERE c_clinic.status IN ('approved', 'rejected')");
+    $db->bind(':sas_office_id', $sas_office_id);
+    if (!$db->execute()) {
+        error_log("Warning: SAS clinic reconciliation for pending clearances failed");
+    }
+
     // Get pending clearances for SAS with organization approval status
     $db->query("SELECT c.*, u.fname, u.lname, u.ismis_id, u.course_id, u.address, u.contacts, u.age,
                 cr.course_name, col.college_name,
                 ct.clearance_name as clearance_type,
+                (SELECT c_lib.status
+                 FROM clearance c_lib
+                 JOIN offices o_lib ON c_lib.office_id = o_lib.office_id
+                 WHERE c_lib.users_id = c.users_id
+                 AND c_lib.semester = c.semester
+                 AND c_lib.school_year = c.school_year
+                 AND o_lib.office_name = 'Librarian'
+                 LIMIT 1) as librarian_status,
                 (SELECT COUNT(*) FROM clearance c2 
                  WHERE c2.users_id = c.users_id 
                  AND c2.semester = c.semester 
@@ -604,17 +997,15 @@ try {
                  WHERE c3.users_id = c.users_id 
                  AND c3.semester = c.semester 
                  AND c3.school_year = c.school_year) as total_offices,
-                (SELECT COUNT(*) FROM organization_clearance oc
-                 JOIN clearance c4 ON oc.clearance_id = c4.clearance_id
-                 WHERE c4.users_id = c.users_id 
-                 AND c4.semester = c.semester 
-                 AND c4.school_year = c.school_year 
-                 AND oc.status = 'approved') as approved_orgs,
-                (SELECT COUNT(*) FROM organization_clearance oc
-                 JOIN clearance c5 ON oc.clearance_id = c5.clearance_id
-                 WHERE c5.users_id = c.users_id 
-                 AND c5.semester = c.semester 
-                 AND c5.school_year = c.school_year) as total_orgs
+                (SELECT COUNT(DISTINCT oc.org_id) FROM organization_clearance oc
+                 JOIN student_organizations so4 ON oc.org_id = so4.org_id
+                 WHERE oc.clearance_id = c.clearance_id
+                 AND oc.status = 'approved'
+                 AND COALESCE(so4.status, 'active') = 'active') as approved_orgs,
+                (SELECT COUNT(DISTINCT oc.org_id) FROM organization_clearance oc
+                 JOIN student_organizations so5 ON oc.org_id = so5.org_id
+                 WHERE oc.clearance_id = c.clearance_id
+                 AND COALESCE(so5.status, 'active') = 'active') as total_orgs
                 FROM clearance c
                 JOIN users u ON c.users_id = u.users_id
                 LEFT JOIN course cr ON u.course_id = cr.course_id
@@ -746,37 +1137,45 @@ function getOrgTypeBadge($type)
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SAS Director Dashboard - BISU Online Clearance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
 
         :root {
-            --primary: #412886;
-            --primary-dark: #2e1d5e;
-            --primary-light: #6b4bb8;
-            --primary-soft: rgba(65, 40, 134, 0.1);
-            --primary-glow: rgba(65, 40, 134, 0.2);
+            --header-height: 76px;
+            --radius-sm: 10px;
+            --radius-md: 16px;
+            --radius-lg: 20px;
+            --primary: #0f4c81;
+            --primary-dark: #0a345c;
+            --primary-light: #2f78b7;
+            --primary-soft: rgba(15, 76, 129, 0.12);
+            --primary-glow: rgba(15, 76, 129, 0.28);
             --bg-primary: #ffffff;
-            --bg-secondary: #f8fafc;
-            --bg-tertiary: #f1f5f9;
-            --text-primary: #1e293b;
-            --text-secondary: #64748b;
-            --text-muted: #94a3b8;
-            --border-color: #e2e8f0;
+            --bg-secondary: #f4f7fb;
+            --bg-tertiary: #e8eef5;
+            --text-primary: #112032;
+            --text-secondary: #4f6478;
+            --text-muted: #7f90a3;
+            --border-color: #d5dfeb;
             --card-bg: #ffffff;
-            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
-            --card-shadow-hover: 0 10px 30px rgba(65, 40, 134, 0.08);
-            --header-bg: linear-gradient(135deg, #412886 0%, #6b4bb8 100%);
+            --card-shadow: 0 6px 18px rgba(17, 32, 50, 0.06);
+            --card-shadow-hover: 0 16px 32px rgba(15, 76, 129, 0.14);
+            --surface-soft: rgba(15, 76, 129, 0.04);
+            --header-bg: linear-gradient(122deg, #0a345c 0%, #0f4c81 50%, #2f78b7 100%);
             --sidebar-bg: #ffffff;
             --input-bg: #ffffff;
-            --input-border: #e2e8f0;
+            --input-border: #cad8e8;
             --success: #10b981;
             --warning: #f59e0b;
             --danger: #ef4444;
@@ -796,25 +1195,25 @@ function getOrgTypeBadge($type)
         }
 
         .dark-mode {
-            --primary: #8b6fd8;
-            --primary-dark: #6b4bb8;
-            --primary-light: #a58bd1;
-            --primary-soft: rgba(139, 111, 216, 0.15);
-            --primary-glow: rgba(139, 111, 216, 0.25);
-            --bg-primary: #1a1b2f;
-            --bg-secondary: #22243e;
-            --bg-tertiary: #2a2c4a;
-            --text-primary: #f0f1fa;
-            --text-secondary: #cbd5e0;
-            --text-muted: #a0a8b8;
-            --border-color: #2d2f4a;
-            --card-bg: #22243e;
-            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            --card-shadow-hover: 0 10px 30px rgba(139, 111, 216, 0.15);
-            --header-bg: linear-gradient(135deg, #412886 0%, #2e1d5e 100%);
-            --sidebar-bg: #22243e;
-            --input-bg: #2a2c4a;
-            --input-border: #3d3f60;
+            --primary: #5ca7e1;
+            --primary-dark: #3b7fb2;
+            --primary-light: #8fc8f0;
+            --primary-soft: rgba(92, 167, 225, 0.2);
+            --primary-glow: rgba(92, 167, 225, 0.35);
+            --bg-primary: #101a27;
+            --bg-secondary: #142233;
+            --bg-tertiary: #1b2c40;
+            --text-primary: #e6eef7;
+            --text-secondary: #b4c5d8;
+            --text-muted: #8ea2b8;
+            --border-color: #24405a;
+            --card-bg: #172536;
+            --card-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
+            --card-shadow-hover: 0 16px 34px rgba(0, 0, 0, 0.44);
+            --header-bg: linear-gradient(122deg, #0d1622 0%, #0f2e49 55%, #1d4f79 100%);
+            --sidebar-bg: #172536;
+            --input-bg: #1b2c40;
+            --input-border: #2d4661;
             --success: #4ade80;
             --warning: #fbbf24;
             --danger: #f87171;
@@ -837,7 +1236,41 @@ function getOrgTypeBadge($type)
             background: var(--bg-secondary);
             color: var(--text-primary);
             min-height: 100vh;
+            min-height: 100dvh;
+            overflow-x: hidden;
             transition: background-color 0.3s ease, color 0.3s ease;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            background:
+                radial-gradient(circle at 100% 0%, rgba(47, 120, 183, 0.16) 0%, transparent 42%),
+                radial-gradient(circle at 0% 100%, rgba(15, 76, 129, 0.12) 0%, transparent 44%);
+        }
+
+        button,
+        .btn,
+        .nav-item,
+        .add-btn,
+        .logout-btn,
+        .action-btn,
+        .filter-btn,
+        .clear-filter {
+            min-height: 44px;
+        }
+
+        button:focus-visible,
+        a:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 3px solid var(--primary-glow);
+            outline-offset: 2px;
         }
 
         .theme-toggle {
@@ -875,12 +1308,13 @@ function getOrgTypeBadge($type)
         .header {
             background: var(--header-bg);
             color: white;
-            padding: 1rem 5%;
+            padding: calc(0.75rem + env(safe-area-inset-top, 0px)) calc(1rem + env(safe-area-inset-right, 0px)) 0.75rem calc(1rem + env(safe-area-inset-left, 0px));
             position: fixed;
             width: 100%;
             top: 0;
             z-index: 1000;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 28px rgba(8, 28, 47, 0.24);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
         }
 
         .header-content {
@@ -889,12 +1323,53 @@ function getOrgTypeBadge($type)
             align-items: center;
             max-width: 1400px;
             margin: 0 auto;
+            min-height: calc(var(--header-height) - 1.5rem);
+            gap: 12px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .menu-toggle {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            background: rgba(255, 255, 255, 0.14);
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.25s ease, transform 0.25s ease;
+        }
+
+        .menu-toggle:hover {
+            background: rgba(255, 255, 255, 0.24);
+            transform: translateY(-1px);
         }
 
         .logo {
             display: flex;
             align-items: center;
             gap: 15px;
+        }
+
+        .logo-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.15;
+        }
+
+        .app-subtitle {
+            font-size: 0.78rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            opacity: 0.82;
+            font-weight: 600;
         }
 
         .logo-icon {
@@ -912,8 +1387,10 @@ function getOrgTypeBadge($type)
         }
 
         .logo h2 {
+            font-family: 'Manrope', sans-serif;
             font-size: 1.3rem;
-            font-weight: 500;
+            font-weight: 700;
+            letter-spacing: 0.01em;
         }
 
         .user-menu {
@@ -930,6 +1407,7 @@ function getOrgTypeBadge($type)
             padding: 8px 20px;
             border-radius: 30px;
             backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         .user-avatar {
@@ -984,8 +1462,9 @@ function getOrgTypeBadge($type)
 
         .main-container {
             display: flex;
-            margin-top: 70px;
-            min-height: calc(100vh - 70px);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+            min-height: calc(100dvh - var(--header-height));
             max-width: 1400px;
             margin-left: auto;
             margin-right: auto;
@@ -997,15 +1476,35 @@ function getOrgTypeBadge($type)
             border-right: 1px solid var(--border-color);
             padding: 30px 0;
             position: fixed;
-            height: calc(100vh - 70px);
+            top: var(--header-height);
+            height: calc(100vh - var(--header-height));
+            height: calc(100dvh - var(--header-height));
             overflow-y: auto;
             transition: background-color 0.3s ease, border-color 0.3s ease;
+            padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+            box-shadow: 10px 0 28px rgba(8, 28, 47, 0.06);
+        }
+
+        .sidebar-backdrop {
+            position: fixed;
+            inset: var(--header-height) 0 0 0;
+            background: rgba(15, 23, 42, 0.45);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+            z-index: 1000;
+        }
+
+        .sidebar-backdrop.show {
+            opacity: 1;
+            pointer-events: auto;
         }
 
         .profile-section {
             text-align: center;
             padding: 0 20px 25px;
             border-bottom: 1px solid var(--border-color);
+            background: linear-gradient(180deg, var(--surface-soft) 0%, transparent 100%);
         }
 
         .profile-avatar {
@@ -1115,24 +1614,28 @@ function getOrgTypeBadge($type)
             padding: 12px 20px;
             color: var(--text-secondary);
             border-radius: 12px;
-            transition: 0.3s;
+            transition: all 0.25s ease;
             margin-bottom: 5px;
             cursor: pointer;
-            border: none;
+            border: 1px solid transparent;
             width: 100%;
             background: none;
             font-size: 0.95rem;
             text-align: left;
+            font-weight: 600;
         }
 
         .nav-item:hover {
             background: var(--primary-soft);
             color: var(--primary);
+            border-color: rgba(15, 76, 129, 0.22);
+            transform: translateX(2px);
         }
 
         .nav-item.active {
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
             color: white;
+            box-shadow: 0 10px 20px var(--primary-glow);
         }
 
         .nav-item i {
@@ -1144,6 +1647,7 @@ function getOrgTypeBadge($type)
             flex: 1;
             margin-left: 280px;
             padding: 30px;
+            padding-bottom: calc(30px + env(safe-area-inset-bottom, 0px));
         }
 
         .tab-content {
@@ -1158,11 +1662,12 @@ function getOrgTypeBadge($type)
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
             color: white;
             padding: 30px 35px;
-            border-radius: 20px;
+            border-radius: var(--radius-lg);
             margin-bottom: 30px;
             box-shadow: 0 10px 30px var(--primary-glow);
             position: relative;
             overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.18);
         }
 
         .welcome-banner::before {
@@ -1186,9 +1691,10 @@ function getOrgTypeBadge($type)
         }
 
         .welcome-banner h1 {
+            font-family: 'Manrope', sans-serif;
             font-size: 2rem;
             margin-bottom: 10px;
-            font-weight: 600;
+            font-weight: 800;
             position: relative;
         }
 
@@ -1218,18 +1724,27 @@ function getOrgTypeBadge($type)
         .stat-card {
             background: var(--card-bg);
             padding: 20px;
-            border-radius: 20px;
+            border-radius: var(--radius-md);
             box-shadow: var(--card-shadow);
             display: flex;
             align-items: center;
             gap: 15px;
-            transition: 0.3s;
+            transition: transform 0.24s ease, box-shadow 0.24s ease;
             border: 1px solid var(--border-color);
         }
 
         .stat-card:hover {
             transform: translateY(-5px);
             box-shadow: var(--card-shadow-hover);
+        }
+
+        .stat-card::before {
+            content: '';
+            width: 5px;
+            align-self: stretch;
+            border-radius: 8px;
+            background: linear-gradient(180deg, var(--primary-light) 0%, var(--primary-dark) 100%);
+            margin-right: 2px;
         }
 
         .stat-icon {
@@ -1275,12 +1790,25 @@ function getOrgTypeBadge($type)
 
         .section-card {
             background: var(--card-bg);
-            border-radius: 20px;
+            border-radius: var(--radius-md);
             padding: 25px;
             margin-bottom: 30px;
             box-shadow: var(--card-shadow);
             border: 1px solid var(--border-color);
             transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .section-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-dark) 0%, var(--primary) 55%, var(--primary-light) 100%);
+            opacity: 0.7;
         }
 
         .section-card:hover {
@@ -1298,8 +1826,9 @@ function getOrgTypeBadge($type)
 
         .section-header h2 {
             color: var(--text-primary);
+            font-family: 'Manrope', sans-serif;
             font-size: 1.4rem;
-            font-weight: 600;
+            font-weight: 700;
         }
 
         .section-header h2 i {
@@ -1308,7 +1837,7 @@ function getOrgTypeBadge($type)
         }
 
         .add-btn {
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
             color: white;
             border: none;
             padding: 10px 20px;
@@ -1336,14 +1865,14 @@ function getOrgTypeBadge($type)
             align-items: center;
             background: var(--bg-secondary);
             padding: 15px 20px;
-            border-radius: 50px;
+            border-radius: var(--radius-md);
             border: 1px solid var(--border-color);
         }
 
         .filter-select {
             padding: 10px 20px;
-            border: 2px solid var(--input-border);
-            border-radius: 30px;
+            border: 1px solid var(--input-border);
+            border-radius: 12px;
             background: var(--input-bg);
             color: var(--text-primary);
             font-size: 0.95rem;
@@ -1359,8 +1888,8 @@ function getOrgTypeBadge($type)
         .search-input {
             flex: 1;
             padding: 10px 20px;
-            border: 2px solid var(--input-border);
-            border-radius: 30px;
+            border: 1px solid var(--input-border);
+            border-radius: 12px;
             background: var(--input-bg);
             color: var(--text-primary);
             font-size: 0.95rem;
@@ -1413,7 +1942,9 @@ function getOrgTypeBadge($type)
 
         .table-responsive {
             overflow-x: auto;
-            border-radius: 15px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
         }
 
         table {
@@ -1428,6 +1959,11 @@ function getOrgTypeBadge($type)
             color: var(--primary);
             font-weight: 600;
             font-size: 0.95rem;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            backdrop-filter: blur(4px);
         }
 
         td {
@@ -1435,6 +1971,18 @@ function getOrgTypeBadge($type)
             border-bottom: 1px solid var(--border-color);
             color: var(--text-secondary);
             font-size: 0.95rem;
+        }
+
+        tbody tr {
+            transition: background-color 0.2s ease;
+        }
+
+        tbody tr:nth-child(even) {
+            background: var(--surface-soft);
+        }
+
+        tbody tr:hover {
+            background: rgba(15, 76, 129, 0.04);
         }
 
         .status-badge {
@@ -1531,6 +2079,7 @@ function getOrgTypeBadge($type)
             align-items: center;
             justify-content: center;
             font-size: 0.95rem;
+            border: 1px solid transparent;
         }
 
         .action-btn.approve {
@@ -1570,6 +2119,7 @@ function getOrgTypeBadge($type)
 
         .action-btn:hover {
             transform: translateY(-2px);
+            box-shadow: 0 8px 14px rgba(15, 76, 129, 0.16);
         }
 
         .action-btn:disabled {
@@ -1635,6 +2185,7 @@ function getOrgTypeBadge($type)
             align-items: center;
             gap: 10px;
             animation: slideIn 0.3s ease;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
         }
 
         @keyframes slideIn {
@@ -1652,12 +2203,14 @@ function getOrgTypeBadge($type)
             background: var(--success-soft);
             color: var(--success);
             border: 1px solid var(--success-soft);
+            border-left: 5px solid var(--success);
         }
 
         .alert-error {
             background: var(--danger-soft);
             color: var(--danger);
             border: 1px solid var(--danger-soft);
+            border-left: 5px solid var(--danger);
         }
 
         .empty-state {
@@ -1713,7 +2266,7 @@ function getOrgTypeBadge($type)
             width: 90%;
             max-height: 80vh;
             overflow-y: auto;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 24px 54px rgba(14, 31, 48, 0.32);
             border: 1px solid var(--border-color);
             animation: slideUp 0.3s ease;
         }
@@ -1739,7 +2292,7 @@ function getOrgTypeBadge($type)
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: linear-gradient(135deg, var(--primary-soft) 0%, transparent 100%);
+            background: linear-gradient(135deg, rgba(15, 76, 129, 0.16) 0%, transparent 100%);
             border-radius: 24px 24px 0 0;
         }
 
@@ -1820,7 +2373,7 @@ function getOrgTypeBadge($type)
         .form-control {
             width: 100%;
             padding: 12px 15px;
-            border: 2px solid var(--input-border);
+            border: 1px solid var(--input-border);
             border-radius: 12px;
             font-size: 0.95rem;
             transition: 0.3s;
@@ -2033,11 +2586,54 @@ function getOrgTypeBadge($type)
         }
 
         @media (max-width: 768px) {
+            :root {
+                --header-height: 74px;
+            }
+
+            .menu-toggle {
+                display: inline-flex;
+                flex-shrink: 0;
+            }
+
+            .logo {
+                gap: 10px;
+            }
+
+            .logo h2 {
+                font-size: 1.05rem;
+                white-space: nowrap;
+            }
+
+            .app-subtitle {
+                display: none;
+            }
+
+            .user-menu {
+                gap: 10px;
+            }
+
+            .user-info {
+                padding: 6px 10px;
+            }
+
+            .user-details {
+                display: none;
+            }
+
+            .logout-btn {
+                padding: 9px 14px;
+            }
+
             .sidebar {
                 transform: translateX(-100%);
-                position: absolute;
+                position: fixed;
+                top: var(--header-height);
+                left: 0;
+                width: min(82vw, 320px);
+                height: calc(100dvh - var(--header-height));
                 z-index: 1001;
-                transition: 0.3s;
+                transition: transform 0.3s ease;
+                box-shadow: 22px 0 45px rgba(2, 8, 23, 0.26);
             }
 
             .sidebar.show {
@@ -2052,15 +2648,35 @@ function getOrgTypeBadge($type)
                 grid-template-columns: 1fr;
             }
 
+            .section-card {
+                padding: 18px;
+                border-radius: 16px;
+            }
+
+            .section-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
             .filter-bar {
                 flex-direction: column;
-                border-radius: 20px;
+                border-radius: 16px;
+                padding: 14px;
             }
 
             .filter-bar select,
             .filter-bar input,
             .filter-bar button {
                 width: 100%;
+            }
+
+            .search-input {
+                min-width: 0;
+            }
+
+            .content-area {
+                padding: 16px;
             }
 
             .action-btns {
@@ -2078,6 +2694,48 @@ function getOrgTypeBadge($type)
             .student-info-grid {
                 grid-template-columns: 1fr;
             }
+
+            .theme-toggle {
+                right: calc(14px + env(safe-area-inset-right, 0px));
+                bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+            }
+        }
+
+        @media (max-width: 480px) {
+            .logo-icon {
+                width: 38px;
+                height: 38px;
+                font-size: 1rem;
+            }
+
+            .logout-btn {
+                padding: 8px 10px;
+                font-size: 0.86rem;
+            }
+
+            .welcome-banner {
+                padding: 20px;
+                border-radius: 16px;
+            }
+
+            .welcome-banner h1 {
+                font-size: 1.35rem;
+            }
+
+            .welcome-banner p {
+                font-size: 0.94rem;
+            }
+
+            .table-responsive {
+                border-radius: 12px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation: none !important;
+                transition: none !important;
+            }
         }
     </style>
 </head>
@@ -2088,11 +2746,19 @@ function getOrgTypeBadge($type)
 
     <header class="header">
         <div class="header-content">
-            <div class="logo">
-                <div class="logo-icon">
-                    <i class="fas fa-users"></i>
+            <div class="header-left">
+                <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebarMenu">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="logo">
+                    <div class="logo-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="logo-text">
+                        <h2>SAS Director Dashboard</h2>
+                        <span class="app-subtitle">BISU Online Clearance</span>
+                    </div>
                 </div>
-                <h2>SAS Director Dashboard</h2>
             </div>
             <div class="user-menu">
                 <div class="user-info">
@@ -2114,7 +2780,7 @@ function getOrgTypeBadge($type)
     </header>
 
     <div class="main-container">
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebarMenu">
             <div class="profile-section">
                 <div class="profile-avatar" id="avatarContainer">
                     <?php if (!empty($profile_pic) && file_exists('../' . $profile_pic)): ?>
@@ -2139,10 +2805,10 @@ function getOrgTypeBadge($type)
             </div>
 
             <nav class="nav-menu">
-                <button class="nav-item <?php echo $active_tab == 'dashboard' ? 'active' : ''; ?>" onclick="switchTab('dashboard')">
+                <button class="nav-item <?php echo $active_tab == 'dashboard' ? 'active' : ''; ?>" data-tab="dashboard" onclick="switchTab('dashboard', this)">
                     <i class="fas fa-tachometer-alt"></i> Dashboard
                 </button>
-                <button class="nav-item <?php echo $active_tab == 'clearances' ? 'active' : ''; ?>" onclick="switchTab('clearances')">
+                <button class="nav-item <?php echo $active_tab == 'clearances' ? 'active' : ''; ?>" data-tab="clearances" onclick="switchTab('clearances', this)">
                     <i class="fas fa-file-alt"></i> Clearances
                     <?php if (($stats['pending_count'] ?? 0) > 0): ?>
                         <span style="margin-left: auto; background: var(--warning); color: white; padding: 2px 8px; border-radius: 20px; font-size: 0.8rem;">
@@ -2150,17 +2816,18 @@ function getOrgTypeBadge($type)
                         </span>
                     <?php endif; ?>
                 </button>
-                <button class="nav-item <?php echo $active_tab == 'organizations' ? 'active' : ''; ?>" onclick="switchTab('organizations')">
+                <button class="nav-item <?php echo $active_tab == 'organizations' ? 'active' : ''; ?>" data-tab="organizations" onclick="switchTab('organizations', this)">
                     <i class="fas fa-users"></i> Organizations
                 </button>
-                <button class="nav-item <?php echo $active_tab == 'staff' ? 'active' : ''; ?>" onclick="switchTab('staff')">
+                <button class="nav-item <?php echo $active_tab == 'staff' ? 'active' : ''; ?>" data-tab="staff" onclick="switchTab('staff', this)">
                     <i class="fas fa-user-tie"></i> Staff
                 </button>
-                <button class="nav-item <?php echo $active_tab == 'history' ? 'active' : ''; ?>" onclick="switchTab('history')">
+                <button class="nav-item <?php echo $active_tab == 'history' ? 'active' : ''; ?>" data-tab="history" onclick="switchTab('history', this)">
                     <i class="fas fa-history"></i> Clearance History
                 </button>
             </nav>
         </aside>
+        <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
 
         <main class="content-area">
             <?php if (!empty($success)): ?>
@@ -2327,6 +2994,7 @@ function getOrgTypeBadge($type)
                                         <?php
                                         $all_orgs_approved = ($clearance['approved_orgs'] == $clearance['total_orgs'] && $clearance['total_orgs'] > 0);
                                         $org_status_text = $clearance['approved_orgs'] . '/' . $clearance['total_orgs'] . ' organizations';
+                                        $remaining_orgs = max(0, (int) $clearance['total_orgs'] - (int) $clearance['approved_orgs']);
                                         ?>
                                         <tr data-type="<?php echo $clearance['clearance_type']; ?>"
                                             data-semester="<?php echo $clearance['semester']; ?>"
@@ -2342,11 +3010,9 @@ function getOrgTypeBadge($type)
                                                 <span class="org-status <?php echo $all_orgs_approved ? 'completed' : 'pending'; ?>">
                                                     <?php echo $org_status_text; ?>
                                                 </span>
-                                                <?php if (!$all_orgs_approved): ?>
-                                                    <div class="org-progress">
-                                                        Waiting for organization approvals
-                                                    </div>
-                                                <?php endif; ?>
+                                                <div class="org-progress">
+                                                    <?php echo $all_orgs_approved ? 'Ready for SAS approval' : ($remaining_orgs . ' organization approval(s) remaining'); ?>
+                                                </div>
                                             </td>
                                             <td>
                                                 <div class="progress-indicator">
@@ -2376,7 +3042,7 @@ function getOrgTypeBadge($type)
                                                         <i class="fas fa-paperclip"></i>
                                                     </button>
                                                     <button class="action-btn view"
-                                                        onclick="viewClearanceDetails(<?php echo $clearance['clearance_id']; ?>, '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo $clearance['ismis_id']; ?>', '<?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?>', '<?php echo htmlspecialchars($clearance['college_name'] ?? 'N/A'); ?>', '<?php echo $clearance['address'] ?? ''; ?>', '<?php echo $clearance['contacts'] ?? ''; ?>', '<?php echo $clearance['age'] ?? ''; ?>', <?php echo $clearance['approved_orgs']; ?>, <?php echo $clearance['total_orgs']; ?>)">
+                                                        onclick="viewClearanceDetails(<?php echo $clearance['clearance_id']; ?>, '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo $clearance['ismis_id']; ?>', '<?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?>', '<?php echo htmlspecialchars($clearance['college_name'] ?? 'N/A'); ?>', '<?php echo $clearance['address'] ?? ''; ?>', '<?php echo $clearance['contacts'] ?? ''; ?>', '<?php echo $clearance['age'] ?? ''; ?>', <?php echo $clearance['approved_orgs']; ?>, <?php echo $clearance['total_orgs']; ?>, '<?php echo htmlspecialchars($clearance['librarian_status'] ?? 'pending', ENT_QUOTES); ?>')">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
                                                 </div>
@@ -2546,7 +3212,13 @@ function getOrgTypeBadge($type)
                                                             <i class="fas fa-power-off"></i>
                                                         </button>
                                                     </form>
-                                                    <button class="action-btn edit" onclick="editOrg(<?php echo $org['org_id']; ?>)">
+                                                    <button class="action-btn edit"
+                                                        data-org-id="<?php echo $org['org_id']; ?>"
+                                                        data-org-name="<?php echo htmlspecialchars($org['org_name'] ?? '', ENT_QUOTES); ?>"
+                                                        data-org-type="<?php echo htmlspecialchars($org['org_type'] ?? '', ENT_QUOTES); ?>"
+                                                        data-org-email="<?php echo htmlspecialchars($org['org_email'] ?? '', ENT_QUOTES); ?>"
+                                                        data-org-status="<?php echo htmlspecialchars($org['status'] ?? 'active', ENT_QUOTES); ?>"
+                                                        onclick="editOrg(this)">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
                                                     <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this organization?');">
@@ -2618,12 +3290,21 @@ function getOrgTypeBadge($type)
                                             <td><span class="status-badge status-approved">Active</span></td>
                                             <td>
                                                 <div class="action-btns">
-                                                    <button class="action-btn edit" onclick="editStaff(<?php echo $staff['users_id']; ?>)">
+                                                    <button class="action-btn edit"
+                                                        data-staff-id="<?php echo $staff['users_id']; ?>"
+                                                        data-fname="<?php echo htmlspecialchars($staff['fname'] ?? '', ENT_QUOTES); ?>"
+                                                        data-lname="<?php echo htmlspecialchars($staff['lname'] ?? '', ENT_QUOTES); ?>"
+                                                        data-email="<?php echo htmlspecialchars($staff['emails'] ?? '', ENT_QUOTES); ?>"
+                                                        data-assignment="<?php echo htmlspecialchars($staff['assignment'] ?? '', ENT_QUOTES); ?>"
+                                                        onclick="editStaff(this)">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
-                                                    <button class="action-btn delete" onclick="deleteStaff(<?php echo $staff['users_id']; ?>)">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
+                                                    <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this staff member?');">
+                                                        <input type="hidden" name="staff_id" value="<?php echo $staff['users_id']; ?>">
+                                                        <button type="submit" name="delete_staff" class="action-btn delete">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </form>
                                                 </div>
                                             </td>
                                         </tr>
@@ -2698,6 +3379,59 @@ function getOrgTypeBadge($type)
         </div>
     </div>
 
+    <!-- Edit Organization Modal -->
+    <div id="editOrgModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-pen"></i> Edit Organization</h3>
+                <button class="close-btn" onclick="closeEditOrgModal()">&times;</button>
+            </div>
+            <form method="POST" action="">
+                <div class="modal-body">
+                    <input type="hidden" name="org_id" id="editOrgId">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label><i class="fas fa-tag"></i> Organization Name <span class="required">*</span></label>
+                            <input type="text" name="org_name" id="editOrgName" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-tasks"></i> Type <span class="required">*</span></label>
+                            <select name="org_type" id="editOrgType" class="form-control" required>
+                                <option value="clinic">Clinic</option>
+                                <option value="town">Town Organization</option>
+                                <option value="college">College Organization</option>
+                                <option value="ssg">Supreme Student Government</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-envelope"></i> Email <span class="required">*</span></label>
+                            <input type="email" name="org_email" id="editOrgEmail" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-toggle-on"></i> Status <span class="required">*</span></label>
+                            <select name="org_status" id="editOrgStatus" class="form-control" required>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-lock"></i> New Password (Optional)</label>
+                            <div class="password-field">
+                                <input type="password" name="org_password" id="editOrgPassword" class="form-control" placeholder="Leave blank to keep current password">
+                                <i class="fas fa-eye password-toggle" onclick="togglePassword('editOrgPassword', this)"></i>
+                            </div>
+                            <small style="color: var(--text-muted);">At least 8 characters when changing password.</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditOrgModal()">Cancel</button>
+                    <button type="submit" name="update_organization" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Add Staff Modal -->
     <div id="staffModal" class="modal">
         <div class="modal-content">
@@ -2743,6 +3477,56 @@ function getOrgTypeBadge($type)
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeStaffModal()">Cancel</button>
                     <button type="submit" name="add_staff" class="btn btn-primary">Create Staff</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Staff Modal -->
+    <div id="editStaffModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-edit"></i> Edit Staff</h3>
+                <button class="close-btn" onclick="closeEditStaffModal()">&times;</button>
+            </div>
+            <form method="POST" action="">
+                <div class="modal-body">
+                    <input type="hidden" name="staff_id" id="editStaffId">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label><i class="fas fa-user"></i> First Name <span class="required">*</span></label>
+                            <input type="text" name="fname" id="editStaffFname" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-user"></i> Last Name <span class="required">*</span></label>
+                            <input type="text" name="lname" id="editStaffLname" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-envelope"></i> Email <span class="required">*</span></label>
+                            <input type="email" name="email" id="editStaffEmail" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-briefcase"></i> Assignment <span class="required">*</span></label>
+                            <select name="assignment" id="editStaffAssignment" class="form-control" required>
+                                <option value="clinic">Clinic</option>
+                                <option value="town_org">Town Organizations</option>
+                                <option value="college_org">College Organizations</option>
+                                <option value="ssg">Supreme Student Government</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-lock"></i> New Password (Optional)</label>
+                            <div class="password-field">
+                                <input type="password" name="password" id="editStaffPassword" class="form-control" placeholder="Leave blank to keep current password">
+                                <i class="fas fa-eye password-toggle" onclick="togglePassword('editStaffPassword', this)"></i>
+                            </div>
+                            <small style="color: var(--text-muted);">At least 8 characters when changing password.</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditStaffModal()">Cancel</button>
+                    <button type="submit" name="update_staff" class="btn btn-primary">Save Changes</button>
                 </div>
             </form>
         </div>
@@ -2867,17 +3651,63 @@ function getOrgTypeBadge($type)
             }
         });
 
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebarMenu');
+        const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
+        function closeSidebar() {
+            if (!sidebar) return;
+            sidebar.classList.remove('show');
+            if (sidebarBackdrop) {
+                sidebarBackdrop.classList.remove('show');
+            }
+            if (menuToggle) {
+                menuToggle.setAttribute('aria-expanded', 'false');
+            }
+        }
+
+        if (menuToggle && sidebar) {
+            menuToggle.addEventListener('click', () => {
+                const isOpen = sidebar.classList.toggle('show');
+                if (sidebarBackdrop) {
+                    sidebarBackdrop.classList.toggle('show', isOpen);
+                }
+                menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            });
+        }
+
+        if (sidebarBackdrop) {
+            sidebarBackdrop.addEventListener('click', closeSidebar);
+        }
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                closeSidebar();
+            }
+        });
+
         // Tab switching
-        function switchTab(tabName) {
+        function switchTab(tabName, triggerElement = null) {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-            document.getElementById(tabName).classList.add('active');
+            const tabPanel = document.getElementById(tabName);
+            if (!tabPanel) {
+                return;
+            }
+            tabPanel.classList.add('active');
 
             document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-            event.target.closest('.nav-item').classList.add('active');
+            const activeNav = triggerElement || document.querySelector(`.nav-item[data-tab="${tabName}"]`);
+            if (activeNav) {
+                activeNav.classList.add('active');
+            }
 
             const url = new URL(window.location);
             url.searchParams.set('tab', tabName);
             window.history.pushState({}, '', url);
+
+            if (window.innerWidth <= 768) {
+                closeSidebar();
+            }
         }
 
         // Modal functions
@@ -2895,6 +3725,14 @@ function getOrgTypeBadge($type)
 
         function closeStaffModal() {
             document.getElementById('staffModal').style.display = 'none';
+        }
+
+        function closeEditOrgModal() {
+            document.getElementById('editOrgModal').style.display = 'none';
+        }
+
+        function closeEditStaffModal() {
+            document.getElementById('editStaffModal').style.display = 'none';
         }
 
         function openApproveModal(clearanceId) {
@@ -2929,12 +3767,14 @@ function getOrgTypeBadge($type)
         }
 
         // View Clearance Details
-        function viewClearanceDetails(clearanceId, studentName, studentId, course, college, address, contact, age, approvedOrgs, totalOrgs) {
+        function viewClearanceDetails(clearanceId, studentName, studentId, course, college, address, contact, age, approvedOrgs, totalOrgs, librarianStatus) {
             const modal = document.getElementById('detailsModal');
             const modalBody = document.getElementById('detailsModalBody');
 
             const allOrgsApproved = (approvedOrgs == totalOrgs && totalOrgs > 0);
             const orgStatusText = approvedOrgs + '/' + totalOrgs + ' organizations approved';
+            const normalizedLibrarianStatus = (librarianStatus || 'pending').toLowerCase();
+            const librarianApproved = normalizedLibrarianStatus === 'approved';
 
             modalBody.innerHTML = `
                 <div style="display: flex; flex-direction: column; gap: 20px;">
@@ -2995,10 +3835,10 @@ function getOrgTypeBadge($type)
                         </h4>
                         <div style="display: flex; flex-direction: column; gap: 10px;">
                             <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px;">
-                                <span class="status-badge status-approved" style="width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                                    <i class="fas fa-check"></i>
+                                <span class="status-badge ${librarianApproved ? 'status-approved' : 'status-pending'}" style="width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                    ${librarianApproved ? '<i class="fas fa-check"></i>' : '<i class="fas fa-clock"></i>'}
                                 </span>
-                                <span style="flex: 1;">Librarian - Approved</span>
+                                <span style="flex: 1;">Librarian - ${librarianApproved ? 'Approved' : 'Pending'}</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px;">
                                 <span class="status-badge ${allOrgsApproved ? 'status-approved' : 'status-pending'}" style="width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
@@ -3089,15 +3929,15 @@ function getOrgTypeBadge($type)
         });
 
         // Close modals when clicking outside
-        window.onclick = function (event) {
-            const modals = ['orgModal', 'staffModal', 'approveModal', 'rejectModal', 'proofModal', 'detailsModal'];
+        window.addEventListener('click', function (event) {
+            const modals = ['orgModal', 'editOrgModal', 'staffModal', 'editStaffModal', 'approveModal', 'rejectModal', 'proofModal', 'detailsModal'];
             modals.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (event.target == modal) {
                     modal.style.display = 'none';
                 }
             });
-        }
+        });
 
         // Filter Functions
         function filterClearances() {
@@ -3204,19 +4044,25 @@ function getOrgTypeBadge($type)
             rows.forEach(row => row.style.display = '');
         }
 
-        // Edit functions (placeholder)
-        function editOrg(orgId) {
-            alert('Edit organization feature coming soon. ID: ' + orgId);
+        // Edit organization and staff
+        function editOrg(button) {
+            document.getElementById('editOrgId').value = button.getAttribute('data-org-id') || '';
+            document.getElementById('editOrgName').value = button.getAttribute('data-org-name') || '';
+            document.getElementById('editOrgType').value = button.getAttribute('data-org-type') || 'clinic';
+            document.getElementById('editOrgEmail').value = button.getAttribute('data-org-email') || '';
+            document.getElementById('editOrgStatus').value = button.getAttribute('data-org-status') || 'active';
+            document.getElementById('editOrgPassword').value = '';
+            document.getElementById('editOrgModal').style.display = 'flex';
         }
 
-        function editStaff(staffId) {
-            alert('Edit staff feature coming soon. ID: ' + staffId);
-        }
-
-        function deleteStaff(staffId) {
-            if (confirm('Are you sure you want to delete this staff member?')) {
-                alert('Delete staff feature coming soon. ID: ' + staffId);
-            }
+        function editStaff(button) {
+            document.getElementById('editStaffId').value = button.getAttribute('data-staff-id') || '';
+            document.getElementById('editStaffFname').value = button.getAttribute('data-fname') || '';
+            document.getElementById('editStaffLname').value = button.getAttribute('data-lname') || '';
+            document.getElementById('editStaffEmail').value = button.getAttribute('data-email') || '';
+            document.getElementById('editStaffAssignment').value = button.getAttribute('data-assignment') || 'clinic';
+            document.getElementById('editStaffPassword').value = '';
+            document.getElementById('editStaffModal').style.display = 'flex';
         }
 
         // Avatar upload

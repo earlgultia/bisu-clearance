@@ -7,10 +7,17 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Enable error reporting for debugging (remove in production)
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+// Enable verbose errors only in development.
+$isDevelopmentEnvironment = file_exists(__DIR__ . '/../.env');
+if ($isDevelopmentEnvironment) {
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+    error_reporting(E_ALL);
+} else {
+    ini_set('display_errors', 0);
+    ini_set('display_startup_errors', 0);
+    error_reporting(0);
+}
 
 // Include database configuration with correct path
 require_once __DIR__ . '/../db.php';
@@ -28,6 +35,36 @@ if ($_SESSION['user_role'] !== 'student') {
 
 // Get database instance
 $db = Database::getInstance();
+$runStudentSchemaMaintenance = shouldRunMaintenanceTask('student_dashboard_schema_migrations', 21600);
+
+function ensureOrganizationProofColumns($db)
+{
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    if (!shouldRunMaintenanceTask('organization_clearance_student_proof_columns', 21600)) {
+        return;
+    }
+
+    try {
+        if (!hasDatabaseColumn('organization_clearance', 'student_proof_file')) {
+            $db->query("ALTER TABLE organization_clearance
+                        ADD COLUMN student_proof_file VARCHAR(255) NULL AFTER remarks,
+                        ADD COLUMN student_proof_remarks TEXT NULL AFTER student_proof_file,
+                        ADD COLUMN student_proof_uploaded_at DATETIME NULL AFTER student_proof_remarks");
+            $db->execute();
+        }
+    } catch (Exception $e) {
+        error_log("Error ensuring organization proof columns: " . $e->getMessage());
+    }
+}
+
+ensureOrganizationProofColumns($db);
 
 // Get student information from session
 $student_id = $_SESSION['user_id'];
@@ -56,16 +93,1048 @@ if ($current_month >= 6 && $current_month <= 10) {
 }
 $school_year = ($current_month >= 6 ? $current_year . '-' . ($current_year + 1) : ($current_year - 1) . '-' . $current_year);
 $semesters = ['1st Semester', '2nd Semester', 'Summer'];
+$student_contacts = [];
+$student_messages = [];
+$inbox_messages = [];
+$sent_messages = [];
+$selected_chat_id = 0;
+$selected_chat_friend = null;
+$selected_conversation_messages = [];
+$conversation_map = [];
+$friends_by_id = [];
+$unread_message_count = 0;
+$student_friends = [];
+$incoming_friend_requests = [];
+$outgoing_friend_requests = [];
+$incoming_friend_request_count = 0;
+$message_tab_notification_count = 0;
+$message_reactions_map = [];
+$allowed_message_reactions = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+$reply_to_message_prefill_id = 0;
+$reply_preview_message = null;
+$selected_chat_friend_label = null;
+$selected_chat_friend_base_name = null;
+
+function buildMessageSnippet($text, $maxChars = 120, $collapseWhitespace = true)
+{
+    $snippet = (string) $text;
+
+    if ($collapseWhitespace) {
+        $snippet = preg_replace('/\s+/', ' ', $snippet);
+    }
+
+    $snippet = trim((string) $snippet);
+    if ($snippet === '') {
+        return '';
+    }
+
+    $maxChars = (int) $maxChars;
+    if ($maxChars <= 3) {
+        return $snippet;
+    }
+
+    $length = function_exists('mb_strlen') ? mb_strlen($snippet, 'UTF-8') : strlen($snippet);
+    if ($length <= $maxChars) {
+        return $snippet;
+    }
+
+    $trimLength = $maxChars - 3;
+    $trimmed = function_exists('mb_substr')
+        ? mb_substr($snippet, 0, $trimLength, 'UTF-8')
+        : substr($snippet, 0, $trimLength);
+
+    return rtrim((string) $trimmed) . '...';
+}
+
+function ensureStudentMessageAttachmentColumns($db)
+{
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    if (!shouldRunMaintenanceTask('student_messages_attachment_columns', 21600)) {
+        return;
+    }
+
+    $attachment_columns = [
+        'attachment_file' => "ALTER TABLE student_messages ADD COLUMN attachment_file VARCHAR(255) NULL",
+        'attachment_name' => "ALTER TABLE student_messages ADD COLUMN attachment_name VARCHAR(255) NULL",
+        'attachment_type' => "ALTER TABLE student_messages ADD COLUMN attachment_type VARCHAR(30) NULL",
+        'attachment_size' => "ALTER TABLE student_messages ADD COLUMN attachment_size INT NULL"
+    ];
+
+    foreach ($attachment_columns as $column_name => $alter_sql) {
+        try {
+            if (!hasDatabaseColumn('student_messages', $column_name)) {
+                $db->query($alter_sql);
+                $db->execute();
+            }
+        } catch (Exception $e) {
+            error_log("Error ensuring student_messages {$column_name} column: " . $e->getMessage());
+        }
+    }
+}
+
+if ($runStudentSchemaMaintenance) {
+// Ensure student messaging table exists.
+try {
+    $db->query("CREATE TABLE IF NOT EXISTS student_messages (
+                message_id INT AUTO_INCREMENT PRIMARY KEY,
+                sender_id INT NOT NULL,
+                recipient_id INT NOT NULL,
+                message_body TEXT NOT NULL,
+                reply_to_message_id INT NULL DEFAULT NULL,
+                sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                read_at DATETIME NULL DEFAULT NULL,
+                INDEX idx_recipient_read (recipient_id, read_at),
+                INDEX idx_participants (sender_id, recipient_id),
+                INDEX idx_sent_at (sent_at),
+                INDEX idx_reply_to_message (reply_to_message_id),
+                CONSTRAINT fk_student_messages_sender FOREIGN KEY (sender_id) REFERENCES users(users_id) ON DELETE CASCADE,
+                CONSTRAINT fk_student_messages_recipient FOREIGN KEY (recipient_id) REFERENCES users(users_id) ON DELETE CASCADE,
+                CONSTRAINT fk_student_messages_reply FOREIGN KEY (reply_to_message_id) REFERENCES student_messages(message_id) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $db->execute();
+} catch (Exception $e) {
+    error_log("Error ensuring student_messages table with foreign keys: " . $e->getMessage());
+
+    // Fallback for legacy environments where FK constraints cannot be created.
+    try {
+        $db->query("CREATE TABLE IF NOT EXISTS student_messages (
+                    message_id INT AUTO_INCREMENT PRIMARY KEY,
+                    sender_id INT NOT NULL,
+                    recipient_id INT NOT NULL,
+                    message_body TEXT NOT NULL,
+                    reply_to_message_id INT NULL DEFAULT NULL,
+                    sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    read_at DATETIME NULL DEFAULT NULL,
+                    INDEX idx_recipient_read (recipient_id, read_at),
+                    INDEX idx_participants (sender_id, recipient_id),
+                    INDEX idx_sent_at (sent_at),
+                    INDEX idx_reply_to_message (reply_to_message_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $db->execute();
+    } catch (Exception $fallback_exception) {
+        error_log("Error ensuring student_messages fallback table: " . $fallback_exception->getMessage());
+    }
+}
+
+// Backward-compatible migration for reply support on student messages.
+try {
+    if (!hasDatabaseColumn('student_messages', 'reply_to_message_id')) {
+        $db->query("ALTER TABLE student_messages ADD COLUMN reply_to_message_id INT NULL DEFAULT NULL AFTER message_body");
+        $db->execute();
+
+        $db->query("ALTER TABLE student_messages ADD INDEX idx_reply_to_message (reply_to_message_id)");
+        $db->execute();
+    }
+} catch (Exception $e) {
+    error_log("Error ensuring student_messages reply_to_message_id column: " . $e->getMessage());
+}
+
+ensureStudentMessageAttachmentColumns($db);
+
+// Add missing indexes for frequently polled messaging queries.
+try {
+    $db->query("SHOW INDEX FROM student_messages WHERE Key_name = 'idx_recipient_read_sent'");
+    if (!$db->single()) {
+        $db->query("ALTER TABLE student_messages ADD INDEX idx_recipient_read_sent (recipient_id, read_at, sent_at)");
+        $db->execute();
+    }
+} catch (Exception $e) {
+    error_log("Error ensuring student_messages idx_recipient_read_sent index: " . $e->getMessage());
+}
+
+// Ensure student friendship table exists.
+try {
+    $db->query("CREATE TABLE IF NOT EXISTS student_friendships (
+                friendship_id INT AUTO_INCREMENT PRIMARY KEY,
+                user_one_id INT NOT NULL,
+                user_two_id INT NOT NULL,
+                requested_by INT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'accepted',
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                accepted_at DATETIME NULL DEFAULT NULL,
+                UNIQUE KEY uniq_friend_pair (user_one_id, user_two_id),
+                INDEX idx_user_one (user_one_id),
+                INDEX idx_user_two (user_two_id),
+                CONSTRAINT fk_friend_user_one FOREIGN KEY (user_one_id) REFERENCES users(users_id) ON DELETE CASCADE,
+                CONSTRAINT fk_friend_user_two FOREIGN KEY (user_two_id) REFERENCES users(users_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $db->execute();
+
+    // Backward-compatible migration for existing installs.
+    $db->query("SHOW COLUMNS FROM student_friendships LIKE 'requested_by'");
+    if (!$db->single()) {
+        $db->query("ALTER TABLE student_friendships ADD COLUMN requested_by INT NULL AFTER user_two_id");
+        $db->execute();
+    }
+
+    $db->query("SHOW COLUMNS FROM student_friendships LIKE 'status'");
+    if (!$db->single()) {
+        $db->query("ALTER TABLE student_friendships ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'accepted' AFTER requested_by");
+        $db->execute();
+    }
+
+    $db->query("SHOW COLUMNS FROM student_friendships LIKE 'accepted_at'");
+    if (!$db->single()) {
+        $db->query("ALTER TABLE student_friendships ADD COLUMN accepted_at DATETIME NULL DEFAULT NULL AFTER created_at");
+        $db->execute();
+    }
+} catch (Exception $e) {
+    error_log("Error ensuring student_friendships table with foreign keys: " . $e->getMessage());
+
+    // Fallback for legacy environments where FK constraints cannot be created.
+    try {
+        $db->query("CREATE TABLE IF NOT EXISTS student_friendships (
+                    friendship_id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_one_id INT NOT NULL,
+                    user_two_id INT NOT NULL,
+                    requested_by INT NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'accepted',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    accepted_at DATETIME NULL DEFAULT NULL,
+                    UNIQUE KEY uniq_friend_pair (user_one_id, user_two_id),
+                    INDEX idx_user_one (user_one_id),
+                    INDEX idx_user_two (user_two_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $db->execute();
+    } catch (Exception $fallback_exception) {
+        error_log("Error ensuring student_friendships fallback table: " . $fallback_exception->getMessage());
+    }
+}
+
+try {
+    $db->query("SHOW INDEX FROM student_friendships WHERE Key_name = 'idx_status_requested'");
+    if (!$db->single()) {
+        $db->query("ALTER TABLE student_friendships ADD INDEX idx_status_requested (status, requested_by)");
+        $db->execute();
+    }
+} catch (Exception $e) {
+    error_log("Error ensuring student_friendships idx_status_requested index: " . $e->getMessage());
+}
+
+// Ensure message reactions table exists.
+try {
+    $db->query("CREATE TABLE IF NOT EXISTS student_message_reactions (
+                reaction_id INT AUTO_INCREMENT PRIMARY KEY,
+                message_id INT NOT NULL,
+                reactor_id INT NOT NULL,
+                reaction_emoji VARCHAR(16) NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_message_reactor (message_id, reactor_id),
+                INDEX idx_message_reaction (message_id),
+                INDEX idx_reactor (reactor_id),
+                CONSTRAINT fk_message_reactions_message FOREIGN KEY (message_id) REFERENCES student_messages(message_id) ON DELETE CASCADE,
+                CONSTRAINT fk_message_reactions_reactor FOREIGN KEY (reactor_id) REFERENCES users(users_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $db->execute();
+} catch (Exception $e) {
+    error_log("Error ensuring student_message_reactions table with foreign keys: " . $e->getMessage());
+
+    try {
+        $db->query("CREATE TABLE IF NOT EXISTS student_message_reactions (
+                    reaction_id INT AUTO_INCREMENT PRIMARY KEY,
+                    message_id INT NOT NULL,
+                    reactor_id INT NOT NULL,
+                    reaction_emoji VARCHAR(16) NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uniq_message_reactor (message_id, reactor_id),
+                    INDEX idx_message_reaction (message_id),
+                    INDEX idx_reactor (reactor_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $db->execute();
+    } catch (Exception $fallback_exception) {
+        error_log("Error ensuring student_message_reactions fallback table: " . $fallback_exception->getMessage());
+    }
+}
+
+// Ensure per-friend nicknames table exists.
+try {
+    $db->query("CREATE TABLE IF NOT EXISTS student_friend_nicknames (
+                nickname_id INT AUTO_INCREMENT PRIMARY KEY,
+                owner_id INT NOT NULL,
+                friend_id INT NOT NULL,
+                nickname VARCHAR(60) NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_owner_friend (owner_id, friend_id),
+                INDEX idx_owner (owner_id),
+                INDEX idx_friend (friend_id),
+                CONSTRAINT fk_friend_nickname_owner FOREIGN KEY (owner_id) REFERENCES users(users_id) ON DELETE CASCADE,
+                CONSTRAINT fk_friend_nickname_friend FOREIGN KEY (friend_id) REFERENCES users(users_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $db->execute();
+} catch (Exception $e) {
+    error_log("Error ensuring student_friend_nicknames table with foreign keys: " . $e->getMessage());
+
+    try {
+        $db->query("CREATE TABLE IF NOT EXISTS student_friend_nicknames (
+                    nickname_id INT AUTO_INCREMENT PRIMARY KEY,
+                    owner_id INT NOT NULL,
+                    friend_id INT NOT NULL,
+                    nickname VARCHAR(60) NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uniq_owner_friend (owner_id, friend_id),
+                    INDEX idx_owner (owner_id),
+                    INDEX idx_friend (friend_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $db->execute();
+    } catch (Exception $fallback_exception) {
+        error_log("Error ensuring student_friend_nicknames fallback table: " . $fallback_exception->getMessage());
+    }
+}
+}
+
+// Lightweight JSON endpoint for live message notifications.
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'message_notifications') {
+    header('Content-Type: application/json');
+
+    $response = [
+        'success' => true,
+        'unread_count' => 0,
+        'pending_request_count' => 0,
+        'notification_count' => 0,
+        'latest_sender' => null,
+        'latest_message' => null,
+        'latest_sent_at' => null,
+        'latest_office_comment_at' => null,
+        'latest_office_comment' => null,
+        'latest_office_name' => null,
+        'latest_org_comment_at' => null,
+        'latest_org_comment' => null,
+        'latest_org_name' => null
+    ];
+
+    try {
+        $db->query("SELECT COUNT(*) AS unread_count
+                    FROM student_messages sm
+                    INNER JOIN student_friendships sf
+                        ON sf.user_one_id = LEAST(sm.sender_id, sm.recipient_id)
+                       AND sf.user_two_id = GREATEST(sm.sender_id, sm.recipient_id)
+                    WHERE sm.recipient_id = :user_id
+                      AND sm.read_at IS NULL
+                      AND sf.status = 'accepted'");
+        $db->bind(':user_id', $student_id);
+        $row = $db->single();
+        $response['unread_count'] = (int) ($row['unread_count'] ?? 0);
+
+        $db->query("SELECT COUNT(*) AS pending_request_count
+                    FROM student_friendships sf
+                    WHERE sf.status = 'pending'
+                      AND sf.requested_by != :viewer_id_req
+                      AND (sf.user_one_id = :viewer_id_one OR sf.user_two_id = :viewer_id_two)");
+        $db->bind(':viewer_id_req', $student_id);
+        $db->bind(':viewer_id_one', $student_id);
+        $db->bind(':viewer_id_two', $student_id);
+        $pending_row = $db->single();
+        $response['pending_request_count'] = (int) ($pending_row['pending_request_count'] ?? 0);
+        $response['notification_count'] = $response['unread_count'] + $response['pending_request_count'];
+
+        if ($response['unread_count'] > 0) {
+            $db->query("SELECT sm.message_body,
+                            sm.attachment_name,
+                            sm.sent_at,
+                            COALESCE(
+                                NULLIF(TRIM(CONCAT(COALESCE(u.fname, ''), ' ', COALESCE(u.lname, ''))), ''),
+                                u.emails,
+                                CONCAT('Student #', u.users_id)
+                            ) AS sender_name
+                        FROM student_messages sm
+                        INNER JOIN users u ON u.users_id = sm.sender_id
+                        INNER JOIN user_role ur ON ur.user_role_id = u.user_role_id AND ur.user_role_name = 'student'
+                        INNER JOIN student_friendships sf
+                            ON sf.user_one_id = LEAST(sm.sender_id, sm.recipient_id)
+                           AND sf.user_two_id = GREATEST(sm.sender_id, sm.recipient_id)
+                        WHERE sm.recipient_id = :user_id
+                          AND sm.read_at IS NULL
+                          AND sf.status = 'accepted'
+                        ORDER BY sm.sent_at DESC
+                        LIMIT 1");
+            $db->bind(':user_id', $student_id);
+            $latest = $db->single();
+
+            if ($latest) {
+                $response['latest_sender'] = $latest['sender_name'] ?? null;
+                $latest_message_preview = buildMessageSnippet($latest['message_body'] ?? '', 120, true);
+                if ($latest_message_preview === '' && !empty($latest['attachment_name'])) {
+                    $latest_message_preview = '[Attachment] ' . buildMessageSnippet($latest['attachment_name'], 80, false);
+                }
+                $response['latest_message'] = $latest_message_preview !== '' ? $latest_message_preview : null;
+                $response['latest_sent_at'] = $latest['sent_at'] ?? null;
+            }
+        }
+    } catch (Exception $e) {
+        $response['success'] = false;
+        $response['error'] = 'Unable to load notifications';
+        error_log("Message notification endpoint error: " . $e->getMessage());
+    }
+
+    // Load non-messaging notification metadata without breaking message polling.
+    if ($response['success']) {
+        try {
+            $db->query("SELECT
+                            c.lacking_comment,
+                            c.lacking_comment_at,
+                            COALESCE(o.office_name, 'Office') AS office_name
+                        FROM clearance c
+                        LEFT JOIN offices o ON o.office_id = c.office_id
+                        WHERE c.users_id = :comment_user_id
+                          AND c.lacking_comment_at IS NOT NULL
+                          AND c.lacking_comment IS NOT NULL
+                          AND TRIM(c.lacking_comment) <> ''
+                        ORDER BY c.lacking_comment_at DESC
+                        LIMIT 1");
+            $db->bind(':comment_user_id', $student_id);
+            $latest_office_comment = $db->single();
+
+            if ($latest_office_comment) {
+                $response['latest_office_comment_at'] = $latest_office_comment['lacking_comment_at'] ?? null;
+                $office_comment_preview = buildMessageSnippet($latest_office_comment['lacking_comment'] ?? '', 140, true);
+                $response['latest_office_comment'] = $office_comment_preview !== '' ? $office_comment_preview : null;
+                $response['latest_office_name'] = $latest_office_comment['office_name'] ?? 'Office';
+            }
+        } catch (Exception $e) {
+            error_log("Office comment notification metadata error: " . $e->getMessage());
+        }
+
+        try {
+            $org_commented_at_expression = "COALESCE(oc.processed_date, c.created_at)";
+
+            if (hasDatabaseColumn('organization_clearance', 'updated_at')) {
+                $org_commented_at_expression = "COALESCE(oc.updated_at, oc.processed_date, c.created_at)";
+            }
+
+            $db->query("SELECT
+                            oc.remarks,
+                            {$org_commented_at_expression} AS commented_at,
+                            COALESCE(so.org_name, 'Organization') AS org_name
+                        FROM organization_clearance oc
+                        INNER JOIN clearance c ON c.clearance_id = oc.clearance_id
+                        INNER JOIN student_organizations so ON so.org_id = oc.org_id
+                        WHERE c.users_id = :org_comment_user_id
+                          AND oc.remarks IS NOT NULL
+                          AND TRIM(oc.remarks) <> ''
+                          AND oc.remarks REGEXP '\\\\[[A-Z_]+_LACKING\\\\]'
+                        ORDER BY commented_at DESC
+                        LIMIT 1");
+            $db->bind(':org_comment_user_id', $student_id);
+            $latest_org_comment = $db->single();
+
+            if ($latest_org_comment) {
+                $org_comment_text = '';
+                if (preg_match('/\[(?:[A-Z]+_LACKING|ORG_LACKING)\]\s*(.+?)(?=\s*\|\s*|$)/s', (string) ($latest_org_comment['remarks'] ?? ''), $org_matches)) {
+                    $org_comment_text = trim((string) ($org_matches[1] ?? ''));
+                }
+
+                $response['latest_org_comment_at'] = $latest_org_comment['commented_at'] ?? null;
+                $org_comment_preview = buildMessageSnippet($org_comment_text, 140, true);
+                $response['latest_org_comment'] = $org_comment_preview !== '' ? $org_comment_preview : null;
+                $response['latest_org_name'] = $latest_org_comment['org_name'] ?? 'Organization';
+            }
+        } catch (Exception $e) {
+            error_log("Organization comment notification metadata error: " . $e->getMessage());
+        }
+    }
+
+    echo json_encode($response);
+    exit();
+}
+
+// Handle student-to-student message sending.
+if (isset($_POST['add_friend_by_ismis'])) {
+    $friend_ismis_id = trim($_POST['friend_ismis_id'] ?? '');
+    $active_tab = 'messages';
+
+    if ($friend_ismis_id === '') {
+        $error = "Please enter an ISMIS ID.";
+    } else {
+        try {
+            $db->query("SELECT u.users_id, u.ismis_id
+                        FROM users u
+                        INNER JOIN user_role ur ON ur.user_role_id = u.user_role_id
+                        WHERE ur.user_role_name = 'student'
+                          AND u.ismis_id = :ismis_id
+                        LIMIT 1");
+            $db->bind(':ismis_id', $friend_ismis_id);
+            $friend_user = $db->single();
+
+            if (!$friend_user) {
+                $error = "No student found with that ISMIS ID.";
+            } elseif ((int) $friend_user['users_id'] === (int) $student_id) {
+                $error = "You cannot add yourself as a friend.";
+            } else {
+                $user_one_id = min((int) $student_id, (int) $friend_user['users_id']);
+                $user_two_id = max((int) $student_id, (int) $friend_user['users_id']);
+
+                                $db->query("SELECT friendship_id, status, requested_by, accepted_at
+                            FROM student_friendships
+                            WHERE user_one_id = :user_one_id
+                              AND user_two_id = :user_two_id
+                            LIMIT 1");
+                $db->bind(':user_one_id', $user_one_id);
+                $db->bind(':user_two_id', $user_two_id);
+                $existing_friendship = $db->single();
+
+                if ($existing_friendship) {
+                    $existing_status = strtolower((string) ($existing_friendship['status'] ?? 'accepted'));
+                    $existing_requested_by = (int) ($existing_friendship['requested_by'] ?? 0);
+                    $existing_accepted_at = $existing_friendship['accepted_at'] ?? null;
+
+                    if ($existing_status === 'accepted') {
+                        // Legacy rows from the old instant-add flow can be re-used as a pending request.
+                        if ($existing_requested_by === 0 && empty($existing_accepted_at)) {
+                            $db->query("UPDATE student_friendships
+                                        SET status = 'pending',
+                                            requested_by = :requested_by,
+                                            created_at = NOW(),
+                                            accepted_at = NULL
+                                        WHERE friendship_id = :friendship_id");
+                            $db->bind(':requested_by', $student_id);
+                            $db->bind(':friendship_id', (int) $existing_friendship['friendship_id']);
+
+                            if ($db->execute()) {
+                                if (class_exists('ActivityLogModel')) {
+                                    $logModel = new ActivityLogModel();
+                                    $logModel->log($student_id, 'SEND_FRIEND_REQUEST', "Sent friend request via ISMIS: {$friend_ismis_id}");
+                                }
+
+                                $_SESSION['success_message'] = "Friend request sent successfully.";
+                                header("Location: dashboard.php?tab=messages");
+                                exit();
+                            }
+
+                            $error = "Failed to send friend request. Please try again.";
+                        } else {
+                            $error = "This student is already in your friend list.";
+                        }
+                    } elseif ($existing_status === 'pending' && $existing_requested_by === (int) $student_id) {
+                        $error = "Friend request already sent. Please wait for approval.";
+                    } elseif ($existing_status === 'pending' && $existing_requested_by !== (int) $student_id) {
+                        $error = "This student already sent you a friend request. Accept it below.";
+                    } else {
+                        $db->query("UPDATE student_friendships
+                                    SET status = 'pending',
+                                        requested_by = :requested_by,
+                                        created_at = NOW(),
+                                        accepted_at = NULL
+                                    WHERE friendship_id = :friendship_id");
+                        $db->bind(':requested_by', $student_id);
+                        $db->bind(':friendship_id', (int) $existing_friendship['friendship_id']);
+
+                        if ($db->execute()) {
+                            if (class_exists('ActivityLogModel')) {
+                                $logModel = new ActivityLogModel();
+                                $logModel->log($student_id, 'SEND_FRIEND_REQUEST', "Re-sent friend request via ISMIS: {$friend_ismis_id}");
+                            }
+
+                            $_SESSION['success_message'] = "Friend request sent successfully.";
+                            header("Location: dashboard.php?tab=messages");
+                            exit();
+                        }
+
+                        $error = "Failed to send friend request. Please try again.";
+                    }
+                } else {
+                    $db->query("INSERT INTO student_friendships (user_one_id, user_two_id, requested_by, status, created_at, accepted_at)
+                                VALUES (:user_one_id, :user_two_id, :requested_by, 'pending', NOW(), NULL)");
+                    $db->bind(':user_one_id', $user_one_id);
+                    $db->bind(':user_two_id', $user_two_id);
+                    $db->bind(':requested_by', $student_id);
+
+                    if ($db->execute()) {
+                        if (class_exists('ActivityLogModel')) {
+                            $logModel = new ActivityLogModel();
+                            $logModel->log($student_id, 'SEND_FRIEND_REQUEST', "Sent friend request via ISMIS: {$friend_ismis_id}");
+                        }
+
+                        $_SESSION['success_message'] = "Friend request sent successfully.";
+                        header("Location: dashboard.php?tab=messages");
+                        exit();
+                    }
+
+                    $error = "Failed to send friend request. Please try again.";
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Add friend by ISMIS error: " . $e->getMessage());
+            $error = "Unable to add friend right now.";
+        }
+    }
+}
+
+if (isset($_POST['accept_friend_request'])) {
+    $friendship_id = (int) ($_POST['friendship_id'] ?? 0);
+    $active_tab = 'messages';
+
+    if ($friendship_id <= 0) {
+        $error = "Invalid friend request.";
+    } else {
+        try {
+            $db->query("SELECT friendship_id, user_one_id, user_two_id, requested_by, status
+                        FROM student_friendships
+                        WHERE friendship_id = :friendship_id
+                        LIMIT 1");
+            $db->bind(':friendship_id', $friendship_id);
+            $request_row = $db->single();
+
+            if (!$request_row) {
+                $error = "Friend request not found.";
+            } else {
+                $requested_by = (int) ($request_row['requested_by'] ?? 0);
+                $status = strtolower((string) ($request_row['status'] ?? ''));
+                $user_one_id = (int) ($request_row['user_one_id'] ?? 0);
+                $user_two_id = (int) ($request_row['user_two_id'] ?? 0);
+                $is_participant = ($user_one_id === (int) $student_id || $user_two_id === (int) $student_id);
+
+                if (!$is_participant || $requested_by === (int) $student_id) {
+                    $error = "You cannot accept this friend request.";
+                } elseif ($status !== 'pending') {
+                    $error = "This friend request is no longer pending.";
+                } else {
+                    $db->query("UPDATE student_friendships
+                                SET status = 'accepted',
+                                    accepted_at = NOW()
+                                WHERE friendship_id = :friendship_id
+                                  AND status = 'pending'");
+                    $db->bind(':friendship_id', $friendship_id);
+
+                    if ($db->execute()) {
+                        if (class_exists('ActivityLogModel')) {
+                            $logModel = new ActivityLogModel();
+                            $logModel->log($student_id, 'ACCEPT_FRIEND_REQUEST', "Accepted friend request #{$friendship_id}");
+                        }
+
+                        $_SESSION['success_message'] = "Friend request accepted. You can now message each other.";
+                        header("Location: dashboard.php?tab=messages");
+                        exit();
+                    }
+
+                    $error = "Failed to accept friend request.";
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Accept friend request error: " . $e->getMessage());
+            $error = "Unable to accept request right now.";
+        }
+    }
+}
+
+if (isset($_POST['save_friend_nickname'])) {
+    $friend_id = (int) ($_POST['friend_id'] ?? 0);
+    $friend_nickname = trim((string) ($_POST['friend_nickname'] ?? ''));
+    $active_tab = 'messages';
+
+    if ($friend_id <= 0 || $friend_id === (int) $student_id) {
+        $error = "Invalid friend selected for nickname update.";
+    } elseif ((function_exists('mb_strlen') ? mb_strlen($friend_nickname, 'UTF-8') : strlen($friend_nickname)) > 40) {
+        $error = "Nickname must be 40 characters or less.";
+    } else {
+        try {
+            $user_one_id = min((int) $student_id, $friend_id);
+            $user_two_id = max((int) $student_id, $friend_id);
+
+            $db->query("SELECT friendship_id
+                        FROM student_friendships
+                        WHERE user_one_id = :user_one_id
+                          AND user_two_id = :user_two_id
+                          AND status = 'accepted'
+                        LIMIT 1");
+            $db->bind(':user_one_id', $user_one_id);
+            $db->bind(':user_two_id', $user_two_id);
+            $friendship = $db->single();
+
+            if (!$friendship) {
+                $error = "You can only set a nickname for accepted friends.";
+            } else {
+                if ($friend_nickname === '') {
+                    $db->query("DELETE FROM student_friend_nicknames
+                                WHERE owner_id = :owner_id
+                                  AND friend_id = :friend_id");
+                    $db->bind(':owner_id', $student_id);
+                    $db->bind(':friend_id', $friend_id);
+                    if ($db->execute()) {
+                        $_SESSION['success_message'] = "Nickname cleared.";
+                    } else {
+                        $error = "Unable to clear nickname right now.";
+                    }
+                } else {
+                    $db->query("INSERT INTO student_friend_nicknames (owner_id, friend_id, nickname, created_at, updated_at)
+                                VALUES (:owner_id, :friend_id, :nickname, NOW(), NOW())
+                                ON DUPLICATE KEY UPDATE nickname = VALUES(nickname), updated_at = NOW()");
+                    $db->bind(':owner_id', $student_id);
+                    $db->bind(':friend_id', $friend_id);
+                    $db->bind(':nickname', $friend_nickname);
+
+                    if ($db->execute()) {
+                        $_SESSION['success_message'] = "Nickname saved.";
+                    } else {
+                        $error = "Unable to save nickname right now.";
+                    }
+                }
+
+                if ($error === '') {
+                    header("Location: dashboard.php?tab=messages&chat_with=" . $friend_id);
+                    exit();
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Save friend nickname error: " . $e->getMessage());
+            $error = "Unable to save nickname right now.";
+        }
+    }
+}
+
+if (isset($_POST['react_to_message'])) {
+    $message_id = (int) ($_POST['message_id'] ?? 0);
+    $chat_with_id = (int) ($_POST['recipient_id'] ?? 0);
+    $reaction_emoji = trim((string) ($_POST['reaction_emoji'] ?? ''));
+    $active_tab = 'messages';
+
+    if ($message_id <= 0 || $chat_with_id <= 0) {
+        $error = "Invalid message reaction request.";
+    } elseif (!in_array($reaction_emoji, $allowed_message_reactions, true)) {
+        $error = "Unsupported emoji reaction.";
+    } else {
+        try {
+            $db->query("SELECT sm.message_id
+                        FROM student_messages sm
+                        INNER JOIN student_friendships sf
+                            ON sf.user_one_id = LEAST(sm.sender_id, sm.recipient_id)
+                           AND sf.user_two_id = GREATEST(sm.sender_id, sm.recipient_id)
+                           AND sf.status = 'accepted'
+                        WHERE sm.message_id = :message_id
+                          AND ((sm.sender_id = :viewer_id AND sm.recipient_id = :peer_id)
+                            OR (sm.sender_id = :peer_id_alt AND sm.recipient_id = :viewer_id_alt))
+                        LIMIT 1");
+            $db->bind(':message_id', $message_id);
+            $db->bind(':viewer_id', $student_id);
+            $db->bind(':peer_id', $chat_with_id);
+            $db->bind(':peer_id_alt', $chat_with_id);
+            $db->bind(':viewer_id_alt', $student_id);
+            $message_exists = $db->single();
+
+            if (!$message_exists) {
+                $error = "Message not found for this conversation.";
+            } else {
+                $db->query("SELECT reaction_emoji
+                            FROM student_message_reactions
+                            WHERE message_id = :message_id
+                              AND reactor_id = :reactor_id
+                            LIMIT 1");
+                $db->bind(':message_id', $message_id);
+                $db->bind(':reactor_id', $student_id);
+                $existing_reaction = $db->single();
+
+                if ($existing_reaction && (string) ($existing_reaction['reaction_emoji'] ?? '') === $reaction_emoji) {
+                    $db->query("DELETE FROM student_message_reactions
+                                WHERE message_id = :message_id
+                                  AND reactor_id = :reactor_id");
+                    $db->bind(':message_id', $message_id);
+                    $db->bind(':reactor_id', $student_id);
+                    $db->execute();
+                } else {
+                    $db->query("INSERT INTO student_message_reactions (message_id, reactor_id, reaction_emoji, created_at, updated_at)
+                                VALUES (:message_id, :reactor_id, :reaction_emoji, NOW(), NOW())
+                                ON DUPLICATE KEY UPDATE reaction_emoji = VALUES(reaction_emoji), updated_at = NOW()");
+                    $db->bind(':message_id', $message_id);
+                    $db->bind(':reactor_id', $student_id);
+                    $db->bind(':reaction_emoji', $reaction_emoji);
+                    $db->execute();
+                }
+
+                header("Location: dashboard.php?tab=messages&chat_with=" . $chat_with_id);
+                exit();
+            }
+        } catch (Exception $e) {
+            error_log("Message reaction error: " . $e->getMessage());
+            $error = "Unable to react to this message right now.";
+        }
+    }
+}
+
+if (isset($_POST['delete_message'])) {
+    $message_id = (int) ($_POST['message_id'] ?? 0);
+    $chat_with_id = (int) ($_POST['recipient_id'] ?? 0);
+    $active_tab = 'messages';
+
+    if ($message_id <= 0 || $chat_with_id <= 0) {
+        $error = "Invalid delete message request.";
+    } else {
+        try {
+            $db->query("SELECT sm.message_id, sm.sender_id
+                        FROM student_messages sm
+                        INNER JOIN student_friendships sf
+                            ON sf.user_one_id = LEAST(sm.sender_id, sm.recipient_id)
+                           AND sf.user_two_id = GREATEST(sm.sender_id, sm.recipient_id)
+                           AND sf.status = 'accepted'
+                        WHERE sm.message_id = :message_id
+                          AND ((sm.sender_id = :viewer_id AND sm.recipient_id = :peer_id)
+                            OR (sm.sender_id = :peer_id_alt AND sm.recipient_id = :viewer_id_alt))
+                        LIMIT 1");
+            $db->bind(':message_id', $message_id);
+            $db->bind(':viewer_id', $student_id);
+            $db->bind(':peer_id', $chat_with_id);
+            $db->bind(':peer_id_alt', $chat_with_id);
+            $db->bind(':viewer_id_alt', $student_id);
+            $message_row = $db->single();
+
+            if (!$message_row) {
+                $error = "Message not found for this conversation.";
+            } elseif ((int) ($message_row['sender_id'] ?? 0) !== (int) $student_id) {
+                $error = "You can only delete messages you sent.";
+            } else {
+                $db->beginTransaction();
+
+                // Keep reply chains valid in fallback schemas without FK constraints.
+                $db->query("UPDATE student_messages
+                            SET reply_to_message_id = NULL
+                            WHERE reply_to_message_id = :message_id");
+                $db->bind(':message_id', $message_id);
+                $db->execute();
+
+                $db->query("DELETE FROM student_message_reactions
+                            WHERE message_id = :message_id");
+                $db->bind(':message_id', $message_id);
+                $db->execute();
+
+                $db->query("DELETE FROM student_messages
+                            WHERE message_id = :message_id
+                              AND sender_id = :sender_id
+                            LIMIT 1");
+                $db->bind(':message_id', $message_id);
+                $db->bind(':sender_id', $student_id);
+                $db->execute();
+
+                $db->commit();
+
+                $_SESSION['success_message'] = "Message deleted.";
+                header("Location: dashboard.php?tab=messages&chat_with=" . $chat_with_id);
+                exit();
+            }
+        } catch (Exception $e) {
+            if ($db->getConnection()->inTransaction()) {
+                $db->rollback();
+            }
+            error_log("Delete message error: " . $e->getMessage());
+            $error = "Unable to delete this message right now.";
+        }
+    }
+}
+
+if (isset($_POST['send_message'])) {
+    $recipient_id = (int) ($_POST['recipient_id'] ?? 0);
+    $message_body = trim($_POST['message_body'] ?? '');
+    $attachment_upload = $_FILES['message_attachment'] ?? null;
+    $has_attachment_upload = is_array($attachment_upload)
+        && (int) ($attachment_upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
+    $message_attachment_file = null;
+    $message_attachment_name = null;
+    $message_attachment_type = null;
+    $message_attachment_size = null;
+    $reply_to_message_id = (int) ($_POST['reply_to_message_id'] ?? 0);
+    if ($reply_to_message_id <= 0) {
+        $reply_to_message_id = null;
+    }
+    $message_length = function_exists('mb_strlen') ? mb_strlen($message_body, 'UTF-8') : strlen($message_body);
+    $active_tab = 'messages';
+
+    if ($recipient_id <= 0 || $recipient_id === (int) $student_id) {
+        $error = "Please select a valid student recipient.";
+    } elseif ($message_body === '' && !$has_attachment_upload) {
+        $error = "Message cannot be empty unless you attach a file.";
+    } elseif ($message_length > 1000) {
+        $error = "Message must be 1000 characters or less.";
+    } else {
+        try {
+                        $db->query("SELECT u.users_id
+                        FROM users u
+                        INNER JOIN user_role ur ON ur.user_role_id = u.user_role_id
+                        WHERE u.users_id = :recipient_id
+                          AND ur.user_role_name = 'student'
+                        LIMIT 1");
+            $db->bind(':recipient_id', $recipient_id);
+            $recipient = $db->single();
+
+            if (!$recipient) {
+                $error = "Recipient must be an active student account.";
+            } else {
+                $user_one_id = min((int) $student_id, (int) $recipient_id);
+                $user_two_id = max((int) $student_id, (int) $recipient_id);
+
+                                $db->query("SELECT friendship_id
+                            FROM student_friendships
+                            WHERE user_one_id = :user_one_id
+                              AND user_two_id = :user_two_id
+                                                            AND status = 'accepted'
+                            LIMIT 1");
+                $db->bind(':user_one_id', $user_one_id);
+                $db->bind(':user_two_id', $user_two_id);
+                $friendship = $db->single();
+
+                if (!$friendship) {
+                    $error = "You can only message students in your friend list. Add them by ISMIS ID first.";
+                } else {
+                    if ($reply_to_message_id !== null) {
+                        $db->query("SELECT message_id
+                                    FROM student_messages
+                                    WHERE message_id = :reply_to_message_id
+                                      AND ((sender_id = :viewer_id AND recipient_id = :peer_id)
+                                        OR (sender_id = :peer_id_alt AND recipient_id = :viewer_id_alt))
+                                    LIMIT 1");
+                        $db->bind(':reply_to_message_id', $reply_to_message_id);
+                        $db->bind(':viewer_id', $student_id);
+                        $db->bind(':peer_id', $recipient_id);
+                        $db->bind(':peer_id_alt', $recipient_id);
+                        $db->bind(':viewer_id_alt', $student_id);
+                        $reply_message = $db->single();
+
+                        if (!$reply_message) {
+                            $error = "The message you selected to reply to is no longer available.";
+                            $reply_to_message_id = null;
+                        }
+                    }
+
+                    if ($error === '') {
+                        if ($has_attachment_upload) {
+                            $upload_error = (int) ($attachment_upload['error'] ?? UPLOAD_ERR_NO_FILE);
+
+                            if ($upload_error !== UPLOAD_ERR_OK) {
+                                $error = "Attachment upload failed. Please try again.";
+                            } else {
+                                $max_attachment_size = 15 * 1024 * 1024; // 15 MB
+                                $attachment_size_bytes = (int) ($attachment_upload['size'] ?? 0);
+
+                                if ($attachment_size_bytes <= 0 || $attachment_size_bytes > $max_attachment_size) {
+                                    $error = "Attachment must be between 1 byte and 15 MB.";
+                                } else {
+                                    $original_attachment_name = trim((string) ($attachment_upload['name'] ?? ''));
+                                    $attachment_extension = strtolower((string) pathinfo($original_attachment_name, PATHINFO_EXTENSION));
+                                    $allowed_attachment_extensions = [
+                                        'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp',
+                                        'mp3', 'wav', 'ogg', 'm4a', 'aac',
+                                        'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+                                        'txt', 'csv', 'zip', 'rar', '7z'
+                                    ];
+
+                                    if ($attachment_extension === '' || !in_array($attachment_extension, $allowed_attachment_extensions, true)) {
+                                        $error = "Unsupported attachment type.";
+                                    } else {
+                                        $message_upload_dir = __DIR__ . '/../uploads/messages/student/';
+                                        if (!file_exists($message_upload_dir) && !mkdir($message_upload_dir, 0777, true)) {
+                                            $error = "Unable to prepare attachment upload folder.";
+                                        } else {
+                                            $attachment_filename = 'msg_' . (int) $student_id . '_' . (int) $recipient_id . '_' . time() . '_' . mt_rand(1000, 9999) . '.' . $attachment_extension;
+                                            $attachment_target_path = $message_upload_dir . $attachment_filename;
+
+                                            if (!move_uploaded_file((string) ($attachment_upload['tmp_name'] ?? ''), $attachment_target_path)) {
+                                                $error = "Unable to upload attachment right now.";
+                                            } else {
+                                                $attachment_mime_type = strtolower((string) ($attachment_upload['type'] ?? ''));
+                                                if ($attachment_mime_type === '' && function_exists('finfo_open')) {
+                                                    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                                                    if ($finfo) {
+                                                        $detected_mime = finfo_file($finfo, $attachment_target_path);
+                                                        finfo_close($finfo);
+                                                        $attachment_mime_type = strtolower((string) ($detected_mime ?? ''));
+                                                    }
+                                                }
+
+                                                $image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+                                                $audio_extensions = ['mp3', 'wav', 'ogg', 'm4a', 'aac'];
+
+                                                $message_attachment_type = 'file';
+                                                if (strpos($attachment_mime_type, 'image/') === 0 || in_array($attachment_extension, $image_extensions, true)) {
+                                                    $message_attachment_type = 'image';
+                                                } elseif (strpos($attachment_mime_type, 'audio/') === 0 || in_array($attachment_extension, $audio_extensions, true)) {
+                                                    $message_attachment_type = 'audio';
+                                                }
+
+                                                $message_attachment_file = 'uploads/messages/student/' . $attachment_filename;
+                                                $message_attachment_name = $original_attachment_name !== '' ? $original_attachment_name : ('attachment.' . $attachment_extension);
+                                                $message_attachment_size = $attachment_size_bytes;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if ($message_attachment_name !== null) {
+                            $attachment_name_length = function_exists('mb_strlen')
+                                ? mb_strlen($message_attachment_name, 'UTF-8')
+                                : strlen($message_attachment_name);
+                            if ($attachment_name_length > 250) {
+                                $message_attachment_name = function_exists('mb_substr')
+                                    ? mb_substr($message_attachment_name, 0, 250, 'UTF-8')
+                                    : substr($message_attachment_name, 0, 250);
+                            }
+                        }
+                    }
+
+                    if ($error === '') {
+                        $db->query("INSERT INTO student_messages (
+                                        sender_id,
+                                        recipient_id,
+                                        message_body,
+                                        attachment_file,
+                                        attachment_name,
+                                        attachment_type,
+                                        attachment_size,
+                                        reply_to_message_id,
+                                        sent_at
+                                    )
+                                    VALUES (:sender_id, :recipient_id, :message_body, :attachment_file, :attachment_name, :attachment_type, :attachment_size, :reply_to_message_id, NOW())");
+                        $db->bind(':sender_id', $student_id);
+                        $db->bind(':recipient_id', $recipient_id);
+                        $db->bind(':message_body', $message_body);
+                        $db->bind(':attachment_file', $message_attachment_file);
+                        $db->bind(':attachment_name', $message_attachment_name);
+                        $db->bind(':attachment_type', $message_attachment_type);
+                        $db->bind(':attachment_size', $message_attachment_size);
+                        $db->bind(':reply_to_message_id', $reply_to_message_id);
+
+                        if ($db->execute()) {
+                            if (class_exists('ActivityLogModel')) {
+                                $logModel = new ActivityLogModel();
+                                $logModel->log($student_id, 'SEND_MESSAGE', "Sent message to student ID: {$recipient_id}");
+                            }
+
+                            $_SESSION['success_message'] = "Message sent successfully.";
+                            header("Location: dashboard.php?tab=messages&chat_with=" . (int) $recipient_id);
+                            exit();
+                        }
+
+                        $error = "Failed to send message. Please try again.";
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Student message send error: " . $e->getMessage());
+            $error = "Unable to send message right now.";
+        }
+    }
+}
 
 // ============================================
 // HANDLE PROOF UPLOAD
 // ============================================
 if (isset($_POST['upload_proof'])) {
-    $clearance_id = $_POST['clearance_id'] ?? '';
-    $office_name = $_POST['office_name'] ?? '';
+    $clearance_id = (int) ($_POST['clearance_id'] ?? 0);
+    $office_name = trim($_POST['office_name'] ?? '');
+    $org_clearance_id = (int) ($_POST['org_clearance_id'] ?? 0);
+    $upload_target_type = trim($_POST['upload_target_type'] ?? 'office');
+    $upload_target_name = trim($_POST['upload_target_name'] ?? $office_name);
     $remarks = trim($_POST['proof_remarks'] ?? '');
 
-    if ($clearance_id && isset($_FILES['proof_file']) && $_FILES['proof_file']['error'] === UPLOAD_ERR_OK) {
+    if ($clearance_id > 0 && isset($_FILES['proof_file']) && $_FILES['proof_file']['error'] === UPLOAD_ERR_OK) {
         $file = $_FILES['proof_file'];
         $allowed_types = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
         $max_size = 5 * 1024 * 1024; // 5MB
@@ -89,57 +1158,121 @@ if (isset($_POST['upload_proof'])) {
 
                 if (move_uploaded_file($file['tmp_name'], $upload_dir . $filename)) {
                     $db = Database::getInstance();
+                    ensureOrganizationProofColumns($db);
+                    $is_org_upload = $upload_target_type === 'organization' && $org_clearance_id > 0;
 
-                    // First, get the office_id from office_name
-                    $db->query("SELECT office_id FROM offices WHERE office_name = :office_name");
-                    $db->bind(':office_name', $office_name);
-                    $office_result = $db->single();
+                    if ($is_org_upload) {
+                        $db->query("SELECT oc.org_clearance_id, oc.clearance_id, so.org_name
+                                    FROM organization_clearance oc
+                                    JOIN clearance c ON oc.clearance_id = c.clearance_id
+                                    JOIN student_organizations so ON oc.org_id = so.org_id
+                                    WHERE oc.org_clearance_id = :org_clearance_id
+                                    AND oc.clearance_id = :clearance_id
+                                    AND c.users_id = :student_id");
+                        $db->bind(':org_clearance_id', $org_clearance_id);
+                        $db->bind(':clearance_id', $clearance_id);
+                        $db->bind(':student_id', $student_id);
+                        $org_upload_target = $db->single();
 
-                    if (!$office_result) {
-                        throw new Exception("Office not found");
+                        if (!$org_upload_target) {
+                            throw new Exception("Organization clearance not found");
+                        }
+
+                        if ($upload_target_name === '') {
+                            $upload_target_name = $org_upload_target['org_name'] ?? 'Organization';
+                        }
+                    } else {
+                        // First, get the office_id from office_name
+                        $db->query("SELECT office_id FROM offices WHERE office_name = :office_name");
+                        $db->bind(':office_name', $office_name);
+                        $office_result = $db->single();
+
+                        if (!$office_result) {
+                            throw new Exception("Office not found");
+                        }
+
+                        $office_id = $office_result['office_id'];
                     }
 
-                    $office_id = $office_result['office_id'];
-
                     // Check if the columns exist
-                    $db->query("SHOW COLUMNS FROM clearance LIKE 'student_proof_file'");
-                    $column_exists = $db->single();
+                    $column_exists = hasDatabaseColumn('clearance', 'student_proof_file');
 
                     if ($column_exists) {
-                        // Update the specific clearance record with proof
-                        $db->query("UPDATE clearance SET 
-                                    student_proof_file = :proof_file,
-                                    student_proof_remarks = :remarks,
-                                    student_proof_uploaded_at = NOW(),
-                                    updated_at = NOW()
-                                    WHERE clearance_id = :id 
-                                    AND users_id = :student_id
-                                    AND office_id = :office_id");
-                        $db->bind(':proof_file', $filepath);
-                        $db->bind(':remarks', $remarks);
-                        $db->bind(':id', $clearance_id);
-                        $db->bind(':student_id', $student_id);
-                        $db->bind(':office_id', $office_id);
+                        $proof_remarks_value = $remarks;
+                        if ($is_org_upload && $upload_target_name !== '') {
+                            $proof_remarks_value = trim(($remarks !== '' ? $remarks . ' | ' : '') . '[ORG_PROOF] Submitted for ' . $upload_target_name);
+                        }
+
+                        if ($is_org_upload) {
+                            $db->query("UPDATE organization_clearance oc
+                                        JOIN clearance c ON oc.clearance_id = c.clearance_id
+                                        SET oc.student_proof_file = :proof_file,
+                                            oc.student_proof_remarks = :remarks,
+                                            oc.student_proof_uploaded_at = NOW(),
+                                            oc.updated_at = NOW(),
+                                            c.updated_at = NOW()
+                                        WHERE oc.org_clearance_id = :org_clearance_id
+                                        AND oc.clearance_id = :id
+                                        AND c.users_id = :student_id");
+                            $db->bind(':proof_file', $filepath);
+                            $db->bind(':remarks', $proof_remarks_value);
+                            $db->bind(':org_clearance_id', $org_clearance_id);
+                            $db->bind(':id', $clearance_id);
+                            $db->bind(':student_id', $student_id);
+                        } else {
+                            $db->query("UPDATE clearance SET
+                                        student_proof_file = :proof_file,
+                                        student_proof_remarks = :remarks,
+                                        student_proof_uploaded_at = NOW(),
+                                        updated_at = NOW()
+                                        WHERE clearance_id = :id
+                                        AND users_id = :student_id
+                                        AND office_id = :office_id");
+                            $db->bind(':proof_file', $filepath);
+                            $db->bind(':remarks', $remarks);
+                            $db->bind(':id', $clearance_id);
+                            $db->bind(':student_id', $student_id);
+                            $db->bind(':office_id', $office_id);
+                        }
                     } else {
-                        // Fallback to using remarks field
-                        $db->query("UPDATE clearance SET 
-                                    remarks = CONCAT(IFNULL(remarks, ''), ' | STUDENT PROOF UPLOADED: ', :remarks, ' - File: ', :proof_file),
-                                    updated_at = NOW()
-                                    WHERE clearance_id = :id 
-                                    AND users_id = :student_id
-                                    AND office_id = :office_id");
-                        $db->bind(':proof_file', $filename);
-                        $db->bind(':remarks', $remarks);
-                        $db->bind(':id', $clearance_id);
-                        $db->bind(':student_id', $student_id);
-                        $db->bind(':office_id', $office_id);
+                        $proof_remarks_value = $is_org_upload && $upload_target_name !== ''
+                            ? trim(($remarks !== '' ? $remarks . ' | ' : '') . '[ORG_PROOF] Submitted for ' . $upload_target_name)
+                            : $remarks;
+
+                        if ($is_org_upload) {
+                            $db->query("UPDATE organization_clearance oc
+                                        JOIN clearance c ON oc.clearance_id = c.clearance_id
+                                        SET oc.remarks = CONCAT(IFNULL(oc.remarks, ''), ' | STUDENT PROOF UPLOADED: ', :remarks, ' - File: ', :proof_file),
+                                            oc.updated_at = NOW(),
+                                            c.updated_at = NOW()
+                                        WHERE oc.org_clearance_id = :org_clearance_id
+                                        AND oc.clearance_id = :id
+                                        AND c.users_id = :student_id");
+                            $db->bind(':proof_file', $filename);
+                            $db->bind(':remarks', $proof_remarks_value);
+                            $db->bind(':org_clearance_id', $org_clearance_id);
+                            $db->bind(':id', $clearance_id);
+                            $db->bind(':student_id', $student_id);
+                        } else {
+                            $db->query("UPDATE clearance SET
+                                        remarks = CONCAT(IFNULL(remarks, ''), ' | STUDENT PROOF UPLOADED: ', :remarks, ' - File: ', :proof_file),
+                                        updated_at = NOW()
+                                        WHERE clearance_id = :id
+                                        AND users_id = :student_id
+                                        AND office_id = :office_id");
+                            $db->bind(':proof_file', $filename);
+                            $db->bind(':remarks', $remarks);
+                            $db->bind(':id', $clearance_id);
+                            $db->bind(':student_id', $student_id);
+                            $db->bind(':office_id', $office_id);
+                        }
                     }
 
                     if ($db->execute()) {
                         // Log the activity
                         if (class_exists('ActivityLogModel')) {
                             $logModel = new ActivityLogModel();
-                            $logModel->log($student_id, 'UPLOAD_PROOF', "Uploaded proof for clearance ID: $clearance_id to $office_name");
+                            $logModel->log($student_id, 'UPLOAD_PROOF', "Uploaded proof for clearance ID: $clearance_id to " . ($upload_target_name !== '' ? $upload_target_name : $office_name));
                         }
 
                         $_SESSION['success_message'] = "Proof uploaded successfully! The office will review your submission.";
@@ -201,6 +1334,7 @@ if (isset($_POST['apply_clearance'])) {
                     $db->beginTransaction();
 
                     $success_count = 0;
+                    $director_clearance_id = null;
                     foreach ($offices as $office) {
                         // Get office ID
                         $db->query("SELECT office_id FROM offices WHERE office_name = :name");
@@ -229,11 +1363,76 @@ if (isset($_POST['apply_clearance'])) {
 
                             if ($db->execute()) {
                                 $success_count++;
+                                if ($office['name'] === 'Director_SAS') {
+                                    $director_clearance_id = (int) $db->lastInsertId();
+                                }
                             }
                         }
                     }
 
                     if ($success_count == count($offices)) {
+                        // Use the Director_SAS clearance row as the organization tracking anchor.
+                        if (!$director_clearance_id) {
+                            $db->query("SELECT c.clearance_id
+                                        FROM clearance c
+                                        JOIN offices o ON c.office_id = o.office_id
+                                        WHERE c.users_id = :user_id
+                                        AND c.semester = :semester
+                                        AND c.school_year = :school_year
+                                        AND o.office_name = 'Director_SAS'
+                                        ORDER BY c.clearance_id DESC
+                                        LIMIT 1");
+                            $db->bind(':user_id', $student_id);
+                            $db->bind(':semester', $semester);
+                            $db->bind(':school_year', $school_year_selected);
+                            $director_row = $db->single();
+                            $director_clearance_id = $director_row ? (int) $director_row['clearance_id'] : 0;
+                        }
+
+                        if ($director_clearance_id > 0) {
+                            $db->query("SELECT college_id FROM users WHERE users_id = :user_id LIMIT 1");
+                            $db->bind(':user_id', $student_id);
+                            $student_college = $db->single();
+                            $student_college_id = $student_college['college_id'] ?? null;
+
+                                                        $orgInsert = "INSERT INTO organization_clearance (clearance_id, org_id, office_id, status, created_at, updated_at)
+                                                                                    SELECT :clearance_id_insert, so.org_id, so.office_id, 'pending', NOW(), NOW()
+                                                                                    FROM student_organizations so
+                                                                                    LEFT JOIN organization_clearance oc
+                                                                                        ON oc.clearance_id = :clearance_id_match
+                                                                                     AND oc.org_id = so.org_id
+                                                                                    WHERE COALESCE(so.status, 'active') = 'active'
+                                                                                        AND so.office_id IS NOT NULL
+                                                                                        AND oc.org_clearance_id IS NULL
+                                                                                        AND (
+                                                                                                so.org_type <> 'college'
+                                                                                                OR so.college_id IS NULL
+                                                                                                OR so.college_id = :student_college_id_eq
+                                                                                                OR NOT EXISTS (
+                                                                                                        SELECT 1
+                                                                                                        FROM student_organizations so_match
+                                                                                                        WHERE so_match.org_type = 'college'
+                                                                                                            AND COALESCE(so_match.status, 'active') = 'active'
+                                                                                                            AND so_match.college_id = :student_college_id_match
+                                                                                                )
+                                                                                        )";
+
+                            $db->query($orgInsert);
+                                                        $db->bind(':clearance_id_insert', $director_clearance_id, PDO::PARAM_INT);
+                                                        $db->bind(':clearance_id_match', $director_clearance_id, PDO::PARAM_INT);
+                            if ($student_college_id === null) {
+                                $db->bind(':student_college_id_eq', null, PDO::PARAM_NULL);
+                                $db->bind(':student_college_id_match', null, PDO::PARAM_NULL);
+                            } else {
+                                $db->bind(':student_college_id_eq', (int) $student_college_id, PDO::PARAM_INT);
+                                $db->bind(':student_college_id_match', (int) $student_college_id, PDO::PARAM_INT);
+                            }
+
+                            if (!$db->execute()) {
+                                throw new Exception("Failed to create organization pending clearances");
+                            }
+                        }
+
                         $db->commit();
 
                         // Log activity
@@ -271,12 +1470,32 @@ if (isset($_POST['cancel_application'])) {
     try {
         $db->beginTransaction();
 
-        // Delete all pending clearances for this semester
+        // Verify this application is still in progress before cancelling.
+        $db->query("SELECT 
+                        COUNT(*) as total_count,
+                        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count
+                    FROM clearance
+                    WHERE users_id = :user_id
+                    AND semester = :semester
+                    AND school_year = :school_year");
+        $db->bind(':user_id', $student_id);
+        $db->bind(':semester', $semester);
+        $db->bind(':school_year', $school_year);
+        $app_state = $db->single();
+
+        if (!$app_state || (int) ($app_state['total_count'] ?? 0) === 0) {
+            throw new Exception("No matching clearance application found.");
+        }
+
+        if ((int) ($app_state['pending_count'] ?? 0) === 0) {
+            throw new Exception("This clearance is already completed and cannot be cancelled.");
+        }
+
+        // Delete the whole in-progress clearance cycle so student can re-apply cleanly.
         $db->query("DELETE FROM clearance 
                     WHERE users_id = :user_id 
                     AND semester = :semester 
-                    AND school_year = :school_year 
-                    AND status = 'pending'");
+                    AND school_year = :school_year");
         $db->bind(':user_id', $student_id);
         $db->bind(':semester', $semester);
         $db->bind(':school_year', $school_year);
@@ -298,6 +1517,125 @@ if (isset($_POST['cancel_application'])) {
         $db->rollback();
         error_log("Cancel clearance error: " . $e->getMessage());
         $error = "Failed to cancel application. Please try again.";
+    }
+}
+
+// Handle student profile update
+if (isset($_POST['update_profile'])) {
+    $new_fname = trim($_POST['fname'] ?? '');
+    $new_lname = trim($_POST['lname'] ?? '');
+    $new_email = trim($_POST['email'] ?? '');
+    $new_contact = trim($_POST['contact'] ?? '');
+    $new_address = trim($_POST['address'] ?? '');
+    $new_age_raw = trim($_POST['age'] ?? '');
+    $new_age = $new_age_raw === '' ? null : (int) $new_age_raw;
+    $current_password = $_POST['current_password'] ?? '';
+    $new_password = $_POST['new_password'] ?? '';
+    $confirm_new_password = $_POST['confirm_new_password'] ?? '';
+    $wants_password_change = ($current_password !== '' || $new_password !== '' || $confirm_new_password !== '');
+
+    if ($new_fname === '' || $new_lname === '' || $new_email === '') {
+        $error = "First name, last name, and email are required.";
+    } elseif (!filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
+        $error = "Please enter a valid email address.";
+    } elseif ($new_age !== null && ($new_age < 10 || $new_age > 120)) {
+        $error = "Please enter a valid age between 10 and 120.";
+    } elseif ($wants_password_change && ($current_password === '' || $new_password === '' || $confirm_new_password === '')) {
+        $error = "To change password, fill in current password, new password, and confirm password.";
+    } elseif ($wants_password_change && strlen($new_password) < 8) {
+        $error = "New password must be at least 8 characters long.";
+    } elseif ($wants_password_change && $new_password !== $confirm_new_password) {
+        $error = "New password and confirm password do not match.";
+    } else {
+        try {
+            // Ensure email stays unique across users.
+            $db->query("SELECT users_id FROM users WHERE emails = :email AND users_id != :user_id LIMIT 1");
+            $db->bind(':email', $new_email);
+            $db->bind(':user_id', $student_id);
+            $existing_user = $db->single();
+
+            if ($existing_user) {
+                $error = "This email is already used by another account.";
+            } else {
+                $db->beginTransaction();
+
+                $db->query("UPDATE users
+                            SET fname = :fname,
+                                lname = :lname,
+                                emails = :email,
+                                contacts = :contacts,
+                                address = :address,
+                                age = :age
+                            WHERE users_id = :user_id AND user_role_id = (SELECT user_role_id FROM user_role WHERE user_role_name = 'student' LIMIT 1)");
+                $db->bind(':fname', $new_fname);
+                $db->bind(':lname', $new_lname);
+                $db->bind(':email', $new_email);
+                $db->bind(':contacts', $new_contact);
+                $db->bind(':address', $new_address);
+                $db->bind(':age', $new_age);
+                $db->bind(':user_id', $student_id);
+
+                if ($db->execute()) {
+                    if ($wants_password_change) {
+                        $db->query("SELECT password FROM users WHERE users_id = :user_id LIMIT 1");
+                        $db->bind(':user_id', $student_id);
+                        $password_row = $db->single();
+                        $current_hash = $password_row['password'] ?? '';
+
+                        if (!$current_hash || !password_verify($current_password, $current_hash)) {
+                            throw new Exception('INVALID_CURRENT_PASSWORD');
+                        }
+
+                        $new_password_hash = password_hash($new_password, PASSWORD_DEFAULT);
+                        $db->query("UPDATE users SET password = :password WHERE users_id = :user_id");
+                        $db->bind(':password', $new_password_hash);
+                        $db->bind(':user_id', $student_id);
+
+                        if (!$db->execute()) {
+                            throw new Exception('PASSWORD_UPDATE_FAILED');
+                        }
+                    }
+
+                    $db->commit();
+
+                    $_SESSION['user_fname'] = $new_fname;
+                    $_SESSION['user_lname'] = $new_lname;
+                    $_SESSION['user_name'] = $new_fname . ' ' . $new_lname;
+                    $_SESSION['user_email'] = $new_email;
+
+                    if (class_exists('ActivityLogModel')) {
+                        $logModel = new ActivityLogModel();
+                        $log_description = $wants_password_change
+                            ? 'Student profile and password updated'
+                            : 'Student profile updated';
+                        $logModel->log($student_id, 'UPDATE_PROFILE', $log_description);
+                    }
+
+                    $_SESSION['success_message'] = $wants_password_change
+                        ? "Profile and password updated successfully."
+                        : "Profile updated successfully.";
+                    header("Location: dashboard.php?tab=dashboard");
+                    exit();
+                } else {
+                    $db->rollback();
+                    $error = "Unable to update profile right now. Please try again.";
+                }
+            }
+        } catch (Exception $e) {
+            if ($db->getConnection()->inTransaction()) {
+                $db->rollback();
+            }
+
+            if ($e->getMessage() === 'INVALID_CURRENT_PASSWORD') {
+                $error = "Current password is incorrect.";
+            } elseif ($e->getMessage() === 'PASSWORD_UPDATE_FAILED') {
+                $error = "Profile updated but password change failed. Please try again.";
+            } else {
+                $error = "An error occurred while updating profile.";
+            }
+
+            error_log("Student profile update error: " . $e->getMessage());
+        }
     }
 }
 
@@ -328,14 +1666,385 @@ try {
 // Get student's profile picture
 $profile_pic = $student_info['profile_picture'] ?? null;
 
+// Fetch friend list for student-to-student direct messaging.
+try {
+    $db->query("SELECT u.users_id,
+                    u.ismis_id,
+                    u.emails,
+                    COALESCE(
+                        NULLIF(TRIM(CONCAT(COALESCE(u.fname, ''), ' ', COALESCE(u.lname, ''))), ''),
+                        u.emails,
+                        CONCAT('Student #', u.users_id)
+                    ) AS display_name,
+                    sfn.nickname AS custom_nickname,
+                    sf.created_at AS friended_at
+                                FROM student_friendships sf
+                                INNER JOIN users u ON u.users_id = CASE
+                                        WHEN sf.user_one_id = :viewer_id_case THEN sf.user_two_id
+                    ELSE sf.user_one_id
+                END
+                INNER JOIN user_role ur ON ur.user_role_id = u.user_role_id AND ur.user_role_name = 'student'
+                LEFT JOIN student_friend_nicknames sfn ON sfn.owner_id = :viewer_id_nick AND sfn.friend_id = u.users_id
+                                WHERE (sf.user_one_id = :viewer_id_one OR sf.user_two_id = :viewer_id_two)
+                                    AND sf.status = 'accepted'
+                ORDER BY display_name ASC");
+        $db->bind(':viewer_id_case', $student_id);
+        $db->bind(':viewer_id_nick', $student_id);
+        $db->bind(':viewer_id_one', $student_id);
+        $db->bind(':viewer_id_two', $student_id);
+    $student_friends = $db->resultSet() ?: [];
+
+    foreach ($student_friends as &$friend) {
+        $base_display_name = (string) ($friend['display_name'] ?? ('Student #' . (int) ($friend['users_id'] ?? 0)));
+        $custom_nickname = trim((string) ($friend['custom_nickname'] ?? ''));
+        $friend['base_display_name'] = $base_display_name;
+        $friend['chat_display_name'] = $custom_nickname !== '' ? $custom_nickname : $base_display_name;
+    }
+    unset($friend);
+
+    $student_contacts = $student_friends;
+} catch (Exception $e) {
+    error_log("Error fetching friend contacts: " . $e->getMessage());
+    $student_friends = [];
+    $student_contacts = [];
+}
+
+// Incoming friend requests for current student to accept.
+try {
+    $db->query("SELECT sf.friendship_id,
+                    sf.created_at,
+                    sf.requested_by,
+                    u.ismis_id,
+                    u.emails,
+                    COALESCE(
+                        NULLIF(TRIM(CONCAT(COALESCE(u.fname, ''), ' ', COALESCE(u.lname, ''))), ''),
+                        u.emails,
+                        CONCAT('Student #', u.users_id)
+                    ) AS requester_name
+                FROM student_friendships sf
+                INNER JOIN users u ON u.users_id = sf.requested_by
+                INNER JOIN user_role ur ON ur.user_role_id = u.user_role_id AND ur.user_role_name = 'student'
+                WHERE sf.status = 'pending'
+                                    AND sf.requested_by != :viewer_id_req
+                                    AND (sf.user_one_id = :viewer_id_one OR sf.user_two_id = :viewer_id_two)
+                ORDER BY sf.created_at DESC");
+        $db->bind(':viewer_id_req', $student_id);
+        $db->bind(':viewer_id_one', $student_id);
+        $db->bind(':viewer_id_two', $student_id);
+    $incoming_friend_requests = $db->resultSet() ?: [];
+        $incoming_friend_request_count = count($incoming_friend_requests);
+} catch (Exception $e) {
+    error_log("Error fetching incoming friend requests: " . $e->getMessage());
+    $incoming_friend_requests = [];
+        $incoming_friend_request_count = 0;
+}
+
+// Outgoing friend requests sent by current student.
+try {
+    $db->query("SELECT sf.friendship_id,
+                    sf.created_at,
+                    u.ismis_id,
+                    u.emails,
+                    COALESCE(
+                        NULLIF(TRIM(CONCAT(COALESCE(u.fname, ''), ' ', COALESCE(u.lname, ''))), ''),
+                        u.emails,
+                        CONCAT('Student #', u.users_id)
+                    ) AS target_name
+                FROM student_friendships sf
+                INNER JOIN users u ON u.users_id = CASE
+                                        WHEN sf.user_one_id = :viewer_id_case THEN sf.user_two_id
+                    ELSE sf.user_one_id
+                END
+                INNER JOIN user_role ur ON ur.user_role_id = u.user_role_id AND ur.user_role_name = 'student'
+                WHERE sf.status = 'pending'
+                                    AND sf.requested_by = :viewer_id_req
+                ORDER BY sf.created_at DESC");
+        $db->bind(':viewer_id_case', $student_id);
+        $db->bind(':viewer_id_req', $student_id);
+    $outgoing_friend_requests = $db->resultSet() ?: [];
+} catch (Exception $e) {
+    error_log("Error fetching outgoing friend requests: " . $e->getMessage());
+    $outgoing_friend_requests = [];
+}
+
+// Get unread message count for sidebar badge.
+try {
+    $db->query("SELECT COUNT(*) AS unread_count
+                                FROM student_messages sm
+                                INNER JOIN student_friendships sf
+                                        ON sf.user_one_id = LEAST(sm.sender_id, sm.recipient_id)
+                                     AND sf.user_two_id = GREATEST(sm.sender_id, sm.recipient_id)
+                                WHERE sm.recipient_id = :user_id
+                                    AND sm.read_at IS NULL
+                                    AND sf.status = 'accepted'");
+    $db->bind(':user_id', $student_id);
+    $unread_row = $db->single();
+    $unread_message_count = (int) ($unread_row['unread_count'] ?? 0);
+} catch (Exception $e) {
+    error_log("Error fetching unread message count: " . $e->getMessage());
+    $unread_message_count = 0;
+}
+
+// Mark incoming messages as read when student opens the Messages tab.
+if ($active_tab === 'messages') {
+    try {
+        $db->query("UPDATE student_messages
+                    SET read_at = NOW()
+                    WHERE recipient_id = :user_id
+                      AND read_at IS NULL");
+        $db->bind(':user_id', $student_id);
+        $db->execute();
+        $unread_message_count = 0;
+    } catch (Exception $e) {
+        error_log("Error marking messages as read: " . $e->getMessage());
+    }
+}
+
+$message_tab_notification_count = $unread_message_count + $incoming_friend_request_count;
+
+// Determine selected chat peer for Messenger-like conversation view.
+$has_explicit_chat_target = false;
+if (isset($_GET['chat_with']) && (int) $_GET['chat_with'] > 0) {
+    $has_explicit_chat_target = true;
+} elseif (isset($_POST['send_message']) && isset($_POST['recipient_id']) && (int) ($_POST['recipient_id'] ?? 0) > 0) {
+    $has_explicit_chat_target = true;
+}
+
+$selected_chat_id = isset($_GET['chat_with']) ? (int) $_GET['chat_with'] : 0;
+if ($selected_chat_id <= 0 && isset($_POST['recipient_id'])) {
+    $selected_chat_id = (int) $_POST['recipient_id'];
+}
+
+// Fetch student messages involving current student.
+try {
+    $db->query("SELECT sm.message_id,
+                    sm.sender_id,
+                    sm.recipient_id,
+                    sm.message_body,
+                    sm.attachment_file,
+                    sm.attachment_name,
+                    sm.attachment_type,
+                    sm.attachment_size,
+                    sm.reply_to_message_id,
+                    sm.sent_at,
+                    sm.read_at,
+                    CASE WHEN sm.sender_id = :direction_user_id THEN 'sent' ELSE 'received' END AS direction,
+                    COALESCE(
+                        NULLIF(TRIM(CONCAT(COALESCE(s.fname, ''), ' ', COALESCE(s.lname, ''))), ''),
+                        s.emails,
+                        CONCAT('Student #', s.users_id)
+                    ) AS sender_name,
+                    COALESCE(
+                        NULLIF(TRIM(CONCAT(COALESCE(r.fname, ''), ' ', COALESCE(r.lname, ''))), ''),
+                        r.emails,
+                        CONCAT('Student #', r.users_id)
+                    ) AS recipient_name,
+                    rm.message_body AS reply_message_body,
+                    rm.sender_id AS reply_sender_id
+                FROM student_messages sm
+                LEFT JOIN student_messages rm ON rm.message_id = sm.reply_to_message_id
+                INNER JOIN users s ON s.users_id = sm.sender_id
+                INNER JOIN users r ON r.users_id = sm.recipient_id
+                INNER JOIN user_role sr ON sr.user_role_id = s.user_role_id AND sr.user_role_name = 'student'
+                INNER JOIN user_role rr ON rr.user_role_id = r.user_role_id AND rr.user_role_name = 'student'
+                INNER JOIN student_friendships sf
+                    ON sf.user_one_id = LEAST(sm.sender_id, sm.recipient_id)
+                   AND sf.user_two_id = GREATEST(sm.sender_id, sm.recipient_id)
+                WHERE (sm.sender_id = :sender_user_id OR sm.recipient_id = :recipient_user_id)
+                  AND sf.status = 'accepted'
+                ORDER BY sm.sent_at DESC
+                LIMIT 200");
+    $db->bind(':direction_user_id', $student_id);
+    $db->bind(':sender_user_id', $student_id);
+    $db->bind(':recipient_user_id', $student_id);
+    $student_messages = $db->resultSet() ?: [];
+
+    foreach ($student_messages as $message) {
+        if (($message['direction'] ?? '') === 'sent') {
+            $sent_messages[] = $message;
+        } else {
+            $inbox_messages[] = $message;
+        }
+    }
+} catch (Exception $e) {
+    error_log("Error fetching student messages: " . $e->getMessage());
+    $student_messages = [];
+    $inbox_messages = [];
+    $sent_messages = [];
+}
+
+foreach ($student_friends as $friend) {
+    $friend_id = (int) ($friend['users_id'] ?? 0);
+    if ($friend_id > 0) {
+        $friends_by_id[$friend_id] = $friend;
+    }
+}
+
+// Build per-friend conversation previews from latest message to oldest.
+foreach ($student_messages as $message) {
+    $sender_id = (int) ($message['sender_id'] ?? 0);
+    $recipient_id = (int) ($message['recipient_id'] ?? 0);
+    $peer_id = $sender_id === (int) $student_id ? $recipient_id : $sender_id;
+
+    if ($peer_id <= 0 || !isset($friends_by_id[$peer_id])) {
+        continue;
+    }
+
+    if (!isset($conversation_map[$peer_id])) {
+        $latest_preview_message = buildMessageSnippet((string) ($message['message_body'] ?? ''), 80, true);
+        if ($latest_preview_message === '' && !empty($message['attachment_name'])) {
+            $latest_preview_message = '[Attachment] ' . buildMessageSnippet((string) $message['attachment_name'], 48, false);
+        }
+
+        $conversation_map[$peer_id] = [
+            'peer_id' => $peer_id,
+            'latest_at' => $message['sent_at'] ?? null,
+            'latest_message' => $latest_preview_message,
+            'latest_direction' => (string) ($message['direction'] ?? 'received')
+        ];
+    }
+}
+
+foreach ($student_friends as $friend) {
+    $friend_id = (int) ($friend['users_id'] ?? 0);
+    if ($friend_id > 0 && !isset($conversation_map[$friend_id])) {
+        $conversation_map[$friend_id] = [
+            'peer_id' => $friend_id,
+            'latest_at' => null,
+            'latest_message' => '',
+            'latest_direction' => 'received'
+        ];
+    }
+}
+
+// Sort friends by latest message activity (Messenger-like ordering).
+usort($student_friends, function ($a, $b) use ($conversation_map) {
+    $a_id = (int) ($a['users_id'] ?? 0);
+    $b_id = (int) ($b['users_id'] ?? 0);
+    $a_time = !empty($conversation_map[$a_id]['latest_at']) ? strtotime((string) $conversation_map[$a_id]['latest_at']) : 0;
+    $b_time = !empty($conversation_map[$b_id]['latest_at']) ? strtotime((string) $conversation_map[$b_id]['latest_at']) : 0;
+
+    if ($a_time === $b_time) {
+        return strcasecmp((string) ($a['chat_display_name'] ?? ''), (string) ($b['chat_display_name'] ?? ''));
+    }
+
+    return $a_time < $b_time ? 1 : -1;
+});
+
+$student_contacts = $student_friends;
+
+if ($selected_chat_id <= 0 || !isset($friends_by_id[$selected_chat_id])) {
+    if (!empty($student_friends)) {
+        $selected_chat_id = (int) ($student_friends[0]['users_id'] ?? 0);
+    } else {
+        $selected_chat_id = 0;
+    }
+}
+
+if ($selected_chat_id > 0 && isset($friends_by_id[$selected_chat_id])) {
+    $selected_chat_friend = $friends_by_id[$selected_chat_id];
+    $selected_chat_friend_base_name = (string) ($selected_chat_friend['base_display_name'] ?? ('Student #' . $selected_chat_id));
+    $selected_chat_friend_label = (string) ($selected_chat_friend['chat_display_name'] ?? $selected_chat_friend_base_name);
+}
+
+if ($selected_chat_id > 0) {
+    foreach ($student_messages as $message) {
+        $sender_id = (int) ($message['sender_id'] ?? 0);
+        $recipient_id = (int) ($message['recipient_id'] ?? 0);
+        $peer_id = $sender_id === (int) $student_id ? $recipient_id : $sender_id;
+
+        if ($peer_id === $selected_chat_id) {
+            $selected_conversation_messages[] = $message;
+        }
+    }
+
+    // Query is DESC, so reverse for natural chat timeline.
+    $selected_conversation_messages = array_reverse($selected_conversation_messages);
+}
+
+if (!empty($selected_conversation_messages)) {
+    try {
+        $message_ids = array_values(array_filter(array_map(function ($message) {
+            return (int) ($message['message_id'] ?? 0);
+        }, $selected_conversation_messages)));
+
+        if (!empty($message_ids)) {
+            $message_id_list = implode(',', array_unique($message_ids));
+            $db->query("SELECT message_id, reactor_id, reaction_emoji
+                        FROM student_message_reactions
+                        WHERE message_id IN ({$message_id_list})");
+            $reaction_rows = $db->resultSet() ?: [];
+
+            foreach ($reaction_rows as $reaction_row) {
+                $reaction_message_id = (int) ($reaction_row['message_id'] ?? 0);
+                $reaction_emoji = (string) ($reaction_row['reaction_emoji'] ?? '');
+                $reaction_user_id = (int) ($reaction_row['reactor_id'] ?? 0);
+
+                if ($reaction_message_id <= 0 || $reaction_emoji === '' || !in_array($reaction_emoji, $allowed_message_reactions, true)) {
+                    continue;
+                }
+
+                if (!isset($message_reactions_map[$reaction_message_id])) {
+                    $message_reactions_map[$reaction_message_id] = [
+                        'counts' => [],
+                        'mine' => ''
+                    ];
+                }
+
+                if (!isset($message_reactions_map[$reaction_message_id]['counts'][$reaction_emoji])) {
+                    $message_reactions_map[$reaction_message_id]['counts'][$reaction_emoji] = 0;
+                }
+
+                $message_reactions_map[$reaction_message_id]['counts'][$reaction_emoji]++;
+
+                if ($reaction_user_id === (int) $student_id) {
+                    $message_reactions_map[$reaction_message_id]['mine'] = $reaction_emoji;
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Error fetching message reactions: " . $e->getMessage());
+        $message_reactions_map = [];
+    }
+}
+
+if (
+    isset($_POST['reply_to_message_id'])
+    && (int) ($_POST['recipient_id'] ?? 0) === (int) $selected_chat_id
+) {
+    $reply_to_message_prefill_id = (int) ($_POST['reply_to_message_id'] ?? 0);
+}
+
+if ($reply_to_message_prefill_id > 0) {
+    foreach ($selected_conversation_messages as $message) {
+        $message_id = (int) ($message['message_id'] ?? 0);
+        if ($message_id !== $reply_to_message_prefill_id) {
+            continue;
+        }
+
+        $reply_sender_name = ((int) ($message['sender_id'] ?? 0) === (int) $student_id)
+            ? 'You'
+            : (string) ($selected_chat_friend_label ?? 'Classmate');
+
+        $reply_body = (string) ($message['message_body'] ?? '');
+        $reply_body = preg_replace('/\s+/', ' ', $reply_body);
+        if ((function_exists('mb_strlen') ? mb_strlen($reply_body, 'UTF-8') : strlen($reply_body)) > 140) {
+            $reply_body = (function_exists('mb_substr') ? mb_substr($reply_body, 0, 137, 'UTF-8') : substr($reply_body, 0, 137)) . '...';
+        }
+
+        $reply_preview_message = [
+            'id' => $message_id,
+            'sender' => $reply_sender_name,
+            'body' => $reply_body
+        ];
+        break;
+    }
+}
+
 // Get all clearance applications with proof information
 try {
     // Check if the new columns exist
-    $has_student_proof = false;
-    $db->query("SHOW COLUMNS FROM clearance LIKE 'student_proof_file'");
-    if ($db->single()) {
-        $has_student_proof = true;
-    }
+    $has_student_proof = hasDatabaseColumn('clearance', 'student_proof_file');
 
     if ($has_student_proof) {
         // Query with new columns
@@ -392,6 +2101,74 @@ try {
     $error = "Error loading clearance data. Please refresh the page.";
 }
 
+function extractOrganizationLackingComment($remarks)
+{
+    if (!is_string($remarks) || $remarks === '') {
+        return '';
+    }
+
+    if (preg_match('/\[(?:[A-Z]+_LACKING|ORG_LACKING)\]\s*(.+?)(?=\s*\|\s*|$)/s', $remarks, $matches)) {
+        return trim($matches[1]);
+    }
+
+    return '';
+}
+
+function cleanOrganizationRemarks($remarks)
+{
+    $clean = preg_replace('/\s*\|\s*\[(?:[A-Z]+_LACKING|ORG_LACKING)\]\s*.+?(?=\s*\|\s*|$)/s', '', (string) $remarks);
+    $clean = preg_replace('/^\[(?:[A-Z]+_LACKING|ORG_LACKING)\]\s*.+?(?=\s*\|\s*|$)/s', '', trim($clean));
+    return trim($clean, " \t\n\r\0\x0B|");
+}
+
+$organization_clearance_data = [];
+try {
+    ensureOrganizationProofColumns($db);
+    $db->query("SELECT
+                    oc.org_clearance_id,
+                    oc.clearance_id,
+                    oc.org_id,
+                    oc.status,
+                    oc.remarks,
+                    oc.student_proof_file,
+                    oc.student_proof_remarks,
+                    oc.student_proof_uploaded_at,
+                    oc.processed_date,
+                    so.org_name,
+                    so.org_type,
+                    c.users_id,
+                    c.semester,
+                    c.school_year,
+                    c.created_at,
+                    c.lacking_comment,
+                    c.lacking_comment_at,
+                    ct.clearance_name as clearance_type_name
+                FROM organization_clearance oc
+                JOIN clearance c ON oc.clearance_id = c.clearance_id
+                JOIN student_organizations so ON oc.org_id = so.org_id
+                LEFT JOIN clearance_type ct ON c.clearance_type_id = ct.clearance_type_id
+                WHERE c.users_id = :user_id
+                ORDER BY c.created_at DESC, so.org_name ASC");
+    $db->bind(':user_id', $student_id);
+    $organization_clearance_data = $db->resultSet() ?: [];
+
+    foreach ($organization_clearance_data as &$org_item) {
+        $org_item['item_type'] = 'organization';
+        $org_item['display_name'] = $org_item['org_name'] ?? 'Organization';
+        $org_item['target_name'] = $org_item['org_name'] ?? 'Organization';
+        $org_item['target_type'] = 'organization';
+        $org_item['lacking_comment'] = extractOrganizationLackingComment($org_item['remarks'] ?? '');
+        $org_item['clean_remarks'] = cleanOrganizationRemarks($org_item['remarks'] ?? '');
+        $org_item['formatted_date'] = !empty($org_item['created_at']) ? date('F d, Y', strtotime($org_item['created_at'])) : 'N/A';
+        $org_item['formatted_processed_date'] = !empty($org_item['processed_date']) ? date('F d, Y h:i A', strtotime($org_item['processed_date'])) : '';
+        $org_item['processed_by_name'] = $org_item['org_name'] ?? 'Organization';
+    }
+    unset($org_item);
+} catch (Exception $e) {
+    error_log("Error fetching organization clearance data: " . $e->getMessage());
+    $organization_clearance_data = [];
+}
+
 // Group clearances by semester and school year
 $grouped_clearances = [];
 $clearance_summary = [
@@ -409,10 +2186,15 @@ foreach ($clearance_data as $item) {
             'semester' => $item['semester'],
             'school_year' => $item['school_year'],
             'applications' => [],
+            'organization_applications' => [],
             'total_offices' => 0,
             'approved_offices' => 0,
             'rejected_offices' => 0,
             'pending_offices' => 0,
+            'total_organizations' => 0,
+            'approved_organizations' => 0,
+            'rejected_organizations' => 0,
+            'pending_organizations' => 0,
             'status' => 'pending',
             'applied_date' => $item['created_at'],
             'clearance_type' => $item['clearance_type_name'] ?? 'Unknown',
@@ -437,17 +2219,61 @@ foreach ($clearance_data as $item) {
     $clearance_summary['total']++;
 }
 
+foreach ($organization_clearance_data as $org_item) {
+    $key = $org_item['semester'] . ' ' . $org_item['school_year'];
+    if (!isset($grouped_clearances[$key])) {
+        $grouped_clearances[$key] = [
+            'semester' => $org_item['semester'],
+            'school_year' => $org_item['school_year'],
+            'applications' => [],
+            'organization_applications' => [],
+            'total_offices' => 0,
+            'approved_offices' => 0,
+            'rejected_offices' => 0,
+            'pending_offices' => 0,
+            'total_organizations' => 0,
+            'approved_organizations' => 0,
+            'rejected_organizations' => 0,
+            'pending_organizations' => 0,
+            'status' => 'pending',
+            'applied_date' => $org_item['created_at'],
+            'clearance_type' => $org_item['clearance_type_name'] ?? 'Unknown',
+            'can_cancel' => false
+        ];
+    }
+
+    $grouped_clearances[$key]['organization_applications'][] = $org_item;
+    $grouped_clearances[$key]['total_organizations']++;
+
+    if (($org_item['status'] ?? '') === 'approved') {
+        $grouped_clearances[$key]['approved_organizations']++;
+    } elseif (($org_item['status'] ?? '') === 'rejected') {
+        $grouped_clearances[$key]['rejected_organizations']++;
+    } else {
+        $grouped_clearances[$key]['pending_organizations']++;
+    }
+}
+
 // Determine overall status for each group and if it can be cancelled
 foreach ($grouped_clearances as &$group) {
-    if ($group['rejected_offices'] > 0) {
+    if ($group['rejected_offices'] > 0 || ($group['rejected_organizations'] ?? 0) > 0) {
         $group['status'] = 'rejected';
-    } elseif ($group['approved_offices'] == $group['total_offices']) {
+    } elseif (
+        $group['approved_offices'] == $group['total_offices']
+        && (($group['approved_organizations'] ?? 0) == ($group['total_organizations'] ?? 0))
+    ) {
         $group['status'] = 'approved';
         $clearance_summary['completed']++;
     } else {
         $group['status'] = 'pending';
-        // Can only cancel if all offices are still pending
-        $group['can_cancel'] = ($group['pending_offices'] == $group['total_offices']);
+        // Allow cancel for any in-progress application.
+        $group['can_cancel'] = ($group['pending_offices'] > 0 || ($group['pending_organizations'] ?? 0) > 0);
+    }
+
+    if (!empty($group['organization_applications'])) {
+        usort($group['organization_applications'], function ($a, $b) {
+            return strcasecmp($a['display_name'] ?? '', $b['display_name'] ?? '');
+        });
     }
 }
 
@@ -459,10 +2285,28 @@ foreach ($grouped_clearances as $key => $group) {
         usort($group['applications'], function ($a, $b) {
             return ($a['office_order'] ?? 0) - ($b['office_order'] ?? 0);
         });
+        if (!empty($group['organization_applications'])) {
+            usort($group['organization_applications'], function ($a, $b) {
+                return strcasecmp($a['display_name'] ?? '', $b['display_name'] ?? '');
+            });
+        }
         $current_clearance = $group;
         break;
     }
 }
+
+$current_pending_organizations = (int) (($current_clearance['pending_organizations'] ?? 0));
+$current_total_organizations = (int) (($current_clearance['total_organizations'] ?? 0));
+$current_approved_organizations = (int) (($current_clearance['approved_organizations'] ?? 0));
+$current_term_label = $current_clearance ? trim(($current_clearance['semester'] ?? '') . ' ' . ($current_clearance['school_year'] ?? '')) : 'No active clearance';
+$current_progress_label = $current_clearance
+    ? (($current_clearance['approved_offices'] ?? 0) . '/' . ($current_clearance['total_offices'] ?? 0) . ' offices cleared')
+    : 'Ready for a new clearance application';
+$hero_support_text = $current_clearance
+    ? ($current_pending_organizations > 0
+        ? $current_pending_organizations . ' organization requirement(s) still need your attention.'
+        : 'Your current clearance is moving through the required offices.')
+    : 'You can start a new clearance request anytime from the apply tab.';
 
 // Get clearance types for dropdown
 try {
@@ -507,6 +2351,18 @@ function getOfficeDisplayName($office_name)
 {
     return str_replace('_', ' ', $office_name);
 }
+
+function getOrganizationIcon($org_type)
+{
+    $icons = [
+        'town' => 'map-marker-alt',
+        'college' => 'graduation-cap',
+        'clinic' => 'briefcase-medical',
+        'ssg' => 'users'
+    ];
+
+    return $icons[$org_type] ?? 'building';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -516,7 +2372,7 @@ function getOfficeDisplayName($office_name)
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Dashboard | BISU Online Clearance</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
     <style>
         * {
@@ -526,11 +2382,13 @@ function getOfficeDisplayName($office_name)
         }
 
         :root {
-            --primary: #412886;
-            --primary-light: #6b4bb8;
-            --primary-dark: #2e1d5e;
-            --secondary: #917FB3;
-            --accent: #E5BEEC;
+            --font-body: 'Manrope', 'Segoe UI', sans-serif;
+            --font-display: 'Space Grotesk', 'Segoe UI', sans-serif;
+            --primary: #3a2475;
+            --primary-light: #6d55b6;
+            --primary-dark: #27184f;
+            --secondary: #52a79f;
+            --accent: #d9f3f0;
             --success: #2E7D32;
             --success-light: #4CAF50;
             --warning: #F9A826;
@@ -540,15 +2398,15 @@ function getOfficeDisplayName($office_name)
             --info-light: #42A5F5;
             --lacking: #f97316;
             --proof: #0ea5e9;
-            --bg: #F8F9FA;
-            --bg-dark: #E9ECEF;
-            --text: #2C3E50;
-            --text-light: #7B8A9B;
-            --white: #FFFFFF;
-            --border: #E0E0E0;
-            --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            --shadow-hover: 0 15px 40px rgba(0, 0, 0, 0.15);
-            --card-gradient: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            --bg: #f4f6fb;
+            --bg-dark: #e8ebf5;
+            --text: #243349;
+            --text-light: #6e7f98;
+            --white: #ffffff;
+            --border: #dbe2ef;
+            --shadow: 0 12px 30px rgba(17, 22, 35, 0.08);
+            --shadow-hover: 0 18px 40px rgba(17, 22, 35, 0.14);
+            --card-gradient: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 62%, var(--secondary) 100%);
         }
 
         .dark-mode {
@@ -568,9 +2426,31 @@ function getOfficeDisplayName($office_name)
         body {
             background: var(--bg);
             color: var(--text);
-            min-height: 100vh;
-            font-family: 'Inter', sans-serif;
+            min-height: 100dvh;
+            font-family: var(--font-body);
             transition: background-color 0.3s, color 0.3s;
+            background-image:
+                radial-gradient(circle at 10% 15%, rgba(82, 167, 159, 0.12) 0%, transparent 30%),
+                radial-gradient(circle at 85% 12%, rgba(58, 36, 117, 0.08) 0%, transparent 26%);
+            -webkit-text-size-adjust: 100%;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5 {
+            font-family: var(--font-display);
+            letter-spacing: -0.02em;
+        }
+
+        a:focus-visible,
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 3px solid rgba(58, 36, 117, 0.35);
+            outline-offset: 2px;
         }
 
         /* Modern Scrollbar */
@@ -594,23 +2474,25 @@ function getOfficeDisplayName($office_name)
 
         /* Header */
         .header {
-            background: var(--white);
+            background: color-mix(in srgb, var(--white) 85%, transparent);
             box-shadow: var(--shadow);
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             z-index: 1000;
-            padding: 1rem 2rem;
+            padding: calc(1rem + env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 1rem max(1rem, env(safe-area-inset-left));
             border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(10px);
         }
 
         .header-content {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            max-width: 1400px;
+            width: min(1400px, 100%);
             margin: 0 auto;
+            gap: 1rem;
         }
 
         .logo-area {
@@ -622,7 +2504,7 @@ function getOfficeDisplayName($office_name)
         .logo-icon {
             width: 45px;
             height: 45px;
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
             border-radius: 12px;
             display: flex;
             align-items: center;
@@ -631,6 +2513,7 @@ function getOfficeDisplayName($office_name)
             font-size: 1.5rem;
             transform: rotate(-5deg);
             transition: transform 0.3s;
+            box-shadow: 0 10px 22px rgba(58, 36, 117, 0.25);
         }
 
         .logo-icon:hover {
@@ -664,6 +2547,7 @@ function getOfficeDisplayName($office_name)
             border-radius: 50px;
             transition: all 0.3s;
             cursor: pointer;
+            border: 1px solid var(--border);
         }
 
         .user-info:hover {
@@ -704,33 +2588,13 @@ function getOfficeDisplayName($office_name)
             color: var(--text-light);
         }
 
-        .logout-btn {
-            background: var(--danger);
-            color: white;
-            padding: 0.7rem 1.5rem;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 0.95rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            transition: all 0.3s;
-        }
-
-        .logout-btn:hover {
-            background: var(--danger-light);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(198, 40, 40, 0.3);
-        }
-
         .theme-toggle {
             position: fixed;
-            bottom: 30px;
-            right: 30px;
+            bottom: calc(20px + env(safe-area-inset-bottom));
+            right: calc(20px + env(safe-area-inset-right));
             width: 50px;
             height: 50px;
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -750,16 +2614,16 @@ function getOfficeDisplayName($office_name)
         /* Main Container */
         .main-container {
             display: flex;
-            max-width: 1400px;
-            margin: 80px auto 0;
-            padding: 2rem;
+            width: min(1400px, 100%);
+            margin: calc(80px + env(safe-area-inset-top)) auto 0;
+            padding: clamp(1rem, 2.2vw, 2rem);
             gap: 2rem;
         }
 
         /* Sidebar */
         .sidebar {
             width: 300px;
-            background: var(--white);
+            background: color-mix(in srgb, var(--white) 92%, transparent);
             border-radius: 20px;
             box-shadow: var(--shadow);
             padding: 2rem 0;
@@ -775,6 +2639,7 @@ function getOfficeDisplayName($office_name)
             text-align: center;
             padding: 0 2rem 2rem;
             border-bottom: 2px solid var(--border);
+            background: linear-gradient(180deg, rgba(58, 36, 117, 0.05), transparent 65%);
         }
 
         .profile-avatar {
@@ -852,7 +2717,7 @@ function getOfficeDisplayName($office_name)
         }
 
         .profile-id {
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
             color: white;
             padding: 0.5rem 1rem;
             border-radius: 50px;
@@ -863,6 +2728,45 @@ function getOfficeDisplayName($office_name)
 
         .nav-menu {
             padding: 2rem;
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .mobile-nav-toggle {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            min-height: 46px;
+            padding: 0.8rem 1rem;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            background: var(--white);
+            color: var(--text);
+            font-weight: 700;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            transition: all 0.25s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .mobile-nav-toggle i {
+            color: var(--primary);
+            transition: transform 0.25s ease, color 0.25s ease;
+        }
+
+        .mobile-nav-toggle:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .mobile-nav-backdrop {
+            display: none;
+        }
+
+        body.mobile-nav-open {
+            overflow: hidden;
+            touch-action: none;
         }
 
         .nav-item {
@@ -881,6 +2785,9 @@ function getOfficeDisplayName($office_name)
             transition: all 0.3s;
             margin-bottom: 0.5rem;
             text-align: left;
+            border: 1px solid transparent;
+            min-height: 46px;
+            white-space: nowrap;
         }
 
         .nav-item i {
@@ -893,6 +2800,7 @@ function getOfficeDisplayName($office_name)
         .nav-item:hover {
             background: var(--bg-dark);
             transform: translateX(5px);
+            border-color: var(--border);
         }
 
         .nav-item:hover i {
@@ -900,12 +2808,35 @@ function getOfficeDisplayName($office_name)
         }
 
         .nav-item.active {
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
             color: white;
+            box-shadow: 0 10px 24px rgba(58, 36, 117, 0.28);
         }
 
         .nav-item.active i {
             color: white;
+        }
+
+        .mobile-logout-nav {
+            display: flex;
+            margin-top: 0.35rem;
+            background: rgba(198, 40, 40, 0.1);
+            border: 1px solid rgba(198, 40, 40, 0.25);
+            color: var(--danger);
+        }
+
+        .mobile-logout-nav i {
+            color: var(--danger);
+        }
+
+        .mobile-logout-nav:hover {
+            background: var(--danger);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .mobile-logout-nav:hover i {
+            color: #fff;
         }
 
         /* Content Area */
@@ -925,14 +2856,15 @@ function getOfficeDisplayName($office_name)
 
         /* Welcome Card */
         .welcome-card {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            background: var(--card-gradient);
             color: white;
-            padding: 3rem;
+            padding: clamp(1.4rem, 3vw, 3rem);
             border-radius: 20px;
             margin-bottom: 2rem;
             box-shadow: var(--shadow);
             position: relative;
             overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
         .welcome-card::before {
@@ -957,37 +2889,185 @@ function getOfficeDisplayName($office_name)
         }
 
         .welcome-card h1 {
-            font-size: 2.5rem;
+            font-size: clamp(1.5rem, 3.5vw, 2.5rem);
             font-weight: 800;
             margin-bottom: 1rem;
             position: relative;
         }
 
         .welcome-card p {
-            font-size: 1.1rem;
-            opacity: 0.9;
+            font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+            opacity: 0.96;
             position: relative;
             max-width: 600px;
+        }
+
+        .welcome-layout {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(250px, 0.9fr);
+            gap: 1.5rem;
+            align-items: stretch;
+        }
+
+        .welcome-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .hero-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+        }
+
+        .hero-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.55rem 0.9rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.85rem;
+            font-weight: 700;
+            backdrop-filter: blur(8px);
+        }
+
+        .hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-top: 0.25rem;
+        }
+
+        .hero-action {
+            min-height: 46px;
+            border: 1px solid transparent;
+            border-radius: 14px;
+            padding: 0.85rem 1.15rem;
+            font-weight: 700;
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            cursor: pointer;
+            transition: transform 0.25s, box-shadow 0.25s, background-color 0.25s;
+        }
+
+        .hero-action.primary {
+            background: #fff;
+            color: var(--primary);
+            box-shadow: 0 12px 28px rgba(16, 18, 37, 0.18);
+        }
+
+        .hero-action.secondary {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(10px);
+        }
+
+        .hero-action:hover {
+            transform: translateY(-2px);
+        }
+
+        .hero-panel {
+            background: rgba(11, 14, 32, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 18px;
+            padding: 1.2rem;
+            display: grid;
+            gap: 0.95rem;
+            backdrop-filter: blur(12px);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        }
+
+        .hero-panel-label {
+            opacity: 0.78;
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 800;
+        }
+
+        .hero-panel-value {
+            font-family: var(--font-display);
+            font-size: clamp(1.2rem, 2vw, 1.85rem);
+            line-height: 1.15;
+            font-weight: 700;
+        }
+
+        .hero-panel-text {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            opacity: 0.92;
+        }
+
+        .hero-panel-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.8rem;
+        }
+
+        .hero-panel-stat {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            padding: 0.9rem;
+            display: grid;
+            gap: 0.18rem;
+        }
+
+        .hero-panel-stat strong {
+            font-size: 1.15rem;
+        }
+
+        .hero-panel-stat span {
+            font-size: 0.8rem;
+            opacity: 0.78;
         }
 
         /* Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
 
         .stat-card {
             background: var(--white);
-            padding: 1.5rem;
-            border-radius: 16px;
+            padding: 1.35rem;
+            border-radius: 18px;
             box-shadow: var(--shadow);
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            align-items: start;
+            gap: 1rem;
             transition: all 0.3s;
             border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dashboard-tap-card {
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            opacity: 0;
+            transition: opacity 0.3s;
         }
 
         .stat-card:hover {
@@ -995,14 +3075,72 @@ function getOfficeDisplayName($office_name)
             box-shadow: var(--shadow-hover);
         }
 
+        .stat-card:hover::after {
+            opacity: 1;
+        }
+
+        .dashboard-tap-card:active {
+            transform: translateY(-1px) scale(0.99);
+        }
+
+        .dashboard-shortcut-grid {
+            display: none;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.85rem;
+            margin: 1rem 0 1.6rem;
+        }
+
+        .dashboard-shortcut-card {
+            background:
+                linear-gradient(145deg, rgba(58, 36, 117, 0.06), rgba(82, 167, 159, 0.12)),
+                var(--white);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 1rem;
+            display: grid;
+            gap: 0.45rem;
+            box-shadow: var(--shadow);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+
+        .dashboard-shortcut-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-hover);
+            border-color: rgba(58, 36, 117, 0.18);
+        }
+
+        .dashboard-shortcut-card i {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(58, 36, 117, 0.1);
+            color: var(--primary);
+            font-size: 1.05rem;
+        }
+
+        .dashboard-shortcut-card strong {
+            color: var(--text);
+            font-size: 0.95rem;
+        }
+
+        .dashboard-shortcut-card span {
+            color: var(--text-light);
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+
         .stat-icon {
-            width: 60px;
-            height: 60px;
-            border-radius: 12px;
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 2rem;
+            font-size: 1.5rem;
+            box-shadow: inset 0 -10px 20px rgba(255, 255, 255, 0.18);
         }
 
         .stat-icon.total {
@@ -1031,22 +3169,122 @@ function getOfficeDisplayName($office_name)
         }
 
         .stat-details h3 {
-            font-size: 2rem;
+            font-size: clamp(1.55rem, 2.8vw, 2rem);
             font-weight: 700;
             color: var(--text);
-            margin-bottom: 0.3rem;
+            margin-bottom: 0.18rem;
         }
 
         .stat-details p {
             color: var(--text-light);
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .dashboard-overview {
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            align-items: start;
+        }
+
+        .overview-stack {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .profile-highlight {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .profile-highlight-card {
+            background:
+                linear-gradient(155deg, rgba(58, 36, 117, 0.05), rgba(82, 167, 159, 0.08)),
+                var(--white);
+            border-radius: 18px;
+            padding: 1.2rem;
+            border: 1px solid var(--border);
+        }
+
+        .profile-highlight-card h3 {
+            font-size: 1rem;
+            margin-bottom: 0.35rem;
+        }
+
+        .profile-highlight-card p {
+            color: var(--text-light);
             font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .spotlight-card {
+            background:
+                radial-gradient(circle at top right, rgba(82, 167, 159, 0.18), transparent 34%),
+                linear-gradient(180deg, rgba(58, 36, 117, 0.05), transparent 65%),
+                var(--white);
+            border-radius: 20px;
+            padding: 1.35rem;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            display: grid;
+            gap: 1rem;
+        }
+
+        .spotlight-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-light);
+            font-weight: 800;
+        }
+
+        .spotlight-title {
+            font-family: var(--font-display);
+            font-size: 1.35rem;
+            color: var(--text);
+            line-height: 1.25;
+        }
+
+        .spotlight-copy {
+            color: var(--text-light);
+            line-height: 1.65;
+            font-size: 0.94rem;
+        }
+
+        .spotlight-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.85rem;
+        }
+
+        .spotlight-metric {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 0.85rem 0.95rem;
+            display: grid;
+            gap: 0.2rem;
+        }
+
+        .spotlight-metric strong {
+            font-size: 1.15rem;
+            color: var(--text);
+        }
+
+        .spotlight-metric span {
+            font-size: 0.82rem;
+            color: var(--text-light);
         }
 
         /* Section Card */
         .section-card {
             background: var(--white);
             border-radius: 20px;
-            padding: 2rem;
+            padding: clamp(1rem, 2vw, 2rem);
             margin-bottom: 2rem;
             box-shadow: var(--shadow);
             border: 1px solid var(--border);
@@ -1077,6 +3315,27 @@ function getOfficeDisplayName($office_name)
 
         .section-header h2 i {
             color: var(--primary);
+        }
+
+        .edit-profile-btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            border: none;
+            padding: 0.7rem 1.2rem;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+            min-height: 44px;
+        }
+
+        .edit-profile-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 18px rgba(58, 36, 117, 0.28);
         }
 
         /* Info Grid */
@@ -1304,8 +3563,22 @@ function getOfficeDisplayName($office_name)
             border-radius: 12px;
             font-size: 0.7rem;
             font-weight: 600;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
             margin-top: 0.3rem;
+            max-width: 100%;
+            text-align: center;
+        }
+
+        .proof-action-group {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.45rem;
+            width: 100%;
+            margin-top: 0.5rem;
         }
 
         .office-remarks {
@@ -1369,16 +3642,21 @@ function getOfficeDisplayName($office_name)
             background: var(--proof);
             color: white;
             border: none;
-            padding: 0.3rem 0.8rem;
+            padding: 0.45rem 0.8rem;
             border-radius: 15px;
             font-size: 0.7rem;
             font-weight: 600;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 0.3rem;
             transition: all 0.3s;
             text-decoration: none;
+            width: 100%;
+            max-width: 100%;
+            white-space: normal;
+            text-align: center;
         }
 
         .view-proof-btn:hover {
@@ -1455,10 +3733,54 @@ function getOfficeDisplayName($office_name)
             padding: 1rem;
             border: 2px solid var(--border);
             border-radius: 12px;
-            font-size: 0.95rem;
+            font-size: 16px;
             transition: all 0.3s;
             background: var(--white);
             color: var(--text);
+            min-height: 46px;
+        }
+
+        .password-field {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .password-field .form-control {
+            width: 100%;
+            padding-right: 3.75rem;
+        }
+
+        .password-toggle-btn {
+            position: absolute;
+            right: 0.45rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            border: none;
+            border-radius: 50%;
+            background: transparent;
+            color: var(--text-light);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            z-index: 2;
+            line-height: 1;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .password-toggle-btn i {
+            pointer-events: none;
+        }
+
+        .password-toggle-btn:hover {
+            background: var(--bg-dark);
+            color: var(--primary);
         }
 
         .form-control:focus {
@@ -1583,6 +3905,18 @@ function getOfficeDisplayName($office_name)
             margin-bottom: 2rem;
             border: 1px solid var(--border);
             transition: all 0.3s;
+            position: relative;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            border-radius: 20px 0 0 20px;
+            background: linear-gradient(180deg, var(--primary), var(--secondary));
         }
 
         .timeline-item:hover {
@@ -1659,9 +3993,10 @@ function getOfficeDisplayName($office_name)
             border-radius: 50px;
             background: var(--white);
             color: var(--text);
-            font-size: 0.95rem;
+            font-size: 16px;
             cursor: pointer;
             min-width: 150px;
+            min-height: 44px;
         }
 
         .filter-select:focus {
@@ -1705,6 +4040,883 @@ function getOfficeDisplayName($office_name)
         .clear-filter:hover {
             background: var(--danger);
             color: white;
+        }
+
+        .nav-badge {
+            margin-left: auto;
+            min-width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            background: var(--danger);
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 6px;
+        }
+
+        .nav-badge.is-hidden {
+            display: none;
+        }
+
+        /* Messenger-style messaging UI */
+        .messenger-shell {
+            --messenger-accent: #0084ff;
+            display: grid;
+            grid-template-columns: 340px minmax(0, 1fr);
+            min-height: 680px;
+            background: var(--white);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .messenger-shell,
+        .messenger-sidebar,
+        .messenger-chat-panel {
+            min-width: 0;
+        }
+
+        .messenger-sidebar {
+            display: grid;
+            grid-template-rows: auto auto minmax(0, 1fr);
+            border-right: 1px solid var(--border);
+            background: linear-gradient(180deg, #f7fbff 0%, #f6f8fe 35%, var(--white) 100%);
+            min-width: 0;
+        }
+
+        .messenger-sidebar-top {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            display: grid;
+            gap: 0.85rem;
+        }
+
+        .messenger-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .messenger-title-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            background: linear-gradient(145deg, #17a8ff, #0572ff);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.05rem;
+            box-shadow: 0 10px 20px rgba(0, 132, 255, 0.25);
+        }
+
+        .messenger-title h2 {
+            font-size: 1.18rem;
+            color: var(--text);
+            margin: 0;
+        }
+
+        .messenger-title p {
+            margin: 0;
+            color: var(--text-light);
+            font-size: 0.82rem;
+        }
+
+        .messenger-add-friend-form {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 0.55rem;
+        }
+
+        .messenger-add-input {
+            min-height: 42px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0.65rem 0.8rem;
+            font-size: 0.9rem;
+            background: var(--white);
+            color: var(--text);
+        }
+
+        .messenger-add-input:focus {
+            outline: none;
+            border-color: var(--messenger-accent);
+            box-shadow: 0 0 0 3px rgba(0, 132, 255, 0.15);
+        }
+
+        .messenger-add-btn {
+            min-height: 42px;
+            min-width: 42px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(145deg, #1098ff, #006fff);
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .messenger-add-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(0, 132, 255, 0.25);
+        }
+
+        .messenger-request-wrap {
+            border-bottom: 1px solid var(--border);
+            padding: 0.8rem 1rem;
+            display: grid;
+            gap: 0.55rem;
+        }
+
+        .messenger-request-heading {
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-light);
+            font-weight: 800;
+        }
+
+        .messenger-request-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.6rem;
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0.55rem 0.6rem;
+        }
+
+        .messenger-request-main {
+            min-width: 0;
+        }
+
+        .messenger-request-main strong {
+            display: block;
+            font-size: 0.84rem;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .messenger-request-meta {
+            font-size: 0.72rem;
+            color: var(--text-light);
+        }
+
+        .messenger-request-btn {
+            min-height: 34px;
+            padding: 0.35rem 0.75rem;
+            border: none;
+            border-radius: 999px;
+            background: #e8f2ff;
+            color: #006de4;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.75rem;
+            white-space: nowrap;
+        }
+
+        .messenger-request-btn:hover {
+            background: #d9e9ff;
+        }
+
+        .messenger-conversation-list {
+            overflow-y: auto;
+            padding: 0.55rem;
+            display: grid;
+            gap: 0.32rem;
+            min-height: 0;
+        }
+
+        .messenger-conversation-item {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 0.68rem;
+            align-items: center;
+            padding: 0.62rem;
+            border-radius: 14px;
+            text-decoration: none;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+            color: inherit;
+        }
+
+        .messenger-conversation-item:hover {
+            background: #eef5ff;
+            transform: translateY(-1px);
+        }
+
+        .messenger-conversation-item.active {
+            background: linear-gradient(145deg, rgba(0, 132, 255, 0.16), rgba(0, 132, 255, 0.08));
+            box-shadow: inset 0 0 0 1px rgba(0, 132, 255, 0.22);
+        }
+
+        .messenger-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #8ec7ff, #4a92ff);
+            color: #fff;
+            font-size: 0.88rem;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .messenger-conversation-main {
+            min-width: 0;
+            display: grid;
+            gap: 0.15rem;
+        }
+
+        .messenger-conversation-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .messenger-conversation-name {
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .messenger-conversation-time {
+            font-size: 0.72rem;
+            color: var(--text-light);
+            white-space: nowrap;
+        }
+
+        .messenger-conversation-preview {
+            font-size: 0.78rem;
+            color: var(--text-light);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .messenger-chat-panel {
+            display: grid;
+            grid-template-rows: auto minmax(0, 1fr) auto;
+            min-width: 0;
+            background: var(--white);
+        }
+
+        .messenger-chat-header {
+            border-bottom: 1px solid var(--border);
+            padding: 0.9rem 1.1rem;
+            background: linear-gradient(180deg, #ffffff, #f7fbff);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+        }
+
+        .messenger-mobile-back {
+            width: 38px;
+            height: 38px;
+            border: 1px solid var(--border);
+            border-radius: 11px;
+            background: #fff;
+            color: var(--primary);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .messenger-mobile-back:hover {
+            background: #edf4ff;
+            border-color: #cfe2ff;
+        }
+
+        .messenger-chat-user {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .messenger-chat-user>div {
+            min-width: 0;
+        }
+
+        .messenger-chat-status {
+            font-size: 0.78rem;
+            color: var(--text-light);
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .messenger-nickname-wrap {
+            margin-left: auto;
+            position: relative;
+            display: grid;
+            gap: 0.4rem;
+            width: min(100%, 320px);
+        }
+
+        .messenger-nickname-toggle-btn {
+            min-height: 36px;
+            border: 1px solid #cfe2ff;
+            border-radius: 10px;
+            padding: 0.45rem 0.7rem;
+            background: #eef5ff;
+            color: #1f5fbe;
+            font-weight: 700;
+            font-size: 0.78rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+        }
+
+        .messenger-nickname-toggle-btn:hover {
+            background: #e1edff;
+        }
+
+        .messenger-nickname-panel {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            right: 0;
+            width: min(100%, 320px);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+            padding: 0.55rem;
+            box-shadow: 0 14px 24px rgba(15, 23, 42, 0.14);
+            z-index: 20;
+        }
+
+        .messenger-nickname-panel.show {
+            display: grid;
+            gap: 0.45rem;
+        }
+
+        .messenger-nickname-hint {
+            font-size: 0.72rem;
+            color: var(--text-light);
+        }
+
+        .messenger-nickname-form {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 0.45rem;
+        }
+
+        .messenger-nickname-input {
+            flex: 1;
+            min-height: 36px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.45rem 0.65rem;
+            font-size: 0.82rem;
+            background: #fff;
+            color: var(--text);
+        }
+
+        .messenger-nickname-input:focus {
+            outline: none;
+            border-color: var(--messenger-accent);
+            box-shadow: 0 0 0 3px rgba(0, 132, 255, 0.14);
+        }
+
+        .messenger-nickname-btn {
+            min-height: 36px;
+            border: none;
+            border-radius: 10px;
+            padding: 0.45rem 0.7rem;
+            background: #e8f2ff;
+            color: #006de4;
+            font-weight: 700;
+            font-size: 0.78rem;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .messenger-nickname-btn:hover {
+            background: #d9e9ff;
+        }
+
+        .messenger-chat-thread {
+            overflow-y: auto;
+            padding: 1.1rem;
+            display: grid;
+            gap: 0.4rem;
+            background:
+                radial-gradient(circle at 18% 10%, rgba(0, 132, 255, 0.06), transparent 28%),
+                radial-gradient(circle at 85% 84%, rgba(58, 36, 117, 0.06), transparent 30%),
+                #f7f9ff;
+        }
+
+        .messenger-bubble-row {
+            display: grid;
+            justify-items: start;
+            gap: 0.18rem;
+        }
+
+        .messenger-bubble-row.mine {
+            justify-items: end;
+        }
+
+        .messenger-bubble {
+            max-width: min(78%, 680px);
+            padding: 0.62rem 0.9rem;
+            border-radius: 16px;
+            font-size: 0.9rem;
+            line-height: 1.45;
+            word-break: break-word;
+            box-shadow: 0 6px 14px rgba(13, 21, 42, 0.08);
+        }
+
+        .messenger-bubble-row.theirs .messenger-bubble {
+            background: #ffffff;
+            border: 1px solid #d9e6ff;
+            border-bottom-left-radius: 6px;
+            color: var(--text);
+        }
+
+        .messenger-bubble-row.mine .messenger-bubble {
+            background: linear-gradient(145deg, #1498ff, #006fff 65%);
+            color: #ffffff;
+            border-bottom-right-radius: 6px;
+        }
+
+        .messenger-bubble-meta {
+            font-size: 0.71rem;
+            color: var(--text-light);
+            padding: 0 0.25rem;
+        }
+
+        .messenger-reply-quote {
+            display: grid;
+            gap: 0.1rem;
+            margin-bottom: 0.35rem;
+            padding: 0.42rem 0.55rem;
+            border-left: 3px solid rgba(255, 255, 255, 0.45);
+            background: rgba(10, 25, 53, 0.18);
+            border-radius: 8px;
+        }
+
+        .messenger-bubble-row.theirs .messenger-reply-quote {
+            border-left-color: rgba(0, 132, 255, 0.35);
+            background: rgba(0, 132, 255, 0.08);
+        }
+
+        .messenger-reply-quote strong {
+            font-size: 0.7rem;
+            font-weight: 800;
+            opacity: 0.9;
+        }
+
+        .messenger-reply-quote span {
+            font-size: 0.78rem;
+            line-height: 1.35;
+            opacity: 0.92;
+            word-break: break-word;
+        }
+
+        .messenger-message-text {
+            white-space: normal;
+        }
+
+        .messenger-attachment-wrap {
+            margin-top: 0.45rem;
+        }
+
+        .messenger-attachment-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.45rem 0.6rem;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 700;
+            border: 1px solid rgba(0, 132, 255, 0.25);
+            background: rgba(0, 132, 255, 0.08);
+            color: #1a4f9f;
+            max-width: 100%;
+            word-break: break-word;
+        }
+
+        .messenger-bubble-row.mine .messenger-attachment-link {
+            border-color: rgba(255, 255, 255, 0.35);
+            background: rgba(255, 255, 255, 0.16);
+            color: #fff;
+        }
+
+        .messenger-attachment-image {
+            display: block;
+            max-width: min(100%, 280px);
+            max-height: 220px;
+            border-radius: 12px;
+            border: 1px solid rgba(15, 23, 42, 0.12);
+            object-fit: cover;
+        }
+
+        .messenger-attachment-audio {
+            width: min(100%, 280px);
+            height: 38px;
+        }
+
+        .messenger-message-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            flex-wrap: wrap;
+            position: relative;
+        }
+
+        .messenger-bubble-row.mine .messenger-message-actions {
+            justify-content: flex-end;
+        }
+
+        .messenger-reply-btn {
+            border: none;
+            border-radius: 999px;
+            background: #e7efff;
+            color: #1a59c2;
+            font-size: 0.74rem;
+            font-weight: 700;
+            padding: 0.28rem 0.62rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .messenger-reply-btn:hover {
+            background: #d8e6ff;
+        }
+
+        .messenger-react-toggle-btn {
+            border: none;
+            border-radius: 999px;
+            background: #eaf3ff;
+            color: #1d5ec0;
+            font-size: 0.74rem;
+            font-weight: 700;
+            padding: 0.28rem 0.62rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .messenger-react-toggle-btn:hover {
+            background: #dbeaff;
+        }
+
+        .messenger-reaction-picker {
+            display: none;
+            position: absolute;
+            top: auto;
+            bottom: calc(100% + 8px);
+            left: 0;
+            background: #fff;
+            border: 1px solid #cfe2ff;
+            border-radius: 14px;
+            padding: 0.45rem;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.14);
+            z-index: 25;
+            min-width: 220px;
+            max-width: min(260px, calc(100vw - 2rem));
+        }
+
+        .messenger-bubble-row.mine .messenger-reaction-picker {
+            left: auto;
+            right: 0;
+        }
+
+        .messenger-reaction-picker.show {
+            display: block;
+        }
+
+        .messenger-reaction-form {
+            margin: 0;
+        }
+
+        .messenger-delete-message-form {
+            margin-top: 0.5rem;
+            padding-top: 0.45rem;
+            border-top: 1px solid #e6eefb;
+        }
+
+        .messenger-delete-message-btn {
+            width: 100%;
+            border: 1px solid rgba(198, 40, 40, 0.35);
+            background: #fff5f5;
+            color: #b42323;
+            border-radius: 10px;
+            min-height: 32px;
+            padding: 0.3rem 0.55rem;
+            font-size: 0.74rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+        }
+
+        .messenger-delete-message-btn:hover {
+            background: #ffe8e8;
+            border-color: rgba(198, 40, 40, 0.52);
+        }
+
+        .messenger-reaction-list {
+            display: flex;
+            align-items: center;
+            gap: 0.26rem;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        .messenger-reaction-btn {
+            border: 1px solid #d4e3ff;
+            background: #f6faff;
+            color: #2b4b84;
+            border-radius: 999px;
+            min-height: 30px;
+            padding: 0.14rem 0.44rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.24rem;
+            font-size: 0.82rem;
+            cursor: pointer;
+        }
+
+        .messenger-reaction-btn small {
+            font-size: 0.68rem;
+            font-weight: 800;
+            color: #315ca6;
+            min-width: 12px;
+            text-align: center;
+        }
+
+        .messenger-reaction-btn.active {
+            border-color: #2891ff;
+            background: #e4f1ff;
+            box-shadow: inset 0 0 0 1px rgba(40, 145, 255, 0.2);
+        }
+
+        .messenger-reaction-summary {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            flex-wrap: wrap;
+        }
+
+        .messenger-reaction-chip {
+            border: 1px solid #d3e3ff;
+            background: #f8fbff;
+            border-radius: 999px;
+            padding: 0.1rem 0.36rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
+            font-size: 0.74rem;
+            color: #25529a;
+            font-weight: 700;
+        }
+
+        .messenger-reaction-chip.active {
+            border-color: #2891ff;
+            background: #e7f2ff;
+        }
+
+        .messenger-reaction-chip small {
+            font-size: 0.66rem;
+            font-weight: 800;
+            color: #2e5ca8;
+        }
+
+        @media (max-width: 768px) {
+            .messenger-nickname-wrap {
+                margin-left: 0;
+                width: 100%;
+            }
+
+            .messenger-nickname-panel {
+                position: static;
+                width: 100%;
+                box-shadow: none;
+                border-radius: 10px;
+            }
+
+            .messenger-reaction-picker {
+                position: static;
+                bottom: auto;
+                margin-top: 0.2rem;
+                border-radius: 12px;
+                min-width: 0;
+                max-width: 100%;
+                width: 100%;
+                padding: 0.42rem;
+            }
+        }
+
+        .messenger-reply-preview {
+            display: none;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.6rem;
+            border: 1px solid #cfe2ff;
+            background: #f4f9ff;
+            border-radius: 12px;
+            padding: 0.55rem 0.62rem;
+        }
+
+        .messenger-reply-preview.show {
+            display: flex;
+        }
+
+        .messenger-reply-preview-main {
+            min-width: 0;
+            display: grid;
+            gap: 0.14rem;
+        }
+
+        .messenger-reply-preview-main strong {
+            color: #1f59b8;
+            font-size: 0.76rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .messenger-reply-preview-main span {
+            color: var(--text-light);
+            font-size: 0.77rem;
+            line-height: 1.35;
+            word-break: break-word;
+        }
+
+        .messenger-reply-clear {
+            border: none;
+            border-radius: 8px;
+            width: 28px;
+            height: 28px;
+            flex-shrink: 0;
+            background: #e5eeff;
+            color: #335ca1;
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        .messenger-reply-clear:hover {
+            background: #d6e5ff;
+        }
+
+        .messenger-composer {
+            border-top: 1px solid var(--border);
+            padding: 0.9rem;
+            background: #ffffff;
+            display: grid;
+            gap: 0.6rem;
+        }
+
+        .messenger-composer textarea {
+            width: 100%;
+            min-height: 48px;
+            max-height: 140px;
+            resize: vertical;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 0.72rem 0.9rem;
+            font-size: 0.92rem;
+            color: var(--text);
+            background: #fff;
+        }
+
+        .messenger-composer textarea:focus {
+            outline: none;
+            border-color: var(--messenger-accent);
+            box-shadow: 0 0 0 3px rgba(0, 132, 255, 0.15);
+        }
+
+        .messenger-attachment-picker {
+            display: grid;
+            gap: 0.28rem;
+        }
+
+        .messenger-attachment-picker input[type="file"] {
+            font-size: 0.82rem;
+            color: var(--text-light);
+        }
+
+        .messenger-attachment-hint {
+            font-size: 0.72rem;
+            color: var(--text-light);
+        }
+
+        .messenger-composer-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.7rem;
+            flex-wrap: wrap;
+        }
+
+        .messenger-empty-chat-note {
+            font-size: 0.75rem;
+            color: var(--text-light);
+        }
+
+        .messenger-send-btn {
+            min-height: 40px;
+            padding: 0.55rem 1.05rem;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(145deg, #1098ff, #006fff);
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .messenger-send-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px rgba(0, 132, 255, 0.25);
+        }
+
+        .messenger-chat-empty {
+            height: 100%;
+            display: grid;
+            place-items: center;
+            text-align: center;
+            color: var(--text-light);
+            padding: 2rem;
+        }
+
+        .messenger-chat-empty i {
+            font-size: 2rem;
+            color: #80b4ff;
+            margin-bottom: 0.6rem;
         }
 
         /* Summary Stats */
@@ -1759,8 +4971,83 @@ function getOfficeDisplayName($office_name)
             border: 1px solid var(--border);
         }
 
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation: none !important;
+                transition: none !important;
+            }
+        }
+
         .modal-content.large {
             max-width: 700px;
+        }
+
+        .guide-modal-content {
+            max-width: 680px;
+        }
+
+        .guide-step-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.45rem 0.85rem;
+            border-radius: 999px;
+            background: rgba(58, 36, 117, 0.1);
+            color: var(--primary);
+            font-size: 0.82rem;
+            font-weight: 700;
+            margin-bottom: 0.7rem;
+        }
+
+        .guide-title {
+            font-size: 1.45rem;
+            color: var(--text);
+            margin-bottom: 0.65rem;
+        }
+
+        .guide-description {
+            color: var(--text-light);
+            line-height: 1.7;
+        }
+
+        .guide-points {
+            margin-top: 1rem;
+            display: grid;
+            gap: 0.65rem;
+        }
+
+        .guide-point {
+            display: flex;
+            gap: 0.55rem;
+            align-items: flex-start;
+            color: var(--text);
+            font-size: 0.92rem;
+            line-height: 1.5;
+        }
+
+        .guide-point i {
+            color: var(--primary);
+            margin-top: 0.15rem;
+        }
+
+        .guide-progress {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1.15rem;
+            flex-wrap: wrap;
+        }
+
+        .guide-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--border);
+        }
+
+        .guide-dot.active {
+            background: var(--primary);
         }
 
         .modal-header {
@@ -1853,6 +5140,18 @@ function getOfficeDisplayName($office_name)
         .btn-proof-upload:hover {
             background: var(--info);
             transform: translateY(-2px);
+        }
+
+        .btn,
+        .apply-btn,
+        .cancel-btn,
+        .filter-btn,
+        .clear-filter,
+        .btn-secondary,
+        .btn-proof-upload,
+        .upload-btn,
+        .view-proof-btn {
+            min-height: 44px;
         }
 
         /* Toast */
@@ -1958,8 +5257,14 @@ function getOfficeDisplayName($office_name)
 
         /* Responsive */
         @media (max-width: 1024px) {
-            .stats-grid {
-                grid-template-columns: repeat(3, 1fr);
+            .welcome-layout,
+            .dashboard-overview {
+                grid-template-columns: 1fr;
+            }
+
+            .messenger-shell {
+                grid-template-columns: 300px minmax(0, 1fr);
+                min-height: 620px;
             }
 
             .main-container {
@@ -1970,12 +5275,226 @@ function getOfficeDisplayName($office_name)
                 width: 100%;
                 position: static;
                 height: auto;
+                padding: 0;
+            }
+
+            .profile-section {
+                padding: 1rem;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .nav-menu {
+                display: flex;
+                gap: 0.55rem;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding: 0.85rem;
+                scroll-snap-type: x proximity;
+            }
+
+            .nav-item {
+                flex: 0 0 auto;
+                min-width: 172px;
+                margin-bottom: 0;
+                justify-content: flex-start;
+                scroll-snap-align: start;
+            }
+
+            .nav-menu::-webkit-scrollbar {
+                height: 6px;
             }
         }
 
         @media (max-width: 768px) {
+            .header {
+                position: sticky;
+                top: 0;
+                padding: calc(0.8rem + env(safe-area-inset-top)) 1rem 0.8rem;
+                z-index: 1400;
+            }
+
+            .header-content {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                align-items: center;
+                gap: 0.7rem;
+            }
+
+            .logo-area {
+                width: 100%;
+                min-width: 0;
+            }
+
+            .mobile-nav-toggle {
+                display: inline-flex;
+                width: auto;
+                justify-content: space-between;
+                padding-inline: 1rem 1.1rem;
+                min-width: 168px;
+            }
+
+            .mobile-nav-toggle.active {
+                background: linear-gradient(135deg, var(--primary), var(--primary-light));
+                color: #fff;
+                border-color: transparent;
+                box-shadow: 0 12px 26px rgba(58, 36, 117, 0.3);
+            }
+
+            .mobile-nav-toggle.active i {
+                color: #fff;
+                transform: rotate(90deg);
+            }
+
+            .user-menu {
+                width: 100%;
+                grid-column: 1 / -1;
+                justify-content: space-between;
+                align-items: stretch;
+                gap: 0.8rem;
+            }
+
+            .user-info {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .main-container {
+                margin-top: 0.8rem;
+                padding: 1rem;
+                gap: 1rem;
+                position: relative;
+            }
+
+            .sidebar {
+                display: block;
+                width: min(86vw, 340px);
+                position: fixed;
+                top: var(--mobile-header-offset, 0px);
+                left: 0;
+                right: auto;
+                height: calc(100dvh - var(--mobile-header-offset, 0px));
+                max-height: none;
+                margin-top: 0;
+                padding: calc(0.6rem + env(safe-area-inset-top)) 0 calc(0.6rem + env(safe-area-inset-bottom));
+                overflow: hidden auto;
+                pointer-events: none;
+                transform: translateX(-108%);
+                transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+                z-index: 1300;
+                border-radius: 0 18px 18px 0;
+                overscroll-behavior: contain;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .sidebar.mobile-open {
+                pointer-events: auto;
+                transform: translateX(0);
+            }
+
+            .mobile-nav-backdrop {
+                display: block;
+                position: fixed;
+                inset: 0;
+                background: rgba(14, 16, 29, 0.4);
+                backdrop-filter: blur(3px);
+                opacity: 0;
+                visibility: hidden;
+                pointer-events: none;
+                transition: opacity 0.24s ease, visibility 0.24s ease;
+                z-index: 1200;
+            }
+
+            .mobile-nav-backdrop.show {
+                opacity: 1;
+                visibility: visible;
+                pointer-events: auto;
+            }
+
+            .profile-section {
+                padding: 0.85rem 1rem;
+            }
+
+            .content-area {
+                position: relative;
+                z-index: 1;
+            }
+
+            .nav-menu {
+                display: grid;
+                padding: 0.85rem;
+                gap: 0.65rem;
+                overflow: visible;
+            }
+
+            .nav-item {
+                min-width: 100%;
+                width: 100%;
+                margin-bottom: 0;
+                padding: 0.95rem 1rem;
+                font-size: 0.92rem;
+                justify-content: flex-start;
+                transition: background-color 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+            }
+
+            .mobile-logout-nav {
+                margin-top: 0.25rem;
+            }
+
+            .section-card,
+            .timeline-item,
+            .contact-form,
+            .contact-info,
+            .pending-banner {
+                padding: 1.2rem;
+                border-radius: 14px;
+            }
+
+            .welcome-card {
+                padding: 1.25rem;
+                border-radius: 18px;
+            }
+
+            .dashboard-shortcut-grid {
+                display: grid;
+            }
+
             .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.9rem;
+            }
+
+            .stat-card {
+                padding: 1rem;
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+                border-radius: 16px;
+            }
+
+            .stat-icon {
+                width: 48px;
+                height: 48px;
+                border-radius: 14px;
+                font-size: 1.2rem;
+            }
+
+            .stat-details h3 {
+                font-size: 1.35rem;
+            }
+
+            .stat-details p {
+                font-size: 0.74rem;
+                line-height: 1.35;
+            }
+
+            .hero-actions,
+            .hero-panel-grid,
+            .spotlight-metrics {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-action {
+                width: 100%;
+                justify-content: center;
             }
 
             .form-row {
@@ -2020,11 +5539,309 @@ function getOfficeDisplayName($office_name)
                 flex-direction: column;
                 align-items: flex-start;
             }
+
+            .messenger-shell {
+                grid-template-columns: 1fr;
+                min-height: 0;
+            }
+
+            .messenger-sidebar {
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                grid-template-rows: auto auto minmax(0, 1fr);
+                min-height: min(78dvh, 680px);
+            }
+
+            .messenger-conversation-list {
+                max-height: none;
+            }
+
+            .messenger-chat-panel {
+                display: none;
+                min-height: min(78dvh, 680px);
+            }
+
+            .messenger-shell.mobile-chat-open .messenger-sidebar {
+                display: none;
+            }
+
+            .messenger-shell.mobile-chat-open .messenger-chat-panel {
+                display: grid;
+                min-height: min(78dvh, 680px);
+            }
+
+            .messenger-mobile-back {
+                display: inline-flex;
+            }
+
+            .messenger-chat-thread {
+                padding: 1rem;
+            }
+
+            .messenger-chat-header {
+                align-items: stretch;
+            }
+
+            .messenger-chat-user {
+                width: 100%;
+            }
+
+            .messenger-chat-status {
+                white-space: normal;
+                line-height: 1.35;
+            }
+
+            .messenger-nickname-form {
+                width: 100%;
+                margin-left: 0;
+            }
+
+            .messenger-bubble {
+                max-width: 88%;
+            }
+
+            .messenger-message-actions {
+                width: 100%;
+                justify-content: flex-start;
+            }
+
+            .messenger-reaction-list {
+                row-gap: 0.35rem;
+            }
+
+            .messenger-composer {
+                padding: 0.8rem;
+            }
+
+            .messenger-composer-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .messenger-attachment-picker input[type="file"] {
+                width: 100%;
+            }
+
+            .messenger-empty-chat-note {
+                order: 2;
+                text-align: center;
+            }
+
+            .messenger-send-btn {
+                width: 100%;
+                justify-content: center;
+            }
         }
 
         @media (max-width: 480px) {
-            .stats-grid {
+            .header {
+                padding-top: calc(0.65rem + env(safe-area-inset-top));
+            }
+
+            .header-content {
                 grid-template-columns: 1fr;
+            }
+
+            .mobile-nav-toggle {
+                width: 100%;
+                min-width: 0;
+            }
+
+            .logo-text h2 {
+                font-size: 1.05rem;
+            }
+
+            .user-menu {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .user-info {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .profile-avatar {
+                width: 92px;
+                height: 92px;
+                margin-bottom: 0.8rem;
+            }
+
+            .profile-name {
+                font-size: 1.05rem;
+            }
+
+            .profile-email {
+                font-size: 0.78rem;
+                margin-bottom: 0.65rem;
+            }
+
+            .profile-id {
+                font-size: 0.78rem;
+                padding: 0.35rem 0.7rem;
+            }
+
+            .nav-item {
+                min-width: 100%;
+                padding: 0.8rem 0.9rem;
+                font-size: 0.85rem;
+                gap: 0.55rem;
+            }
+
+            .dashboard-shortcut-grid {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
+
+            .nav-item i {
+                width: 18px;
+                font-size: 0.95rem;
+            }
+
+            .theme-toggle {
+                width: 44px;
+                height: 44px;
+                font-size: 1.05rem;
+                right: calc(14px + env(safe-area-inset-right));
+                bottom: calc(14px + env(safe-area-inset-bottom));
+            }
+
+            .toast {
+                left: 12px;
+                right: 12px;
+                top: calc(8px + env(safe-area-inset-top));
+                width: auto;
+                border-radius: 14px;
+                padding: 0.8rem 1rem;
+            }
+
+            .messenger-shell {
+                border-radius: 14px;
+            }
+
+            .messenger-sidebar-top {
+                padding: 0.85rem;
+            }
+
+            .messenger-title h2 {
+                font-size: 1.05rem;
+            }
+
+            .messenger-title p {
+                font-size: 0.76rem;
+            }
+
+            .messenger-conversation-item {
+                padding: 0.55rem;
+                border-radius: 12px;
+            }
+
+            .messenger-avatar {
+                width: 38px;
+                height: 38px;
+                font-size: 0.8rem;
+            }
+
+            .messenger-conversation-name {
+                font-size: 0.83rem;
+            }
+
+            .messenger-conversation-head {
+                align-items: flex-start;
+            }
+
+            .messenger-conversation-preview,
+            .messenger-conversation-time,
+            .messenger-chat-status {
+                font-size: 0.7rem;
+            }
+
+            .messenger-conversation-time {
+                display: none;
+            }
+
+            .messenger-chat-header {
+                padding: 0.8rem;
+            }
+
+            .messenger-nickname-input {
+                font-size: 0.76rem;
+            }
+
+            .messenger-nickname-btn {
+                min-height: 34px;
+                font-size: 0.72rem;
+            }
+
+            .messenger-chat-thread {
+                padding: 0.82rem;
+            }
+
+            .messenger-bubble {
+                max-width: 92%;
+                font-size: 0.86rem;
+                padding: 0.55rem 0.78rem;
+            }
+
+            .messenger-bubble-meta {
+                font-size: 0.66rem;
+            }
+
+            .messenger-reply-quote span,
+            .messenger-reply-preview-main span {
+                font-size: 0.72rem;
+            }
+
+            .messenger-reaction-btn {
+                min-height: 28px;
+                font-size: 0.75rem;
+            }
+
+            .messenger-composer {
+                padding: 0.7rem;
+            }
+
+            .messenger-composer textarea {
+                min-height: 44px;
+                font-size: 0.87rem;
+            }
+
+            .messenger-chat-empty {
+                padding: 1.25rem;
+            }
+
+            .hero-pill,
+            .timeline-badge,
+            .profile-id {
+                width: 100%;
+                justify-content: center;
+                text-align: center;
+            }
+
+            .spotlight-card,
+            .profile-highlight-card {
+                padding: 1rem;
+            }
+        }
+
+        @keyframes mobileDropdownIn {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @supports (-webkit-touch-callout: none) {
+            input,
+            select,
+            textarea,
+            button {
+                font-size: 16px;
             }
         }
     </style>
@@ -2048,6 +5865,10 @@ function getOfficeDisplayName($office_name)
                     <p>Student Portal</p>
                 </div>
             </div>
+            <button type="button" class="mobile-nav-toggle" id="mobileNavToggle" aria-expanded="false" aria-controls="studentSidebar">
+                <i class="fas fa-bars"></i>
+                <span>Open Navigation</span>
+            </button>
             <div class="user-menu">
                 <div class="user-info" onclick="switchTab('dashboard')">
                     <div class="user-avatar">
@@ -2065,18 +5886,15 @@ function getOfficeDisplayName($office_name)
                         <div class="user-role">Student</div>
                     </div>
                 </div>
-                <a href="../logout.php" class="logout-btn">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Logout</span>
-                </a>
             </div>
         </div>
     </header>
 
     <!-- Main Container -->
+    <div class="mobile-nav-backdrop" id="mobileNavBackdrop"></div>
     <div class="main-container">
         <!-- Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="studentSidebar">
             <div class="profile-section">
                 <div class="profile-avatar" id="avatarContainer">
                     <?php if (!empty($profile_pic) && file_exists('../' . $profile_pic)): ?>
@@ -2106,26 +5924,40 @@ function getOfficeDisplayName($office_name)
             </div>
 
             <nav class="nav-menu">
-                <button class="nav-item <?php echo $active_tab == 'dashboard' ? 'active' : ''; ?>"
+                <button class="nav-item <?php echo $active_tab == 'dashboard' ? 'active' : ''; ?>" data-tab="dashboard"
                     onclick="switchTab('dashboard')">
                     <i class="fas fa-home"></i>
                     <span>Dashboard</span>
                 </button>
-                <button class="nav-item <?php echo $active_tab == 'apply' ? 'active' : ''; ?>"
+                <button class="nav-item <?php echo $active_tab == 'apply' ? 'active' : ''; ?>" data-tab="apply"
                     onclick="switchTab('apply')">
                     <i class="fas fa-file-signature"></i>
                     <span>Apply Clearance</span>
                 </button>
-                <button class="nav-item <?php echo $active_tab == 'status' ? 'active' : ''; ?>"
+                <button class="nav-item <?php echo $active_tab == 'status' ? 'active' : ''; ?>" data-tab="status"
                     onclick="switchTab('status')">
                     <i class="fas fa-chart-line"></i>
                     <span>Track Status</span>
                 </button>
-                <button class="nav-item <?php echo $active_tab == 'history' ? 'active' : ''; ?>"
+                <button class="nav-item <?php echo $active_tab == 'history' ? 'active' : ''; ?>" data-tab="history"
                     onclick="switchTab('history')">
                     <i class="fas fa-history"></i>
                     <span>History</span>
                 </button>
+                <button id="messagesNavButton" class="nav-item <?php echo $active_tab == 'messages' ? 'active' : ''; ?>" data-tab="messages"
+                    onclick="switchTab('messages')">
+                    <i class="fas fa-comments"></i>
+                    <span>Messages</span>
+                    <span id="messageUnreadBadge" class="nav-badge <?php echo $message_tab_notification_count > 0 ? '' : 'is-hidden'; ?>"><?php echo (int) $message_tab_notification_count; ?></span>
+                </button>
+                <button type="button" class="nav-item" onclick="openProfileModal(); closeMobileNav();">
+                    <i class="fas fa-user-edit"></i>
+                    <span>Your Information</span>
+                </button>
+                <a href="../logout.php" class="nav-item mobile-logout-nav">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
             </nav>
         </aside>
 
@@ -2159,11 +5991,79 @@ function getOfficeDisplayName($office_name)
                     </h1>
                     <p>Track your clearance progress and manage your applications from here. Complete all 5 steps to get
                         your clearance.</p>
+                    <div class="dashboard-shortcut-grid">
+                        <div class="dashboard-shortcut-card dashboard-tap-card" data-switch-tab="status" role="button" tabindex="0">
+                            <i class="fas fa-chart-line"></i>
+                            <strong>Track Status</strong>
+                            <span>Open your latest office and organization progress in one tap.</span>
+                        </div>
+                        <div class="dashboard-shortcut-card dashboard-tap-card" data-switch-tab="<?php echo $current_clearance ? 'status' : 'apply'; ?>" role="button" tabindex="0">
+                            <i class="fas fa-<?php echo $current_clearance ? 'file-circle-check' : 'file-signature'; ?>"></i>
+                            <strong><?php echo $current_clearance ? 'Current Clearance' : 'Apply Now'; ?></strong>
+                            <span><?php echo htmlspecialchars($current_clearance ? 'Review your active request and respond quickly to updates.' : 'Start a new clearance request from your phone.'); ?></span>
+                        </div>
+                        <div class="dashboard-shortcut-card dashboard-tap-card" data-switch-tab="history" role="button" tabindex="0">
+                            <i class="fas fa-history"></i>
+                            <strong>History</strong>
+                            <span>Review completed terms and past approval activity.</span>
+                        </div>
+                        <div class="dashboard-shortcut-card dashboard-tap-card" data-switch-tab="messages" role="button" tabindex="0">
+                            <i class="fas fa-comments"></i>
+                            <strong>Messages</strong>
+                            <span>Check updates, friends, and student conversations faster.</span>
+                        </div>
+                    </div>
+                    <div class="welcome-layout" style="margin-top: 1.5rem;">
+                        <div class="welcome-copy">
+                            <div class="hero-pills">
+                                <span class="hero-pill"><i class="fas fa-layer-group"></i> <?php echo htmlspecialchars($current_term_label); ?></span>
+                                <span class="hero-pill"><i class="fas fa-route"></i> <?php echo htmlspecialchars($current_progress_label); ?></span>
+                                <span class="hero-pill"><i class="fas fa-building"></i> <?php echo (int) $current_total_organizations; ?> org checks</span>
+                            </div>
+                            <div class="hero-actions">
+                                <button type="button" class="hero-action primary" onclick="switchTab('status')">
+                                    <i class="fas fa-chart-line"></i> Track Status
+                                </button>
+                                <button type="button" class="hero-action secondary" onclick="switchTab('<?php echo $current_clearance ? 'status' : 'apply'; ?>')">
+                                    <i class="fas fa-<?php echo $current_clearance ? 'file-circle-check' : 'file-signature'; ?>"></i>
+                                    <?php echo $current_clearance ? 'Review Current Clearance' : 'Start New Clearance'; ?>
+                                </button>
+                                <button type="button" class="hero-action secondary" onclick="openOnboardingGuide(true)">
+                                    <i class="fas fa-circle-question"></i> System Guide
+                                </button>
+                            </div>
+                        </div>
+                        <div class="hero-panel">
+                            <div>
+                                <div class="hero-panel-label">Student Snapshot</div>
+                                <div class="hero-panel-value"><?php echo htmlspecialchars($current_term_label); ?></div>
+                            </div>
+                            <div class="hero-panel-text"><?php echo htmlspecialchars($hero_support_text); ?></div>
+                            <div class="hero-panel-grid">
+                                <div class="hero-panel-stat">
+                                    <strong><?php echo (int) ($clearance_summary['pending'] ?? 0); ?></strong>
+                                    <span>Pending checks</span>
+                                </div>
+                                <div class="hero-panel-stat">
+                                    <strong><?php echo (int) $current_pending_organizations; ?></strong>
+                                    <span>Org actions waiting</span>
+                                </div>
+                                <div class="hero-panel-stat">
+                                    <strong><?php echo (int) ($clearance_summary['completed'] ?? 0); ?></strong>
+                                    <span>Completed clearances</span>
+                                </div>
+                                <div class="hero-panel-stat">
+                                    <strong><?php echo (int) $current_approved_organizations; ?>/<?php echo (int) $current_total_organizations; ?></strong>
+                                    <span>Organizations cleared</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Stats Grid - 5 Stats -->
                 <div class="stats-grid">
-                    <div class="stat-card">
+                    <div class="stat-card dashboard-tap-card" data-switch-tab="history" role="button" tabindex="0">
                         <div class="stat-icon total">
                             <i class="fas fa-file-alt"></i>
                         </div>
@@ -2174,7 +6074,7 @@ function getOfficeDisplayName($office_name)
                             <p>Total Applications</p>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card dashboard-tap-card" data-switch-tab="history" role="button" tabindex="0">
                         <div class="stat-icon approved">
                             <i class="fas fa-check-circle"></i>
                         </div>
@@ -2185,7 +6085,7 @@ function getOfficeDisplayName($office_name)
                             <p>Approved</p>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card dashboard-tap-card" data-switch-tab="status" role="button" tabindex="0">
                         <div class="stat-icon pending">
                             <i class="fas fa-clock"></i>
                         </div>
@@ -2196,7 +6096,7 @@ function getOfficeDisplayName($office_name)
                             <p>Pending</p>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card dashboard-tap-card" data-switch-tab="status" role="button" tabindex="0">
                         <div class="stat-icon rejected">
                             <i class="fas fa-times-circle"></i>
                         </div>
@@ -2207,7 +6107,7 @@ function getOfficeDisplayName($office_name)
                             <p>Rejected</p>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card dashboard-tap-card" data-switch-tab="history" role="button" tabindex="0">
                         <div class="stat-icon completed">
                             <i class="fas fa-check-double"></i>
                         </div>
@@ -2220,53 +6120,10 @@ function getOfficeDisplayName($office_name)
                     </div>
                 </div>
 
-                <!-- Student Information -->
-                <div class="section-card">
-                    <div class="section-header">
-                        <h2><i class="fas fa-graduation-cap"></i> Your Information</h2>
-                    </div>
-                    <div class="info-grid">
-                        <div class="info-item">
-                            <div class="label">College</div>
-                            <div class="value">
-                                <?php echo htmlspecialchars($student_info['college_name'] ?? 'N/A'); ?>
-                            </div>
-                        </div>
-                        <div class="info-item">
-                            <div class="label">Course</div>
-                            <div class="value">
-                                <?php echo htmlspecialchars($student_info['course_name'] ?? 'N/A') . ' (' . htmlspecialchars($student_info['course_code'] ?? '') . ')'; ?>
-                            </div>
-                        </div>
-                        <div class="info-item">
-                            <div class="label">ISMIS ID</div>
-                            <div class="value">
-                                <?php echo htmlspecialchars($student_info['ismis_id'] ?? 'N/A'); ?>
-                            </div>
-                        </div>
-                        <div class="info-item">
-                            <div class="label">Contact</div>
-                            <div class="value">
-                                <?php echo htmlspecialchars($student_info['contacts'] ?? 'N/A'); ?>
-                            </div>
-                        </div>
-                        <div class="info-item">
-                            <div class="label">Address</div>
-                            <div class="value">
-                                <?php echo htmlspecialchars($student_info['address'] ?? 'N/A'); ?>
-                            </div>
-                        </div>
-                        <div class="info-item">
-                            <div class="label">Age</div>
-                            <div class="value">
-                                <?php echo htmlspecialchars($student_info['age'] ?? 'N/A'); ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Current Clearance Progress -->
-                <?php if ($current_clearance): ?>
+                <div class="dashboard-overview">
+                    <div class="overview-stack">
+                        <!-- Current Clearance Progress -->
+                        <?php if ($current_clearance): ?>
                     <div class="section-card">
                         <div class="section-header">
                             <h2><i class="fas fa-tasks"></i> Current Clearance Progress</h2>
@@ -2352,6 +6209,44 @@ function getOfficeDisplayName($office_name)
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
+                    </div>
+
+                    <div class="profile-highlight">
+                        <div class="spotlight-card">
+                            <div class="spotlight-label">Live Focus</div>
+                            <div class="spotlight-title"><?php echo htmlspecialchars($current_clearance ? 'Stay on top of your active clearance' : 'You are ready to apply for clearance'); ?></div>
+                            <div class="spotlight-copy"><?php echo htmlspecialchars($hero_support_text); ?></div>
+                            <div class="spotlight-metrics">
+                                <div class="spotlight-metric">
+                                    <strong><?php echo (int) ($current_clearance ? ($current_clearance['approved_offices'] ?? 0) : 0); ?>/<?php echo (int) ($current_clearance ? ($current_clearance['total_offices'] ?? 5) : 5); ?></strong>
+                                    <span>Office approvals</span>
+                                </div>
+                                <div class="spotlight-metric">
+                                    <strong><?php echo (int) $current_approved_organizations; ?>/<?php echo (int) $current_total_organizations; ?></strong>
+                                    <span>Organization checks</span>
+                                </div>
+                                <div class="spotlight-metric">
+                                    <strong><?php echo (int) ($clearance_summary['rejected'] ?? 0); ?></strong>
+                                    <span>Items needing fixes</span>
+                                </div>
+                                <div class="spotlight-metric">
+                                    <strong><?php echo (int) ($message_tab_notification_count ?? 0); ?></strong>
+                                    <span>Unread updates</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="profile-highlight-card">
+                            <h3><i class="fas fa-lightbulb" style="color: var(--warning); margin-right: 0.45rem;"></i>Best Next Step</h3>
+                            <p><?php echo htmlspecialchars($current_clearance ? ($current_pending_organizations > 0 ? 'Open Track Status and upload proof for any organization asking for additional documents so your clearance does not stall.' : 'Keep checking your current progress and respond quickly to any office or organization comments.') : 'Open the Apply tab, choose your term, and submit a new clearance request when you are ready.'); ?></p>
+                        </div>
+
+                        <div class="profile-highlight-card">
+                            <h3><i class="fas fa-mobile-alt" style="color: var(--info); margin-right: 0.45rem;"></i>Mobile Friendly</h3>
+                            <p>The layout now keeps your main actions, stats, and progress blocks easier to scan on smaller screens so you can manage clearance updates comfortably from your phone.</p>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- No Applications Yet -->
                 <?php if (empty($clearance_data)): ?>
@@ -2389,6 +6284,18 @@ function getOfficeDisplayName($office_name)
                                 <button class="btn btn-outline" onclick="switchTab('dashboard')">
                                     <i class="fas fa-home"></i> Dashboard
                                 </button>
+                                <?php if ($current_clearance['can_cancel']): ?>
+                                    <form method="POST"
+                                        onsubmit="return confirm('Are you sure you want to cancel this application? This action cannot be undone.');"
+                                        style="display: inline-flex;">
+                                        <input type="hidden" name="semester" value="<?php echo $current_clearance['semester']; ?>">
+                                        <input type="hidden" name="school_year"
+                                            value="<?php echo $current_clearance['school_year']; ?>">
+                                        <button type="submit" name="cancel_application" class="btn btn-outline">
+                                            <i class="fas fa-times-circle"></i> Cancel Application
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
                             </div>
                         </div>
                     <?php else: ?>
@@ -2609,15 +6516,17 @@ function getOfficeDisplayName($office_name)
                                                                 <i class="fas fa-upload"></i> Upload Proof
                                                             </button>
                                                         <?php else: ?>
-                                                            <div class="proof-badge">
-                                                                <i class="fas fa-check-circle"></i> Proof Uploaded
+                                                            <div class="proof-action-group">
+                                                                <div class="proof-badge">
+                                                                    <i class="fas fa-check-circle"></i> Proof Uploaded
+                                                                </div>
+                                                                <?php if (!empty($app['student_proof_file'])): ?>
+                                                                    <a href="../<?php echo $app['student_proof_file']; ?>" target="_blank"
+                                                                        class="view-proof-btn" onclick="event.stopPropagation();">
+                                                                        <i class="fas fa-eye"></i> View Proof
+                                                                    </a>
+                                                                <?php endif; ?>
                                                             </div>
-                                                            <?php if (!empty($app['student_proof_file'])): ?>
-                                                                <a href="../<?php echo $app['student_proof_file']; ?>" target="_blank"
-                                                                    class="view-proof-btn" onclick="event.stopPropagation();">
-                                                                    <i class="fas fa-eye"></i> View Proof
-                                                                </a>
-                                                            <?php endif; ?>
                                                         <?php endif; ?>
                                                     <?php endif; ?>
 
@@ -2631,6 +6540,58 @@ function getOfficeDisplayName($office_name)
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
+
+                                    <?php if (!empty($group['organization_applications'])): ?>
+                                        <h4 style="margin: 1.5rem 0 1rem; color: var(--text);">Organization Status</h4>
+                                        <div class="offices-grid">
+                                            <?php foreach ($group['organization_applications'] as $orgApp): ?>
+                                                <div class="office-card <?php echo !empty($orgApp['lacking_comment']) ? 'lacking' : ''; ?>"
+                                                    onclick='viewDetails(<?php echo json_encode($orgApp); ?>)'>
+                                                    <div class="office-icon <?php echo $orgApp['status']; ?>">
+                                                        <i class="fas fa-<?php echo getOrganizationIcon($orgApp['org_type'] ?? ''); ?>"></i>
+                                                    </div>
+                                                    <div class="office-details">
+                                                        <div class="office-name">
+                                                            <?php echo htmlspecialchars($orgApp['org_name'] ?? 'Organization'); ?>
+                                                        </div>
+                                                        <div class="office-status <?php echo $orgApp['status']; ?>">
+                                                            <?php echo ucfirst($orgApp['status']); ?>
+                                                        </div>
+
+                                                        <?php if (!empty($orgApp['lacking_comment'])): ?>
+                                                            <div class="lacking-badge">
+                                                                <i class="fas fa-exclamation-triangle"></i> Organization Proof Needed
+                                                            </div>
+
+                                                            <?php if (empty($orgApp['student_proof_file'])): ?>
+                                                                <button class="upload-btn"
+                                                                    onclick="event.stopPropagation(); openUploadModal(<?php echo (int) $orgApp['clearance_id']; ?>, '<?php echo htmlspecialchars($orgApp['org_name'] ?? 'Organization', ENT_QUOTES); ?>', 'organization', <?php echo (int) $orgApp['org_clearance_id']; ?>)">
+                                                                    <i class="fas fa-upload"></i> Upload Proof
+                                                                </button>
+                                                            <?php else: ?>
+                                                                <div class="proof-action-group">
+                                                                    <div class="proof-badge">
+                                                                        <i class="fas fa-check-circle"></i> Proof Uploaded
+                                                                    </div>
+                                                                    <a href="../<?php echo $orgApp['student_proof_file']; ?>" target="_blank"
+                                                                        class="view-proof-btn" onclick="event.stopPropagation();">
+                                                                        <i class="fas fa-eye"></i> View Proof
+                                                                    </a>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                        <?php endif; ?>
+
+                                                        <?php if (!empty($orgApp['processed_date'])): ?>
+                                                            <div class="office-date">
+                                                                <i class="fas fa-check-circle"></i>
+                                                                <?php echo date('M d, Y', strtotime($orgApp['processed_date'])); ?>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
 
                                     <!-- Lacking Comments Summary -->
                                     <?php
@@ -2666,6 +6627,37 @@ function getOfficeDisplayName($office_name)
                                         </div>
                                     <?php endif; ?>
 
+                                    <?php
+                                    $organization_lacking_items = [];
+                                    foreach ($group['organization_applications'] ?? [] as $orgApp) {
+                                        if (!empty($orgApp['lacking_comment'])) {
+                                            $organization_lacking_items[] = [
+                                                'organization' => $orgApp['org_name'] ?? 'Organization',
+                                                'comment' => $orgApp['lacking_comment']
+                                            ];
+                                        }
+                                    }
+                                    ?>
+
+                                    <?php if (!empty($organization_lacking_items)): ?>
+                                        <div
+                                            style="margin-top: 1rem; padding: 1rem; background: rgba(14, 165, 233, 0.1); border-radius: 8px;">
+                                            <h5
+                                                style="display: flex; align-items: center; gap: 0.5rem; color: var(--proof); margin-bottom: 0.5rem;">
+                                                <i class="fas fa-building"></i> Organization Requirements
+                                            </h5>
+                                            <?php foreach ($organization_lacking_items as $orgLacking): ?>
+                                                <div
+                                                    style="margin-bottom: 0.5rem; padding: 0.5rem; background: var(--white); border-radius: 4px;">
+                                                    <strong>
+                                                        <?php echo htmlspecialchars($orgLacking['organization']); ?>:
+                                                    </strong>
+                                                    <?php echo htmlspecialchars($orgLacking['comment']); ?>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
+
                                     <!-- Summary Stats -->
                                     <div class="summary-stats">
                                         <div class="summary-item">
@@ -2690,7 +6682,28 @@ function getOfficeDisplayName($office_name)
                                                 </span>
                                             </div>
                                         <?php endif; ?>
+                                        <?php if (($group['total_organizations'] ?? 0) > 0): ?>
+                                            <div class="summary-item">
+                                                <i class="fas fa-building" style="color: var(--primary);"></i>
+                                                <span>Organizations:
+                                                    <?php echo $group['approved_organizations']; ?>/<?php echo $group['total_organizations']; ?>
+                                                </span>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
+
+                                    <?php if (!empty($group['can_cancel'])): ?>
+                                        <div style="text-align: right; margin-top: 1rem;">
+                                            <form method="POST"
+                                                onsubmit="return confirm('Are you sure you want to cancel this application? This action cannot be undone.');">
+                                                <input type="hidden" name="semester" value="<?php echo $group['semester']; ?>">
+                                                <input type="hidden" name="school_year" value="<?php echo $group['school_year']; ?>">
+                                                <button type="submit" name="cancel_application" class="cancel-btn">
+                                                    <i class="fas fa-times-circle"></i> Cancel Application
+                                                </button>
+                                            </form>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -2800,6 +6813,14 @@ function getOfficeDisplayName($office_name)
                                                 </div>
                                             </div>
                                         <?php endif; ?>
+                                        <?php if (($group['total_organizations'] ?? 0) > 0): ?>
+                                            <div>
+                                                <div style="color: var(--text-light); font-size: 0.9rem;">Organizations</div>
+                                                <div style="color: var(--primary); font-size: 1.5rem; font-weight: 700;">
+                                                    <?php echo $group['approved_organizations']; ?>/<?php echo $group['total_organizations']; ?>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
 
                                     <!-- Office Cards -->
@@ -2826,7 +6847,7 @@ function getOfficeDisplayName($office_name)
                                                     <?php endif; ?>
 
                                                     <?php if (!empty($app['student_proof_file'])): ?>
-                                                        <div style="margin-top: 0.5rem;">
+                                                        <div class="proof-action-group">
                                                             <a href="../<?php echo $app['student_proof_file']; ?>" target="_blank"
                                                                 class="view-proof-btn" onclick="event.stopPropagation();">
                                                                 <i class="fas fa-eye"></i> View Proof
@@ -2837,10 +6858,429 @@ function getOfficeDisplayName($office_name)
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
+
+                                    <?php if (!empty($group['organization_applications'])): ?>
+                                        <h4 style="margin: 1rem 0; color: var(--text);">Organization Details</h4>
+                                        <div class="offices-grid">
+                                            <?php foreach ($group['organization_applications'] as $orgApp): ?>
+                                                <div class="office-card <?php echo !empty($orgApp['lacking_comment']) ? 'lacking' : ''; ?>"
+                                                    onclick='viewDetails(<?php echo json_encode($orgApp); ?>)'>
+                                                    <div class="office-icon <?php echo $orgApp['status']; ?>">
+                                                        <i class="fas fa-<?php echo getOrganizationIcon($orgApp['org_type'] ?? ''); ?>"></i>
+                                                    </div>
+                                                    <div class="office-details">
+                                                        <div class="office-name">
+                                                            <?php echo htmlspecialchars($orgApp['org_name'] ?? 'Organization'); ?>
+                                                        </div>
+                                                        <div class="office-status <?php echo $orgApp['status']; ?>">
+                                                            <?php echo ucfirst($orgApp['status']); ?>
+                                                        </div>
+                                                        <?php if (!empty($orgApp['clean_remarks'])): ?>
+                                                            <div class="office-remarks"
+                                                                title="<?php echo htmlspecialchars($orgApp['clean_remarks']); ?>">
+                                                                <i class="fas fa-comment"></i>
+                                                                <?php echo htmlspecialchars(strlen($orgApp['clean_remarks']) > 20 ? substr($orgApp['clean_remarks'], 0, 20) . '...' : $orgApp['clean_remarks']); ?>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                        <?php if (!empty($orgApp['student_proof_file'])): ?>
+                                                            <div class="proof-action-group">
+                                                                <a href="../<?php echo $orgApp['student_proof_file']; ?>" target="_blank"
+                                                                    class="view-proof-btn" onclick="event.stopPropagation();">
+                                                                    <i class="fas fa-eye"></i> View Proof
+                                                                </a>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Messages Tab -->
+            <div id="messages" class="tab-content <?php echo $active_tab == 'messages' ? 'active' : ''; ?>">
+                <div id="messengerShell" class="messenger-shell <?php echo $has_explicit_chat_target ? 'mobile-chat-open' : ''; ?>">
+                    <aside class="messenger-sidebar">
+                        <div class="messenger-sidebar-top">
+                            <div class="messenger-title">
+                                <span class="messenger-title-icon"><i class="fas fa-comments"></i></span>
+                                <div>
+                                    <h2>Messages</h2>
+                                    <p><?php echo count($student_friends); ?> classmate<?php echo count($student_friends) === 1 ? '' : 's'; ?></p>
+                                </div>
+                            </div>
+
+                            <form method="POST" action="" class="messenger-add-friend-form">
+                                <input
+                                    type="text"
+                                    name="friend_ismis_id"
+                                    class="messenger-add-input"
+                                    placeholder="Add friend by ISMIS ID"
+                                    maxlength="40"
+                                    required
+                                >
+                                <button type="submit" name="add_friend_by_ismis" class="messenger-add-btn" title="Send friend request">
+                                    <i class="fas fa-user-plus"></i>
+                                </button>
+                            </form>
+
+                            <?php if (!empty($outgoing_friend_requests)): ?>
+                                <div class="messenger-request-meta">
+                                    Sent requests: <?php echo count($outgoing_friend_requests); ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+
+                        <?php if (!empty($incoming_friend_requests)): ?>
+                            <div class="messenger-request-wrap">
+                                <div class="messenger-request-heading">Incoming Requests</div>
+                                <?php foreach ($incoming_friend_requests as $request): ?>
+                                    <form method="POST" action="" class="messenger-request-row">
+                                        <div class="messenger-request-main">
+                                            <strong><?php echo htmlspecialchars($request['requester_name']); ?></strong>
+                                            <?php if (!empty($request['ismis_id'])): ?>
+                                                <div class="messenger-request-meta">ISMIS: <?php echo htmlspecialchars($request['ismis_id']); ?></div>
+                                            <?php endif; ?>
+                                        </div>
+                                        <input type="hidden" name="friendship_id" value="<?php echo (int) $request['friendship_id']; ?>">
+                                        <button type="submit" name="accept_friend_request" class="messenger-request-btn">Accept</button>
+                                    </form>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="messenger-conversation-list">
+                            <?php if (empty($student_friends)): ?>
+                                <div class="messenger-chat-empty" style="height: auto;">
+                                    <div>
+                                        <i class="fas fa-user-friends"></i>
+                                        <p>No friends yet. Add classmates to start chatting.</p>
+                                    </div>
+                                </div>
+                            <?php else: ?>
+                                <?php foreach ($student_friends as $friend): ?>
+                                    <?php
+                                    $friend_id = (int) ($friend['users_id'] ?? 0);
+                                    $friend_name = (string) ($friend['chat_display_name'] ?? ('Student #' . $friend_id));
+                                    $friend_base_name = (string) ($friend['base_display_name'] ?? $friend_name);
+                                    $name_parts = preg_split('/\s+/', trim($friend_name));
+                                    $initials = '';
+                                    if (!empty($name_parts[0])) {
+                                        $initials .= strtoupper(substr($name_parts[0], 0, 1));
+                                    }
+                                    if (!empty($name_parts[1])) {
+                                        $initials .= strtoupper(substr($name_parts[1], 0, 1));
+                                    }
+                                    if ($initials === '') {
+                                        $initials = 'S';
+                                    }
+
+                                    $preview_entry = $conversation_map[$friend_id] ?? null;
+                                    $preview_text = 'Start a conversation';
+                                    $preview_time = '';
+
+                                    if (!empty($preview_entry['latest_message'])) {
+                                        $prefix = (($preview_entry['latest_direction'] ?? 'received') === 'sent') ? 'You: ' : '';
+                                        $preview_body = buildMessageSnippet((string) $preview_entry['latest_message'], 60, true);
+                                        if ($preview_body !== '') {
+                                            $preview_text = $prefix . $preview_body;
+                                        }
+                                    }
+
+                                    if (!empty($preview_entry['latest_at'])) {
+                                        $preview_time = date('M d', strtotime((string) $preview_entry['latest_at']));
+                                    }
+                                    ?>
+                                    <a
+                                        href="dashboard.php?tab=messages&chat_with=<?php echo $friend_id; ?>"
+                                        class="messenger-conversation-item <?php echo $selected_chat_id === $friend_id ? 'active' : ''; ?>"
+                                    >
+                                        <span class="messenger-avatar"><?php echo htmlspecialchars($initials); ?></span>
+                                        <div class="messenger-conversation-main">
+                                            <div class="messenger-conversation-head">
+                                                <span class="messenger-conversation-name" title="<?php echo htmlspecialchars($friend_base_name); ?>"><?php echo htmlspecialchars($friend_name); ?></span>
+                                                <?php if ($preview_time !== ''): ?>
+                                                    <span class="messenger-conversation-time"><?php echo htmlspecialchars($preview_time); ?></span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <span class="messenger-conversation-preview"><?php echo htmlspecialchars($preview_text); ?></span>
+                                        </div>
+                                    </a>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </aside>
+
+                    <section class="messenger-chat-panel">
+                        <?php if ($selected_chat_friend): ?>
+                            <?php
+                            $chat_friend_name = (string) ($selected_chat_friend_label ?? ('Student #' . $selected_chat_id));
+                            $chat_friend_base_name = (string) ($selected_chat_friend_base_name ?? $chat_friend_name);
+                            $chat_friend_custom_nickname = trim((string) ($selected_chat_friend['custom_nickname'] ?? ''));
+                            $chat_parts = preg_split('/\s+/', trim($chat_friend_name));
+                            $chat_initials = '';
+                            if (!empty($chat_parts[0])) {
+                                $chat_initials .= strtoupper(substr($chat_parts[0], 0, 1));
+                            }
+                            if (!empty($chat_parts[1])) {
+                                $chat_initials .= strtoupper(substr($chat_parts[1], 0, 1));
+                            }
+                            if ($chat_initials === '') {
+                                $chat_initials = 'S';
+                            }
+                            ?>
+                            <header class="messenger-chat-header">
+                                <button type="button" id="messengerMobileBackBtn" class="messenger-mobile-back" aria-label="Back to conversations">
+                                    <i class="fas fa-arrow-left"></i>
+                                </button>
+                                <div class="messenger-chat-user">
+                                    <span class="messenger-avatar"><?php echo htmlspecialchars($chat_initials); ?></span>
+                                    <div>
+                                        <div class="messenger-conversation-name"><?php echo htmlspecialchars($chat_friend_name); ?></div>
+                                        <div class="messenger-chat-status">
+                                            <?php if ($chat_friend_custom_nickname !== '' && $chat_friend_base_name !== $chat_friend_name): ?>
+                                                Name: <?php echo htmlspecialchars($chat_friend_base_name); ?>
+                                                <?php if (!empty($selected_chat_friend['ismis_id'])): ?>
+                                                    · ISMIS: <?php echo htmlspecialchars($selected_chat_friend['ismis_id']); ?>
+                                                <?php endif; ?>
+                                            <?php elseif (!empty($selected_chat_friend['ismis_id'])): ?>
+                                                ISMIS: <?php echo htmlspecialchars($selected_chat_friend['ismis_id']); ?>
+                                            <?php else: ?>
+                                                Classmate
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="messenger-nickname-wrap">
+                                    <button type="button" id="messengerNicknameToggleBtn" class="messenger-nickname-toggle-btn">
+                                        <i class="fas fa-id-badge"></i>
+                                        <?php echo $chat_friend_custom_nickname !== '' ? 'Nickname: ' . htmlspecialchars($chat_friend_custom_nickname) : 'Set Nickname'; ?>
+                                    </button>
+                                    <div id="messengerNicknamePanel" class="messenger-nickname-panel">
+                                        <div class="messenger-nickname-hint">
+                                            <?php echo $chat_friend_custom_nickname !== ''
+                                                ? 'Current nickname: ' . htmlspecialchars($chat_friend_custom_nickname)
+                                                : 'No nickname yet for this classmate.'; ?>
+                                        </div>
+                                        <form method="POST" action="dashboard.php?tab=messages&chat_with=<?php echo (int) $selected_chat_id; ?>" class="messenger-nickname-form">
+                                            <input type="hidden" name="save_friend_nickname" value="1">
+                                            <input type="hidden" name="friend_id" value="<?php echo (int) $selected_chat_id; ?>">
+                                            <input
+                                                type="text"
+                                                name="friend_nickname"
+                                                class="messenger-nickname-input"
+                                                maxlength="40"
+                                                placeholder="Set nickname"
+                                                value="<?php echo htmlspecialchars($chat_friend_custom_nickname); ?>"
+                                            >
+                                            <button type="submit" class="messenger-nickname-btn">Save</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </header>
+
+                            <div class="messenger-chat-thread" id="messengerChatThread">
+                                <?php if (empty($selected_conversation_messages)): ?>
+                                    <div class="messenger-chat-empty">
+                                        <div>
+                                            <i class="fas fa-comment-dots"></i>
+                                            <p>No messages yet. Say hello to start the conversation.</p>
+                                        </div>
+                                    </div>
+                                <?php else: ?>
+                                    <?php foreach ($selected_conversation_messages as $msg): ?>
+                                        <?php
+                                        $is_mine = ((int) ($msg['sender_id'] ?? 0) === (int) $student_id);
+                                        $msg_id = (int) ($msg['message_id'] ?? 0);
+                                        $message_raw_text = (string) ($msg['message_body'] ?? '');
+                                        $message_attachment_file = trim((string) ($msg['attachment_file'] ?? ''));
+                                        $message_attachment_name = trim((string) ($msg['attachment_name'] ?? ''));
+                                        $message_attachment_type = strtolower(trim((string) ($msg['attachment_type'] ?? 'file')));
+                                        if (strpos($message_attachment_file, '..') !== false) {
+                                            $message_attachment_file = '';
+                                        }
+                                        $message_attachment_href = $message_attachment_file !== ''
+                                            ? '../' . ltrim($message_attachment_file, '/\\')
+                                            : '';
+                                        $message_attachment_label = $message_attachment_name !== ''
+                                            ? $message_attachment_name
+                                            : 'Attachment';
+                                        $reply_raw_text = trim((string) ($msg['reply_message_body'] ?? ''));
+                                        $reply_sender_label = ((int) ($msg['reply_sender_id'] ?? 0) === (int) $student_id)
+                                            ? 'You'
+                                            : (string) ($selected_chat_friend_label ?? 'Classmate');
+                                        if ($reply_raw_text !== '') {
+                                            $reply_raw_text = preg_replace('/\s+/', ' ', $reply_raw_text);
+                                            if ((function_exists('mb_strlen') ? mb_strlen($reply_raw_text, 'UTF-8') : strlen($reply_raw_text)) > 120) {
+                                                $reply_raw_text = (function_exists('mb_substr') ? mb_substr($reply_raw_text, 0, 117, 'UTF-8') : substr($reply_raw_text, 0, 117)) . '...';
+                                            }
+                                        }
+                                        $reaction_info = $message_reactions_map[$msg_id] ?? ['counts' => [], 'mine' => ''];
+                                        $my_reaction = (string) ($reaction_info['mine'] ?? '');
+                                        ?>
+                                        <div class="messenger-bubble-row <?php echo $is_mine ? 'mine' : 'theirs'; ?>" data-message-id="<?php echo $msg_id; ?>">
+                                            <div class="messenger-bubble messenger-reaction-target" data-message-id="<?php echo $msg_id; ?>">
+                                                <?php if (!empty($msg['reply_to_message_id']) && $reply_raw_text !== ''): ?>
+                                                    <div class="messenger-reply-quote">
+                                                        <strong>Replying to <?php echo htmlspecialchars($reply_sender_label); ?></strong>
+                                                        <span><?php echo htmlspecialchars($reply_raw_text); ?></span>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <?php if (trim($message_raw_text) !== ''): ?>
+                                                    <div class="messenger-message-text"><?php echo nl2br(htmlspecialchars($message_raw_text)); ?></div>
+                                                <?php endif; ?>
+                                                <?php if ($message_attachment_href !== ''): ?>
+                                                    <div class="messenger-attachment-wrap">
+                                                        <?php if ($message_attachment_type === 'image'): ?>
+                                                            <a href="<?php echo htmlspecialchars($message_attachment_href); ?>" target="_blank" rel="noopener" class="messenger-attachment-link">
+                                                                <img src="<?php echo htmlspecialchars($message_attachment_href); ?>" alt="<?php echo htmlspecialchars($message_attachment_label); ?>" class="messenger-attachment-image" loading="lazy">
+                                                            </a>
+                                                        <?php elseif ($message_attachment_type === 'audio'): ?>
+                                                            <audio controls preload="none" class="messenger-attachment-audio">
+                                                                <source src="<?php echo htmlspecialchars($message_attachment_href); ?>">
+                                                            </audio>
+                                                            <a href="<?php echo htmlspecialchars($message_attachment_href); ?>" target="_blank" rel="noopener" class="messenger-attachment-link" style="margin-top: 0.35rem;">
+                                                                <i class="fas fa-download"></i> <?php echo htmlspecialchars($message_attachment_label); ?>
+                                                            </a>
+                                                        <?php else: ?>
+                                                            <a href="<?php echo htmlspecialchars($message_attachment_href); ?>" target="_blank" rel="noopener" class="messenger-attachment-link">
+                                                                <i class="fas fa-paperclip"></i> <?php echo htmlspecialchars($message_attachment_label); ?>
+                                                            </a>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="messenger-bubble-meta">
+                                                <?php echo date('M d, h:i A', strtotime((string) ($msg['sent_at'] ?? 'now'))); ?>
+                                                <?php if ($is_mine): ?>
+                                                    <?php echo !empty($msg['read_at']) ? ' · Seen' : ' · Delivered'; ?>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="messenger-message-actions">
+                                                <button
+                                                    type="button"
+                                                    class="messenger-reply-btn"
+                                                    data-reply-id="<?php echo $msg_id; ?>"
+                                                    data-reply-sender="<?php echo htmlspecialchars($is_mine ? 'You' : (string) ($selected_chat_friend_label ?? 'Classmate'), ENT_QUOTES, 'UTF-8'); ?>"
+                                                    data-reply-text="<?php echo htmlspecialchars(preg_replace('/\s+/', ' ', $message_raw_text), ENT_QUOTES, 'UTF-8'); ?>"
+                                                >
+                                                    <i class="fas fa-reply"></i> Reply
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="messenger-react-toggle-btn"
+                                                    data-toggle-reactions
+                                                    data-message-id="<?php echo $msg_id; ?>"
+                                                    aria-expanded="false"
+                                                    aria-controls="reactionPicker<?php echo $msg_id; ?>"
+                                                >
+                                                    <i class="fas fa-smile"></i> React
+                                                </button>
+                                                <?php
+                                                $has_reaction_counts = false;
+                                                foreach ($allowed_message_reactions as $emoji_option) {
+                                                    if ((int) ($reaction_info['counts'][$emoji_option] ?? 0) > 0) {
+                                                        $has_reaction_counts = true;
+                                                        break;
+                                                    }
+                                                }
+                                                ?>
+                                                <?php if ($has_reaction_counts): ?>
+                                                    <div class="messenger-reaction-summary">
+                                                        <?php foreach ($allowed_message_reactions as $emoji): ?>
+                                                            <?php $emoji_count = (int) ($reaction_info['counts'][$emoji] ?? 0); ?>
+                                                            <?php if ($emoji_count <= 0) {
+                                                                continue;
+                                                            } ?>
+                                                            <span class="messenger-reaction-chip <?php echo $my_reaction === $emoji ? 'active' : ''; ?>">
+                                                                <span><?php echo htmlspecialchars($emoji); ?></span>
+                                                                <small><?php echo $emoji_count; ?></small>
+                                                            </span>
+                                                        <?php endforeach; ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <div class="messenger-reaction-picker" id="reactionPicker<?php echo $msg_id; ?>" data-reaction-picker-for="<?php echo $msg_id; ?>">
+                                                    <form method="POST" action="dashboard.php?tab=messages&chat_with=<?php echo (int) $selected_chat_id; ?>" class="messenger-reaction-form">
+                                                        <input type="hidden" name="react_to_message" value="1">
+                                                        <input type="hidden" name="recipient_id" value="<?php echo (int) $selected_chat_id; ?>">
+                                                        <input type="hidden" name="message_id" value="<?php echo $msg_id; ?>">
+                                                        <div class="messenger-reaction-list">
+                                                            <?php foreach ($allowed_message_reactions as $emoji): ?>
+                                                                <button type="submit" name="reaction_emoji" value="<?php echo htmlspecialchars($emoji); ?>" class="messenger-reaction-btn <?php echo $my_reaction === $emoji ? 'active' : ''; ?>">
+                                                                    <span><?php echo htmlspecialchars($emoji); ?></span>
+                                                                </button>
+                                                            <?php endforeach; ?>
+                                                        </div>
+                                                    </form>
+                                                    <?php if ($is_mine): ?>
+                                                        <form
+                                                            method="POST"
+                                                            action="dashboard.php?tab=messages&chat_with=<?php echo (int) $selected_chat_id; ?>"
+                                                            class="messenger-delete-message-form"
+                                                            onsubmit="return confirm('Delete this message? This cannot be undone.');"
+                                                        >
+                                                            <input type="hidden" name="delete_message" value="1">
+                                                            <input type="hidden" name="recipient_id" value="<?php echo (int) $selected_chat_id; ?>">
+                                                            <input type="hidden" name="message_id" value="<?php echo $msg_id; ?>">
+                                                            <button type="submit" class="messenger-delete-message-btn">
+                                                                <i class="fas fa-trash"></i> Delete Message
+                                                            </button>
+                                                        </form>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </div>
+
+                            <form method="POST" action="dashboard.php?tab=messages&chat_with=<?php echo (int) $selected_chat_id; ?>" class="messenger-composer" id="messengerComposerForm" enctype="multipart/form-data">
+                                <input type="hidden" name="recipient_id" value="<?php echo (int) $selected_chat_id; ?>">
+                                <input type="hidden" name="send_message" value="1">
+                                <input type="hidden" name="reply_to_message_id" id="replyToMessageId" value="<?php echo (int) $reply_to_message_prefill_id; ?>">
+                                <div class="messenger-reply-preview <?php echo !empty($reply_preview_message) ? 'show' : ''; ?>" id="messengerReplyPreview">
+                                    <div class="messenger-reply-preview-main">
+                                        <strong id="replyPreviewSender"><?php echo htmlspecialchars((string) ($reply_preview_message['sender'] ?? '')); ?></strong>
+                                        <span id="replyPreviewText"><?php echo htmlspecialchars((string) ($reply_preview_message['body'] ?? '')); ?></span>
+                                    </div>
+                                    <button type="button" class="messenger-reply-clear" id="clearReplyBtn" aria-label="Cancel reply">&times;</button>
+                                </div>
+                                <textarea
+                                    id="messengerMessageInput"
+                                    name="message_body"
+                                    maxlength="1000"
+                                    placeholder="Type a message..."
+                                ><?php echo (isset($_POST['message_body']) && (int) ($_POST['recipient_id'] ?? 0) === (int) $selected_chat_id) ? htmlspecialchars((string) $_POST['message_body']) : ''; ?></textarea>
+                                <div class="messenger-attachment-picker">
+                                    <input
+                                        type="file"
+                                        id="messageAttachmentInput"
+                                        name="message_attachment"
+                                        accept="image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z"
+                                    >
+                                    <div class="messenger-attachment-hint" id="messageAttachmentHint">Optional: attach image, audio, or file (max 15 MB).</div>
+                                </div>
+                                <div class="messenger-composer-actions">
+                                    <span class="messenger-empty-chat-note">Press Enter to send. Shift + Enter for a new line.</span>
+                                    <button id="messengerSendButton" type="submit" class="messenger-send-btn">
+                                        <i class="fas fa-paper-plane"></i> Send
+                                    </button>
+                                </div>
+                            </form>
+                        <?php else: ?>
+                            <div class="messenger-chat-empty">
+                                <div>
+                                    <i class="fas fa-comments"></i>
+                                    <p>Select a friend from the left panel to start chatting.</p>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </section>
                 </div>
             </div>
         </main>
@@ -2857,11 +7297,14 @@ function getOfficeDisplayName($office_name)
                 <div class="modal-body">
                     <input type="hidden" name="clearance_id" id="uploadClearanceId">
                     <input type="hidden" name="office_name" id="uploadOfficeName">
+                    <input type="hidden" name="org_clearance_id" id="uploadOrgClearanceId">
+                    <input type="hidden" name="upload_target_type" id="uploadTargetType" value="office">
+                    <input type="hidden" name="upload_target_name" id="uploadTargetName">
 
                     <div class="info-card"
                         style="background: rgba(14, 165, 233, 0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
                         <i class="fas fa-info-circle" style="color: var(--proof);"></i>
-                        <span style="color: var(--proof);">Upload proof that you have resolved the lacking items. This
+                        <span style="color: var(--proof);" id="uploadTargetHelp">Upload proof that you have resolved the lacking items. This
                             will be sent to the office for review.</span>
                     </div>
 
@@ -2904,11 +7347,202 @@ function getOfficeDisplayName($office_name)
         </div>
     </div>
 
+    <!-- Edit Profile Modal -->
+    <div id="profileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-edit"></i> Edit Profile</h3>
+                <button class="close" onclick="closeProfileModal()">&times;</button>
+            </div>
+            <form method="POST" action="" id="profileForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="profileFname"><i class="fas fa-user"></i> First Name</label>
+                        <input type="text" id="profileFname" name="fname" class="form-control"
+                            value="<?php echo htmlspecialchars($student_info['fname'] ?? ''); ?>" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileLname"><i class="fas fa-user"></i> Last Name</label>
+                        <input type="text" id="profileLname" name="lname" class="form-control"
+                            value="<?php echo htmlspecialchars($student_info['lname'] ?? ''); ?>" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileEmail"><i class="fas fa-envelope"></i> Email</label>
+                        <input type="email" id="profileEmail" name="email" class="form-control"
+                            value="<?php echo htmlspecialchars($student_info['emails'] ?? ''); ?>" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileContact"><i class="fas fa-phone"></i> Contact</label>
+                        <input type="text" id="profileContact" name="contact" class="form-control"
+                            value="<?php echo htmlspecialchars($student_info['contacts'] ?? ''); ?>"
+                            placeholder="e.g. 09XXXXXXXXX">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileAddress"><i class="fas fa-map-marker-alt"></i> Address</label>
+                        <textarea id="profileAddress" name="address" class="form-control" rows="3"
+                            placeholder="Current address"><?php echo htmlspecialchars($student_info['address'] ?? ''); ?></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileAge"><i class="fas fa-birthday-cake"></i> Age</label>
+                        <input type="number" id="profileAge" name="age" class="form-control" min="10" max="120"
+                            value="<?php echo htmlspecialchars((string) ($student_info['age'] ?? '')); ?>">
+                    </div>
+
+                    <div style="height: 1px; background: var(--border); margin: 1rem 0 1.2rem;"></div>
+
+                    <div class="form-group">
+                        <label for="profileCurrentPassword"><i class="fas fa-lock"></i> Current Password</label>
+                        <div class="password-field">
+                            <input type="password" id="profileCurrentPassword" name="current_password" class="form-control"
+                                autocomplete="current-password" placeholder="Enter current password to change it">
+                            <button type="button" class="password-toggle-btn"
+                                onclick="togglePasswordVisibility('profileCurrentPassword', 'profileCurrentPasswordIcon')"
+                                aria-label="Show or hide current password">
+                                <i class="fas fa-eye" id="profileCurrentPasswordIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileNewPassword"><i class="fas fa-key"></i> New Password</label>
+                        <div class="password-field">
+                            <input type="password" id="profileNewPassword" name="new_password" class="form-control"
+                                minlength="8" autocomplete="new-password" placeholder="Minimum 8 characters">
+                            <button type="button" class="password-toggle-btn"
+                                onclick="togglePasswordVisibility('profileNewPassword', 'profileNewPasswordIcon')"
+                                aria-label="Show or hide new password">
+                                <i class="fas fa-eye" id="profileNewPasswordIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileConfirmNewPassword"><i class="fas fa-key"></i> Confirm New Password</label>
+                        <div class="password-field">
+                            <input type="password" id="profileConfirmNewPassword" name="confirm_new_password"
+                                class="form-control" minlength="8" autocomplete="new-password"
+                                placeholder="Re-enter new password">
+                            <button type="button" class="password-toggle-btn"
+                                onclick="togglePasswordVisibility('profileConfirmNewPassword', 'profileConfirmNewPasswordIcon')"
+                                aria-label="Show or hide confirm password">
+                                <i class="fas fa-eye" id="profileConfirmNewPasswordIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="info-card"
+                        style="background: rgba(25, 118, 210, 0.08); padding: 0.9rem; border-radius: 8px; margin-top: 0.5rem;">
+                        <i class="fas fa-info-circle" style="color: var(--info);"></i>
+                        <span style="color: var(--info);">College, course, and ISMIS ID are managed by the registrar and cannot be edited here. To change password, complete all 3 password fields.</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeProfileModal()">Cancel</button>
+                    <button type="submit" name="update_profile" class="btn-proof-upload">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- First Login Guide Modal -->
+    <div id="onboardingModal" class="modal" aria-hidden="true">
+        <div class="modal-content guide-modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-map-signs"></i> Student System Guide</h3>
+                <button class="close" type="button" onclick="closeOnboardingGuide(true)">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="onboardingStepPill" class="guide-step-pill"></div>
+                <h4 id="onboardingStepTitle" class="guide-title"></h4>
+                <p id="onboardingStepDescription" class="guide-description"></p>
+                <div id="onboardingStepPoints" class="guide-points"></div>
+                <div id="onboardingProgress" class="guide-progress" aria-hidden="true"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" id="onboardingPrevBtn">Back</button>
+                <button type="button" class="btn-secondary" id="onboardingSkipBtn">Skip</button>
+                <button type="button" class="btn-proof-upload" id="onboardingNextBtn">Next</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Dark Mode Toggle
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
         const body = document.body;
+        const mobileNavToggle = document.getElementById('mobileNavToggle');
+        const mobileNavBackdrop = document.getElementById('mobileNavBackdrop');
+        const studentSidebar = document.getElementById('studentSidebar');
+        const messengerShell = document.getElementById('messengerShell');
+        const messengerMobileBackBtn = document.getElementById('messengerMobileBackBtn');
+        const onboardingModal = document.getElementById('onboardingModal');
+        const onboardingStepPill = document.getElementById('onboardingStepPill');
+        const onboardingStepTitle = document.getElementById('onboardingStepTitle');
+        const onboardingStepDescription = document.getElementById('onboardingStepDescription');
+        const onboardingStepPoints = document.getElementById('onboardingStepPoints');
+        const onboardingProgress = document.getElementById('onboardingProgress');
+        const onboardingPrevBtn = document.getElementById('onboardingPrevBtn');
+        const onboardingSkipBtn = document.getElementById('onboardingSkipBtn');
+        const onboardingNextBtn = document.getElementById('onboardingNextBtn');
+        const onboardingStorageKey = 'student_guide_seen_<?php echo (int) $student_id; ?>';
+
+        const onboardingSteps = [
+            {
+                icon: 'house',
+                title: 'Dashboard Overview',
+                description: 'This home screen summarizes your progress for the current semester and school year.',
+                points: [
+                    'Use the hero card to quickly track your active clearance.',
+                    'Use the stat cards to monitor pending, approved, and rejected checks.'
+                ]
+            },
+            {
+                icon: 'file-signature',
+                title: 'Apply For Clearance',
+                description: 'Open the Apply tab to submit a new clearance request when you have no active pending application.',
+                points: [
+                    'Choose clearance type, semester, and school year carefully.',
+                    'Only one pending clearance cycle is allowed at a time.'
+                ]
+            },
+            {
+                icon: 'clipboard-check',
+                title: 'Track Status And Upload Proof',
+                description: 'The Status tab shows each required office and organization plus any lacking comments.',
+                points: [
+                    'If an office or organization asks for proof, use Upload Proof directly from the card.',
+                    'Watch status badges to know what still needs action.'
+                ]
+            },
+            {
+                icon: 'clock-rotate-left',
+                title: 'Review Your History',
+                description: 'The History tab keeps your previous clearance records for reference.',
+                points: [
+                    'Filter by year and status to quickly find past applications.',
+                    'Open details to review remarks and uploaded files.'
+                ]
+            },
+            {
+                icon: 'comments',
+                title: 'Messages And Notifications',
+                description: 'Use Messages for student communication and monitor the red badge for new activity.',
+                points: [
+                    'You can add classmates by ISMIS ID before sending messages.',
+                    'New office and organization comments will trigger notifications.'
+                ]
+            }
+        ];
+
+        let onboardingIndex = 0;
 
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme === 'dark') {
@@ -2932,6 +7566,13 @@ function getOfficeDisplayName($office_name)
 
         // Tab switching
         function switchTab(tabName) {
+            if (tabName === 'messages') {
+                const messagesUrl = new URL(window.location.href);
+                messagesUrl.searchParams.set('tab', 'messages');
+                window.location.href = messagesUrl.pathname + messagesUrl.search;
+                return;
+            }
+
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
             });
@@ -2941,17 +7582,208 @@ function getOfficeDisplayName($office_name)
                 item.classList.remove('active');
             });
 
-            event.target.closest('.nav-item').classList.add('active');
+            const activeTrigger = document.querySelector(`.nav-item[data-tab="${tabName}"]`);
+
+            if (activeTrigger) {
+                activeTrigger.classList.add('active');
+            }
 
             const url = new URL(window.location);
             url.searchParams.set('tab', tabName);
             window.history.pushState({}, '', url);
+
+            closeMobileNav();
         }
 
+        function setMobileNavToggleState(isOpen) {
+            if (!mobileNavToggle) {
+                return;
+            }
+
+            mobileNavToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            mobileNavToggle.classList.toggle('active', isOpen);
+            mobileNavToggle.innerHTML = isOpen
+                ? '<i class="fas fa-times"></i><span>Close Navigation</span>'
+                : '<i class="fas fa-bars"></i><span>Open Navigation</span>';
+        }
+
+        function updateMobileNavLayout() {
+            if (!studentSidebar) {
+                return;
+            }
+
+            const headerEl = document.querySelector('.header');
+            const headerHeight = headerEl ? headerEl.offsetHeight : 0;
+            document.documentElement.style.setProperty('--mobile-header-offset', `${headerHeight}px`);
+        }
+
+        function renderOnboardingStep() {
+            if (!onboardingModal || !onboardingSteps.length) {
+                return;
+            }
+
+            const step = onboardingSteps[onboardingIndex];
+            onboardingStepPill.innerHTML = `<i class="fas fa-${step.icon}"></i> Step ${onboardingIndex + 1} of ${onboardingSteps.length}`;
+            onboardingStepTitle.textContent = step.title;
+            onboardingStepDescription.textContent = step.description;
+            onboardingStepPoints.innerHTML = step.points
+                .map(point => `<div class="guide-point"><i class="fas fa-check-circle"></i><span>${point}</span></div>`)
+                .join('');
+
+            onboardingProgress.innerHTML = onboardingSteps
+                .map((_, idx) => `<span class="guide-dot ${idx === onboardingIndex ? 'active' : ''}"></span>`)
+                .join('');
+
+            onboardingPrevBtn.disabled = onboardingIndex === 0;
+            onboardingNextBtn.innerHTML = onboardingIndex === onboardingSteps.length - 1
+                ? '<i class="fas fa-flag-checkered"></i> Finish Guide'
+                : 'Next';
+        }
+
+        function openOnboardingGuide(forceOpen = false) {
+            if (!onboardingModal) {
+                return;
+            }
+
+            const hasSeenGuide = localStorage.getItem(onboardingStorageKey) === '1';
+            if (!forceOpen && hasSeenGuide) {
+                return;
+            }
+
+            onboardingIndex = 0;
+            renderOnboardingStep();
+            onboardingModal.style.display = 'flex';
+            onboardingModal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeOnboardingGuide(markAsSeen = true) {
+            if (!onboardingModal) {
+                return;
+            }
+
+            onboardingModal.style.display = 'none';
+            onboardingModal.setAttribute('aria-hidden', 'true');
+            if (markAsSeen) {
+                localStorage.setItem(onboardingStorageKey, '1');
+            }
+        }
+
+        onboardingPrevBtn?.addEventListener('click', () => {
+            if (onboardingIndex > 0) {
+                onboardingIndex -= 1;
+                renderOnboardingStep();
+            }
+        });
+
+        onboardingNextBtn?.addEventListener('click', () => {
+            if (onboardingIndex >= onboardingSteps.length - 1) {
+                closeOnboardingGuide(true);
+                return;
+            }
+
+            onboardingIndex += 1;
+            renderOnboardingStep();
+        });
+
+        onboardingSkipBtn?.addEventListener('click', () => {
+            closeOnboardingGuide(true);
+        });
+
+        function openMobileNav() {
+            if (!studentSidebar || !mobileNavToggle || window.innerWidth > 768) {
+                return;
+            }
+
+            updateMobileNavLayout();
+            studentSidebar.classList.add('mobile-open');
+            mobileNavBackdrop?.classList.add('show');
+            body.classList.add('mobile-nav-open');
+            setMobileNavToggleState(true);
+        }
+
+        function closeMobileNav() {
+            if (!studentSidebar || !mobileNavToggle) {
+                return;
+            }
+
+            studentSidebar.classList.remove('mobile-open');
+            mobileNavBackdrop?.classList.remove('show');
+            body.classList.remove('mobile-nav-open');
+            setMobileNavToggleState(false);
+        }
+
+        function toggleMobileNav() {
+            if (!studentSidebar || window.innerWidth > 768) {
+                return;
+            }
+
+            if (studentSidebar.classList.contains('mobile-open')) {
+                closeMobileNav();
+            } else {
+                openMobileNav();
+            }
+        }
+
+        function openMessengerConversationList() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', 'messages');
+            url.searchParams.delete('chat_with');
+            window.location.href = url.pathname + url.search;
+        }
+
+        mobileNavToggle?.addEventListener('click', toggleMobileNav);
+        mobileNavBackdrop?.addEventListener('click', closeMobileNav);
+        messengerMobileBackBtn?.addEventListener('click', openMessengerConversationList);
+        updateMobileNavLayout();
+        setMobileNavToggleState(false);
+        window.addEventListener('resize', () => {
+            updateMobileNavLayout();
+            if (window.innerWidth > 768) {
+                closeMobileNav();
+            }
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeOnboardingGuide(false);
+                closeMobileNav();
+            }
+        });
+
+        document.querySelectorAll('[data-switch-tab]').forEach(card => {
+            card.addEventListener('click', (event) => {
+                if (event.target.closest('button, a, form, input, select, textarea')) {
+                    return;
+                }
+
+                const tabName = card.getAttribute('data-switch-tab');
+                if (tabName) {
+                    switchTab(tabName);
+                }
+            });
+
+            card.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') {
+                    return;
+                }
+
+                event.preventDefault();
+                const tabName = card.getAttribute('data-switch-tab');
+                if (tabName) {
+                    switchTab(tabName);
+                }
+            });
+        });
+
         // Upload Modal
-        function openUploadModal(clearanceId, officeName) {
+        function openUploadModal(clearanceId, officeName, targetType = 'office', orgClearanceId = 0) {
             document.getElementById('uploadClearanceId').value = clearanceId;
             document.getElementById('uploadOfficeName').value = officeName;
+            document.getElementById('uploadOrgClearanceId').value = orgClearanceId || '';
+            document.getElementById('uploadTargetType').value = targetType;
+            document.getElementById('uploadTargetName').value = officeName;
+            document.getElementById('uploadTargetHelp').textContent = targetType === 'organization'
+                ? `Upload proof for ${officeName}. This will be sent to the organization for review.`
+                : 'Upload proof that you have resolved the lacking items. This will be sent to the office for review.';
             document.getElementById('uploadModal').style.display = 'flex';
         }
 
@@ -2959,6 +7791,10 @@ function getOfficeDisplayName($office_name)
             document.getElementById('uploadModal').style.display = 'none';
             document.getElementById('proofFile').value = '';
             document.getElementById('proofRemarks').value = '';
+            document.getElementById('uploadOrgClearanceId').value = '';
+            document.getElementById('uploadTargetType').value = 'office';
+            document.getElementById('uploadTargetName').value = '';
+            document.getElementById('uploadTargetHelp').textContent = 'Upload proof that you have resolved the lacking items. This will be sent to the office for review.';
         }
 
         // Auto-hide toasts
@@ -3020,6 +7856,10 @@ function getOfficeDisplayName($office_name)
         function viewDetails(item) {
             const modal = document.getElementById('detailsModal');
             const modalBody = document.getElementById('detailsModalBody');
+            const isOrganization = item.item_type === 'organization';
+            const displayName = isOrganization ? (item.org_name || item.display_name || 'Organization') : (item.office_name ? item.office_name.replace('_', ' ') : 'N/A');
+            const targetLabel = isOrganization ? 'Organization' : 'Office';
+            const safeDisplayNameForHandler = String(displayName || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
             let lackingHtml = '';
             if (item.lacking_comment) {
@@ -3030,6 +7870,7 @@ function getOfficeDisplayName($office_name)
                         </h4>
                         <p>${item.lacking_comment}</p>
                         ${item.lacking_comment_at ? '<small>Since: ' + new Date(item.lacking_comment_at).toLocaleString() + '</small>' : ''}
+                        ${isOrganization ? '<div style="margin-top: 0.75rem;"><button class="upload-btn" onclick="openUploadModal(' + Number(item.clearance_id || 0) + ', \'' + safeDisplayNameForHandler + '\', \'organization\', ' + Number(item.org_clearance_id || 0) + '); closeDetailsModal();"><i class="fas fa-upload"></i> Upload Proof for ' + displayName + '</button></div>' : ''}
                     </div>
                 `;
             }
@@ -3054,8 +7895,8 @@ function getOfficeDisplayName($office_name)
             modalBody.innerHTML = `
                 <div style="display: grid; gap: 1rem;">
                     <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border);">
-                        <strong>Office:</strong> 
-                        <span>${item.office_name ? item.office_name.replace('_', ' ') : 'N/A'}</span>
+                        <strong>${targetLabel}:</strong> 
+                        <span>${displayName}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border);">
                         <strong>Type:</strong> 
@@ -3085,7 +7926,7 @@ function getOfficeDisplayName($office_name)
                     ${proofHtml}
                     <div style="display: flex; flex-direction: column; gap: 0.5rem; padding: 0.5rem 0;">
                         <strong>Remarks:</strong> 
-                        <p style="background: var(--bg); padding: 1rem; border-radius: 8px;">${item.remarks || 'No remarks'}</p>
+                        <p style="background: var(--bg); padding: 1rem; border-radius: 8px;">${(isOrganization ? (item.clean_remarks || item.remarks) : item.remarks) || 'No remarks'}</p>
                     </div>
                 </div>
             `;
@@ -3095,6 +7936,30 @@ function getOfficeDisplayName($office_name)
 
         function closeDetailsModal() {
             document.getElementById('detailsModal').style.display = 'none';
+        }
+
+        // Profile modal
+        function openProfileModal() {
+            document.getElementById('profileModal').style.display = 'flex';
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profileModal').style.display = 'none';
+        }
+
+        function togglePasswordVisibility(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+
+            if (!input || !icon) {
+                return;
+            }
+
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+
+            icon.classList.toggle('fa-eye', !isPassword);
+            icon.classList.toggle('fa-eye-slash', isPassword);
         }
 
         // Avatar upload
@@ -3118,8 +7983,8 @@ function getOfficeDisplayName($office_name)
                     return;
                 }
 
-                if (file.size > 2 * 1024 * 1024) {
-                    alert('File size must be less than 2MB');
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('File size must be less than 5MB');
                     return;
                 }
 
@@ -3155,7 +8020,14 @@ function getOfficeDisplayName($office_name)
         function showToast(message, type) {
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
-            toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${message}`;
+            const iconName = type === 'success'
+                ? 'check-circle'
+                : (type === 'info' ? 'info-circle' : 'exclamation-circle');
+            toast.innerHTML = `<i class="fas fa-${iconName}"></i><span class="toast-text"></span>`;
+            const textContainer = toast.querySelector('.toast-text');
+            if (textContainer) {
+                textContainer.textContent = String(message || '');
+            }
             document.body.appendChild(toast);
             setTimeout(() => {
                 toast.style.animation = 'slideOutRight 0.3s ease';
@@ -3163,16 +8035,462 @@ function getOfficeDisplayName($office_name)
             }, 3000);
         }
 
+        // Live message notifications
+        const messageUnreadBadge = document.getElementById('messageUnreadBadge');
+        const messagesTabContent = document.getElementById('messages');
+        let lastUnreadCount = <?php echo (int) $unread_message_count; ?>;
+        let lastPendingRequestCount = <?php echo (int) $incoming_friend_request_count; ?>;
+        let lastLatestSentAt = null;
+        let lastLatestOfficeCommentAt = null;
+        let lastLatestOrgCommentAt = null;
+        let hasNotificationBaseline = false;
+        let messagePollTimer = null;
+        let messagePollInFlight = false;
+        let messagePollIntervalMs = 12000;
+
+        function isMessagesTabOpen() {
+            return !!(messagesTabContent && messagesTabContent.classList.contains('active'));
+        }
+
+        function updateMessageBadge(count) {
+            if (!messageUnreadBadge) {
+                return;
+            }
+
+            messageUnreadBadge.textContent = count;
+            messageUnreadBadge.classList.toggle('is-hidden', count <= 0);
+        }
+
+        function notifyBrowser(title, bodyText) {
+            if (!('Notification' in window)) {
+                return;
+            }
+
+            if (Notification.permission === 'granted') {
+                new Notification(title, { body: bodyText });
+                return;
+            }
+
+            if (Notification.permission !== 'denied') {
+                Notification.requestPermission();
+            }
+        }
+
+        async function pollMessageNotifications() {
+            if (messagePollInFlight) {
+                return;
+            }
+
+            messagePollInFlight = true;
+            try {
+                const response = await fetch('dashboard.php?ajax=message_notifications', {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const data = await response.json();
+                if (!data || data.success !== true) {
+                    return;
+                }
+
+                if (!hasNotificationBaseline) {
+                    lastUnreadCount = Number(data.unread_count || 0);
+                    lastPendingRequestCount = Number(data.pending_request_count || 0);
+                    lastLatestSentAt = data.latest_sent_at || null;
+                    lastLatestOfficeCommentAt = data.latest_office_comment_at || null;
+                    lastLatestOrgCommentAt = data.latest_org_comment_at || null;
+                    hasNotificationBaseline = true;
+                }
+
+                const unread = Number(data.unread_count || 0);
+                const pendingRequests = Number(data.pending_request_count || 0);
+                const totalNotifications = Number(data.notification_count || (unread + pendingRequests));
+                updateMessageBadge(totalNotifications);
+
+                const hasNewUnread = unread > lastUnreadCount;
+                const isNewMessageMarker = data.latest_sent_at && data.latest_sent_at !== lastLatestSentAt;
+                if (hasNewUnread && isNewMessageMarker) {
+                    const messageInput = document.getElementById('messengerMessageInput');
+                    const hasDraftMessage = !!(messageInput && String(messageInput.value || '').trim() !== '');
+                    if (isMessagesTabOpen() && !hasDraftMessage) {
+                        const refreshUrl = new URL(window.location.href);
+                        refreshUrl.searchParams.set('tab', 'messages');
+                        window.location.href = refreshUrl.pathname + refreshUrl.search;
+                        return;
+                    }
+
+                    const sender = data.latest_sender || 'a student';
+                    const preview = data.latest_message ? `: ${data.latest_message}` : '';
+                    showToast(`New message from ${sender}${preview}`, 'info');
+                    notifyBrowser('New student message', `From ${sender}`);
+                }
+
+                if (pendingRequests > lastPendingRequestCount) {
+                    showToast('You received a new friend request.', 'info');
+                    notifyBrowser('New friend request', 'Open Messages to accept the request.');
+
+                    // Refresh server-rendered friend request list when user is already viewing Messages.
+                    if (isMessagesTabOpen()) {
+                        const refreshUrl = new URL(window.location.href);
+                        refreshUrl.searchParams.set('tab', 'messages');
+                        window.location.href = refreshUrl.pathname + refreshUrl.search;
+                        return;
+                    }
+                }
+
+                const hasNewOfficeComment = data.latest_office_comment_at
+                    && data.latest_office_comment_at !== lastLatestOfficeCommentAt;
+                if (hasNewOfficeComment && data.latest_office_comment) {
+                    const officeName = data.latest_office_name || 'Office';
+                    showToast(`New comment from ${officeName}: ${data.latest_office_comment}`, 'info');
+                    notifyBrowser('New office comment', `${officeName}: ${data.latest_office_comment}`);
+                }
+
+                const hasNewOrgComment = data.latest_org_comment_at
+                    && data.latest_org_comment_at !== lastLatestOrgCommentAt;
+                if (hasNewOrgComment && data.latest_org_comment) {
+                    const orgName = data.latest_org_name || 'Organization';
+                    showToast(`New comment from ${orgName}: ${data.latest_org_comment}`, 'info');
+                    notifyBrowser('New organization comment', `${orgName}: ${data.latest_org_comment}`);
+                }
+
+                lastUnreadCount = unread;
+                lastPendingRequestCount = pendingRequests;
+                lastLatestSentAt = data.latest_sent_at || lastLatestSentAt;
+                lastLatestOfficeCommentAt = data.latest_office_comment_at || lastLatestOfficeCommentAt;
+                lastLatestOrgCommentAt = data.latest_org_comment_at || lastLatestOrgCommentAt;
+
+                const isTabVisible = document.visibilityState === 'visible';
+                messagePollIntervalMs = isTabVisible ? 12000 : 25000;
+            } catch (err) {
+                // Keep silent to avoid noisy UI during transient network errors.
+                messagePollIntervalMs = 30000;
+            } finally {
+                messagePollInFlight = false;
+            }
+        }
+
+        function scheduleNotificationPolling(nextIntervalMs) {
+            if (messagePollTimer) {
+                clearTimeout(messagePollTimer);
+            }
+
+            const waitMs = Number(nextIntervalMs || messagePollIntervalMs || 12000);
+            messagePollTimer = setTimeout(async () => {
+                await pollMessageNotifications();
+                scheduleNotificationPolling(messagePollIntervalMs);
+            }, waitMs);
+        }
+
+        updateMessageBadge(lastUnreadCount + lastPendingRequestCount);
+        pollMessageNotifications();
+        scheduleNotificationPolling(12000);
+
+        document.addEventListener('visibilitychange', () => {
+            messagePollIntervalMs = document.visibilityState === 'visible' ? 12000 : 25000;
+            scheduleNotificationPolling(600);
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const messengerChatThread = document.getElementById('messengerChatThread');
+            const messengerMessageInput = document.getElementById('messengerMessageInput');
+            const messageAttachmentInput = document.getElementById('messageAttachmentInput');
+            const messageAttachmentHint = document.getElementById('messageAttachmentHint');
+            const messengerSendButton = document.getElementById('messengerSendButton');
+            const messengerComposerForm = document.getElementById('messengerComposerForm');
+            const replyToMessageInput = document.getElementById('replyToMessageId');
+            const replyPreview = document.getElementById('messengerReplyPreview');
+            const replyPreviewSender = document.getElementById('replyPreviewSender');
+            const replyPreviewText = document.getElementById('replyPreviewText');
+            const clearReplyBtn = document.getElementById('clearReplyBtn');
+            const nicknameToggleButton = document.getElementById('messengerNicknameToggleBtn');
+            const nicknamePanel = document.getElementById('messengerNicknamePanel');
+            const replyButtons = document.querySelectorAll('.messenger-reply-btn');
+            const reactionTargets = document.querySelectorAll('.messenger-reaction-target[data-message-id]');
+            const reactionToggleButtons = document.querySelectorAll('[data-toggle-reactions]');
+            const reactionPickers = document.querySelectorAll('[data-reaction-picker-for]');
+            let isSendingMessage = false;
+            let activeReactionPickerMessageId = 0;
+
+            const applyReplyPreview = (messageId, sender, text) => {
+                if (!replyPreview || !replyToMessageInput || !replyPreviewSender || !replyPreviewText) {
+                    return;
+                }
+
+                const normalizedText = String(text || '').replace(/\s+/g, ' ').trim();
+                if (!messageId || normalizedText === '') {
+                    replyToMessageInput.value = '';
+                    replyPreview.classList.remove('show');
+                    replyPreviewSender.textContent = '';
+                    replyPreviewText.textContent = '';
+                    return;
+                }
+
+                const shortenedText = normalizedText.length > 140
+                    ? `${normalizedText.slice(0, 137)}...`
+                    : normalizedText;
+
+                replyToMessageInput.value = String(messageId);
+                replyPreviewSender.textContent = sender || 'Classmate';
+                replyPreviewText.textContent = shortenedText;
+                replyPreview.classList.add('show');
+            };
+
+            if (messengerShell && window.innerWidth <= 768 && !messengerShell.classList.contains('mobile-chat-open')) {
+                messengerChatThread?.scrollTo({ top: 0, behavior: 'auto' });
+            }
+
+            if (messengerChatThread) {
+                messengerChatThread.scrollTop = messengerChatThread.scrollHeight;
+            }
+
+            const closeReactionPickers = () => {
+                reactionPickers.forEach((picker) => {
+                    picker.classList.remove('show');
+                });
+
+                reactionToggleButtons.forEach((button) => {
+                    button.setAttribute('aria-expanded', 'false');
+                });
+
+                activeReactionPickerMessageId = 0;
+            };
+
+            const openReactionPicker = (messageId) => {
+                const normalizedId = Number(messageId || 0);
+                if (normalizedId <= 0) {
+                    return;
+                }
+
+                reactionPickers.forEach((picker) => {
+                    const pickerId = Number(picker.dataset.reactionPickerFor || 0);
+                    picker.classList.toggle('show', pickerId === normalizedId);
+                });
+
+                reactionToggleButtons.forEach((button) => {
+                    const buttonId = Number(button.dataset.messageId || 0);
+                    button.setAttribute('aria-expanded', buttonId === normalizedId ? 'true' : 'false');
+                });
+
+                activeReactionPickerMessageId = normalizedId;
+            };
+
+            const toggleReactionPicker = (messageId) => {
+                const normalizedId = Number(messageId || 0);
+                if (normalizedId <= 0) {
+                    return;
+                }
+
+                if (activeReactionPickerMessageId === normalizedId) {
+                    closeReactionPickers();
+                    return;
+                }
+
+                openReactionPicker(normalizedId);
+            };
+
+            reactionToggleButtons.forEach((button) => {
+                button.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const messageId = Number(button.dataset.messageId || 0);
+                    toggleReactionPicker(messageId);
+                });
+            });
+
+            reactionTargets.forEach((target) => {
+                const messageId = Number(target.dataset.messageId || 0);
+                if (messageId <= 0) {
+                    return;
+                }
+
+                let longPressTimer = null;
+
+                const cancelLongPress = () => {
+                    if (longPressTimer !== null) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+                };
+
+                target.addEventListener('click', (event) => {
+                    if (window.innerWidth <= 768) {
+                        return;
+                    }
+
+                    if (event.target.closest('a, button, input, textarea, form, audio')) {
+                        return;
+                    }
+
+                    toggleReactionPicker(messageId);
+                });
+
+                target.addEventListener('touchstart', (event) => {
+                    if (window.innerWidth > 768) {
+                        return;
+                    }
+
+                    if (event.target.closest('a, button, input, textarea, form, audio')) {
+                        return;
+                    }
+
+                    cancelLongPress();
+                    longPressTimer = window.setTimeout(() => {
+                        openReactionPicker(messageId);
+                        if (navigator.vibrate) {
+                            navigator.vibrate(10);
+                        }
+                    }, 450);
+                }, { passive: true });
+
+                target.addEventListener('touchend', cancelLongPress);
+                target.addEventListener('touchmove', cancelLongPress);
+                target.addEventListener('touchcancel', cancelLongPress);
+            });
+
+            nicknameToggleButton?.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                nicknamePanel?.classList.toggle('show');
+            });
+
+            document.addEventListener('click', (event) => {
+                const reactionArea = event.target.closest('.messenger-message-actions, .messenger-reaction-target');
+                if (!reactionArea) {
+                    closeReactionPickers();
+                }
+
+                if (nicknamePanel && !event.target.closest('#messengerNicknamePanel, #messengerNicknameToggleBtn')) {
+                    nicknamePanel.classList.remove('show');
+                }
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    closeReactionPickers();
+                    nicknamePanel?.classList.remove('show');
+                }
+            });
+
+            replyButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    const messageId = Number(button.dataset.replyId || 0);
+                    const sender = button.dataset.replySender || 'Classmate';
+                    const text = button.dataset.replyText || '';
+
+                    applyReplyPreview(messageId, sender, text);
+                    messengerMessageInput?.focus();
+                });
+            });
+
+            clearReplyBtn?.addEventListener('click', () => {
+                applyReplyPreview(0, '', '');
+                messengerMessageInput?.focus();
+            });
+
+            messageAttachmentInput?.addEventListener('change', () => {
+                const selectedFile = messageAttachmentInput.files && messageAttachmentInput.files[0]
+                    ? messageAttachmentInput.files[0]
+                    : null;
+
+                if (!messageAttachmentHint) {
+                    return;
+                }
+
+                if (!selectedFile) {
+                    messageAttachmentHint.textContent = 'Optional: attach image, audio, or file (max 15 MB).';
+                    return;
+                }
+
+                const maxAttachmentSize = 15 * 1024 * 1024;
+                if (selectedFile.size > maxAttachmentSize) {
+                    messageAttachmentHint.textContent = 'Selected file is too large. Maximum is 15 MB.';
+                    return;
+                }
+
+                const sizeLabel = selectedFile.size >= 1024 * 1024
+                    ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`
+                    : `${Math.max(1, Math.round(selectedFile.size / 1024))} KB`;
+                messageAttachmentHint.textContent = `Selected: ${selectedFile.name} (${sizeLabel})`;
+            });
+
+            messengerMessageInput?.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    if (messengerSendButton) {
+                        messengerSendButton.click();
+                    } else {
+                        messengerMessageInput.form?.requestSubmit();
+                    }
+                }
+            });
+
+            messengerComposerForm?.addEventListener('submit', (event) => {
+                if (!messengerMessageInput) {
+                    return;
+                }
+
+                const trimmedMessage = messengerMessageInput.value.trim();
+                messengerMessageInput.value = trimmedMessage;
+
+                const selectedAttachment = messageAttachmentInput?.files && messageAttachmentInput.files[0]
+                    ? messageAttachmentInput.files[0]
+                    : null;
+                const hasAttachment = !!selectedAttachment;
+
+                if (trimmedMessage === '' && !hasAttachment) {
+                    event.preventDefault();
+                    showToast('Type a message or attach a file.', 'error');
+                    return;
+                }
+
+                if (selectedAttachment && selectedAttachment.size > (15 * 1024 * 1024)) {
+                    event.preventDefault();
+                    showToast('Attachment must be 15 MB or less.', 'error');
+                    return;
+                }
+
+                if (isSendingMessage) {
+                    event.preventDefault();
+                    return;
+                }
+
+                isSendingMessage = true;
+                if (messengerSendButton) {
+                    messengerSendButton.disabled = true;
+                    messengerSendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+                }
+            });
+
+            setTimeout(() => {
+                openOnboardingGuide(false);
+            }, 550);
+        });
+
         // Close modal when clicking outside
         window.onclick = function (event) {
             const uploadModal = document.getElementById('uploadModal');
             const detailsModal = document.getElementById('detailsModal');
+            const profileModal = document.getElementById('profileModal');
+            const onboardingDialog = document.getElementById('onboardingModal');
 
             if (event.target == uploadModal) {
                 uploadModal.style.display = 'none';
             }
             if (event.target == detailsModal) {
                 detailsModal.style.display = 'none';
+            }
+            if (event.target == profileModal) {
+                profileModal.style.display = 'none';
+            }
+            if (event.target == onboardingDialog) {
+                closeOnboardingGuide(true);
             }
         };
     </script>

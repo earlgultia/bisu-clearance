@@ -68,6 +68,29 @@ $filter_school_year = $_GET['school_year'] ?? '';
 $filter_type = $_GET['type'] ?? '';
 $filter_status = $_GET['status'] ?? '';
 
+function isOrganizationTargetedStudentProof(?string $remarks): bool
+{
+    $remarks = trim((string) $remarks);
+    if ($remarks === '') {
+        return false;
+    }
+
+    return stripos($remarks, '[ORG_PROOF]') !== false
+        || stripos($remarks, 'Submitted for ') !== false;
+}
+
+function attachRegistrarProofView(array $row): array
+{
+    $hasRegistrarStudentProof = !empty($row['student_proof_file'])
+        && !isOrganizationTargetedStudentProof($row['student_proof_remarks'] ?? null);
+
+    $row['registrar_student_proof_file'] = $hasRegistrarStudentProof ? ($row['student_proof_file'] ?? null) : null;
+    $row['registrar_student_proof_remarks'] = $hasRegistrarStudentProof ? ($row['student_proof_remarks'] ?? null) : null;
+    $row['registrar_student_proof_uploaded_at'] = $hasRegistrarStudentProof ? ($row['student_proof_uploaded_at'] ?? null) : null;
+
+    return $row;
+}
+
 // ============================================
 // UNDO FUNCTIONALITY - Revert mistaken approvals (NO TIME LIMIT)
 // ============================================
@@ -660,6 +683,40 @@ try {
         $registrar_office_id = $registrar_office ? $registrar_office['office_id'] : 0;
     }
 
+    // Recover legacy invalid enum writes for registrar rows.
+    $db->query("UPDATE clearance
+                SET status = 'pending',
+                    processed_by = NULL,
+                    processed_date = NULL,
+                    updated_at = NOW(),
+                    remarks = CONCAT(IFNULL(remarks, ''), ' | Auto-reset: invalid registrar status repaired on ', NOW())
+                WHERE office_id = :office_id_invalid
+                  AND status = ''");
+    $db->bind(':office_id_invalid', $registrar_office_id);
+    if (!$db->execute()) {
+        error_log("Warning: registrar invalid-status normalization failed");
+    }
+
+    // Safety net: registrar clearances must only be processed by users assigned to Registrar office.
+    // Any unauthorized auto-updates are reverted to pending for manual registrar action.
+    $db->query("UPDATE clearance c
+                LEFT JOIN sub_admin_offices sao
+                  ON sao.users_id = c.processed_by
+                                 AND sao.office_id = :office_id_join
+                SET c.status = 'pending',
+                    c.processed_by = NULL,
+                    c.processed_date = NULL,
+                    c.updated_at = NOW(),
+                    c.remarks = CONCAT(IFNULL(c.remarks, ''), ' | Auto-reset: unauthorized registrar processing detected on ', NOW())
+                                WHERE c.office_id = :office_id_where
+                  AND c.status IN ('approved', 'rejected')
+                  AND (c.processed_by IS NULL OR sao.users_id IS NULL)");
+        $db->bind(':office_id_join', $registrar_office_id);
+        $db->bind(':office_id_where', $registrar_office_id);
+    if (!$db->execute()) {
+        error_log("Warning: registrar unauthorized-processing safety reset failed");
+    }
+
     // Count statistics with advanced breakdown
     $stats_query = "SELECT 
                     COUNT(CASE WHEN c.status = 'pending' THEN 1 END) as pending,
@@ -750,10 +807,17 @@ try {
 
     $query .= " ORDER BY 
                 CASE 
-                    WHEN c.lacking_comment IS NOT NULL AND c.student_proof_file IS NOT NULL THEN 1  -- Students who have submitted proof after lacking comment
-                    WHEN c.lacking_comment IS NOT NULL THEN 2  -- Students with lacking comment
-                    WHEN c.student_proof_file IS NOT NULL THEN 3  -- Students with proof but no lacking comment
-                    ELSE 4  -- Regular pending
+                    WHEN c.lacking_comment IS NOT NULL
+                         AND c.student_proof_file IS NOT NULL
+                         AND (c.student_proof_remarks IS NULL
+                              OR (c.student_proof_remarks NOT LIKE '%[ORG_PROOF]%'
+                                  AND c.student_proof_remarks NOT LIKE '%Submitted for %')) THEN 1
+                    WHEN c.lacking_comment IS NOT NULL THEN 2
+                    WHEN c.student_proof_file IS NOT NULL
+                         AND (c.student_proof_remarks IS NULL
+                              OR (c.student_proof_remarks NOT LIKE '%[ORG_PROOF]%'
+                                  AND c.student_proof_remarks NOT LIKE '%Submitted for %')) THEN 3
+                    ELSE 4
                 END,
                 c.created_at ASC";
 
@@ -762,6 +826,7 @@ try {
         $db->bind($key, $value);
     }
     $pending_clearances = $db->resultSet();
+    $pending_clearances = array_map('attachRegistrarProofView', $pending_clearances ?: []);
 
     // Calculate pending summary
     foreach ($pending_clearances as $pending_item) {
@@ -771,7 +836,7 @@ try {
         $prev_approved = ($pending_item['approved_count'] ?? 0) >= 4;
 
         $has_lacking = !empty($pending_item['lacking_comment']);
-        $has_student_proof = !empty($pending_item['student_proof_file']);
+        $has_student_proof = !empty($pending_item['registrar_student_proof_file']);
         $is_bulk_ready = $prev_approved && (!$has_lacking || $has_student_proof);
 
         if ($has_lacking && $has_student_proof) {
@@ -847,6 +912,7 @@ try {
     $db->bind(':office_id', $registrar_office_id);
     $db->bind(':registrar_id', $registrar_id);
     $approvals_to_undo = $db->resultSet();
+    $approvals_to_undo = array_map('attachRegistrarProofView', $approvals_to_undo ?: []);
 
     // Calculate undo summary
     foreach ($approvals_to_undo as $approval) {
@@ -862,7 +928,7 @@ try {
             $undo_summary['with_lacking']++;
         }
 
-        if (!empty($approval['student_proof_file'])) {
+        if (!empty($approval['registrar_student_proof_file'])) {
             $undo_summary['with_student_proof']++;
         }
     }
@@ -889,7 +955,17 @@ try {
                 lcb.fname as lacking_by_fname,
                 lcb.lname as lacking_by_lname,
                 pub.fname as proof_by_fname,
-                pub.lname as proof_by_lname
+                                pub.lname as proof_by_lname,
+                                (SELECT COUNT(*)
+                                 FROM clearance c_all
+                                 WHERE c_all.users_id = c.users_id
+                                     AND c_all.semester = c.semester
+                                     AND c_all.school_year = c.school_year) as workflow_total,
+                                (SELECT SUM(CASE WHEN c_ok.status = 'approved' THEN 1 ELSE 0 END)
+                                 FROM clearance c_ok
+                                 WHERE c_ok.users_id = c.users_id
+                                     AND c_ok.semester = c.semester
+                                     AND c_ok.school_year = c.school_year) as workflow_approved
               FROM clearance c
               JOIN users u ON c.users_id = u.users_id
               LEFT JOIN course cr ON u.course_id = cr.course_id
@@ -929,6 +1005,7 @@ try {
         $db->bind($key, $value);
     }
     $clearance_history = $db->resultSet();
+    $clearance_history = array_map('attachRegistrarProofView', $clearance_history ?: []);
 
     // Calculate history summary
     foreach ($clearance_history as $history_item) {
@@ -942,7 +1019,7 @@ try {
             $history_summary['pending']++;
         }
 
-        if (!empty($history_item['student_proof_file']) || !empty($history_item['proof_file'])) {
+        if (!empty($history_item['registrar_student_proof_file']) || !empty($history_item['proof_file'])) {
             $history_summary['proof_tracked']++;
         }
     }
@@ -1269,6 +1346,21 @@ function getActivityIcon($action)
             gap: 15px;
         }
 
+        .menu-toggle {
+            display: none;
+            width: 46px;
+            height: 46px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.14);
+            color: white;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            backdrop-filter: blur(10px);
+        }
+
         .logo-icon {
             width: 45px;
             height: 45px;
@@ -1360,6 +1452,18 @@ function getActivityIcon($action)
             transform: translateY(-2px);
         }
 
+        .nav-item.mobile-logout-item {
+            display: none;
+            margin-top: 8px;
+            background: rgba(220, 38, 38, 0.12);
+            color: #b91c1c;
+        }
+
+        .nav-item.mobile-logout-item:hover {
+            background: #dc2626;
+            color: #fff;
+        }
+
         .main-container {
             display: flex;
             margin-top: 70px;
@@ -1378,6 +1482,23 @@ function getActivityIcon($action)
             height: calc(100vh - 70px);
             overflow-y: auto;
             transition: all 0.3s ease;
+        }
+
+        .sidebar-backdrop {
+            position: fixed;
+            inset: 70px 0 0;
+            background: rgba(2, 8, 23, 0.42);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
+            z-index: 1000;
+        }
+
+        .sidebar-backdrop.show {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
         }
 
         .profile-section {
@@ -2769,6 +2890,11 @@ function getActivityIcon($action)
             color: var(--info);
         }
 
+        .action-btn.print {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+
         .action-btn.undo-action {
             background: var(--undo-soft);
             color: var(--undo);
@@ -3443,15 +3569,44 @@ function getActivityIcon($action)
         }
 
         @media (max-width: 768px) {
+            .menu-toggle {
+                display: inline-flex;
+            }
+
             .sidebar {
                 transform: translateX(-100%);
-                position: absolute;
+                position: fixed;
+                top: 70px;
+                left: 0;
                 z-index: 1001;
+                height: calc(100vh - 70px);
                 transition: 0.3s;
+                box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
             }
 
             .sidebar.show {
                 transform: translateX(0);
+            }
+
+            .logo h2 {
+                font-size: 1.05rem;
+            }
+
+            .user-menu {
+                gap: 10px;
+                margin-left: auto;
+            }
+
+            .user-info {
+                display: none;
+            }
+
+            .logout-btn {
+                display: none;
+            }
+
+            .nav-item.mobile-logout-item {
+                display: flex;
             }
 
             .content-area {
@@ -3553,6 +3708,9 @@ function getActivityIcon($action)
     <header class="header">
         <div class="header-content">
             <div class="logo">
+                <button class="menu-toggle" id="menuToggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="subAdminSidebar">
+                    <i class="fas fa-bars"></i>
+                </button>
                 <div class="logo-icon">
                     <i class="fas fa-archive"></i>
                 </div>
@@ -3580,7 +3738,7 @@ function getActivityIcon($action)
     </header>
 
     <div class="main-container">
-        <aside class="sidebar">
+        <aside class="sidebar" id="subAdminSidebar">
             <div class="profile-section">
                 <div class="profile-avatar" id="avatarContainer">
                     <?php if (!empty($profile_pic) && file_exists('../' . $profile_pic)): ?>
@@ -3641,8 +3799,12 @@ function getActivityIcon($action)
                     onclick="switchTab('students')">
                     <i class="fas fa-users"></i> Student Records
                 </button>
+                <a href="../logout.php" class="nav-item mobile-logout-item">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
             </nav>
         </aside>
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
         <main class="content-area">
             <?php if (!empty($success)): ?>
@@ -3852,7 +4014,7 @@ function getActivityIcon($action)
                                     <?php foreach ($dashboard_focus_items as $clearance): ?>
                                             <?php
                                             $has_lacking = !empty($clearance['lacking_comment']);
-                                            $has_student_proof = !empty($clearance['student_proof_file']);
+                                            $has_student_proof = !empty($clearance['registrar_student_proof_file']);
                                             $prev_approved = ($clearance['approved_count'] ?? 0) >= 4;
                                             $dashboard_state_label = 'Needs Review';
                                             $dashboard_state_class = 'review';
@@ -3871,8 +4033,8 @@ function getActivityIcon($action)
                                                 $dashboard_state_class = 'waiting';
                                             }
 
-                                            if (!empty($clearance['student_proof_uploaded_at'])) {
-                                                $dashboard_activity_text = 'Proof uploaded ' . date('M d, Y h:i A', strtotime($clearance['student_proof_uploaded_at']));
+                                            if (!empty($clearance['registrar_student_proof_uploaded_at'])) {
+                                                $dashboard_activity_text = 'Proof uploaded ' . date('M d, Y h:i A', strtotime($clearance['registrar_student_proof_uploaded_at']));
                                             } elseif (!empty($clearance['lacking_comment_at'])) {
                                                 $dashboard_activity_text = 'Marked lacking ' . date('M d, Y h:i A', strtotime($clearance['lacking_comment_at']));
                                             } elseif (!empty($clearance['created_at'])) {
@@ -4033,7 +4195,7 @@ function getActivityIcon($action)
                                                     <?php if (!empty($clearance['lacking_comment'])): ?>
                                                             <span class="lacking-badge"><i class="fas fa-comment"></i> Lacking Logged</span>
                                                     <?php endif; ?>
-                                                    <?php if (!empty($clearance['student_proof_file'])): ?>
+                                                    <?php if (!empty($clearance['registrar_student_proof_file'])): ?>
                                                             <span class="proof-badge"><i class="fas fa-paperclip"></i> Student Proof</span>
                                                     <?php endif; ?>
                                                 </div>
@@ -4176,6 +4338,13 @@ function getActivityIcon($action)
                         </span>
                     </div>
 
+                    <div class="info-card" style="margin-bottom: 20px;">
+                        <i class="fas fa-layer-group"></i>
+                        <div>
+                            <strong>Cleaner queue view:</strong> this page now reacts only to proof uploaded for the Registrar's Office, so clinic and other organization submissions no longer appear as registrar proof.
+                        </div>
+                    </div>
+
                     <div class="summary-grid">
                         <div class="summary-card">
                             <div class="label">Total Pending</div>
@@ -4282,7 +4451,7 @@ function getActivityIcon($action)
                                         <?php foreach ($pending_clearances as $clearance): ?>
                                                 <?php
                                                 $has_lacking = !empty($clearance['lacking_comment']);
-                                                $has_student_proof = !empty($clearance['student_proof_file']);
+                                                $has_student_proof = !empty($clearance['registrar_student_proof_file']);
                                                 $prev_approved = ($clearance['approved_count'] ?? 0) >= 4;
                                                 $is_selectable = $prev_approved && (!$has_lacking || $has_student_proof);
                                                 $resolved_lacking = $has_lacking && $has_student_proof;
@@ -4318,8 +4487,8 @@ function getActivityIcon($action)
                                                     $pending_state_meta = 'Student proof is attached and ready for checking.';
                                                 }
 
-                                                if (!empty($clearance['student_proof_uploaded_at'])) {
-                                                    $pending_activity_text = 'Latest proof uploaded ' . date('M d, Y h:i A', strtotime($clearance['student_proof_uploaded_at']));
+                                                if (!empty($clearance['registrar_student_proof_uploaded_at'])) {
+                                                    $pending_activity_text = 'Latest proof uploaded ' . date('M d, Y h:i A', strtotime($clearance['registrar_student_proof_uploaded_at']));
                                                 } elseif (!empty($clearance['lacking_comment_at'])) {
                                                     $pending_activity_text = 'Marked lacking ' . date('M d, Y h:i A', strtotime($clearance['lacking_comment_at']));
                                                 } elseif (!empty($clearance['created_at'])) {
@@ -4336,8 +4505,8 @@ function getActivityIcon($action)
                                                 $approved_offices_text = !empty($clearance['approved_offices'])
                                                     ? 'Approved offices: ' . $clearance['approved_offices']
                                                     : 'No offices approved yet for this period';
-                                                $proof_meta_text = !empty($clearance['student_proof_uploaded_at'])
-                                                    ? 'Uploaded ' . date('M d, Y h:i A', strtotime($clearance['student_proof_uploaded_at']))
+                                                $proof_meta_text = !empty($clearance['registrar_student_proof_uploaded_at'])
+                                                    ? 'Uploaded ' . date('M d, Y h:i A', strtotime($clearance['registrar_student_proof_uploaded_at']))
                                                     : 'Student proof is attached';
                                                 $action_hint = $is_selectable
                                                     ? 'This request is eligible for approval after review.'
@@ -4406,7 +4575,7 @@ function getActivityIcon($action)
                                                                 <?php endif; ?>
                                                                 <?php if ($has_student_proof): ?>
                                                                         <button type="button" class="proof-badge"
-                                                                            onclick="viewStudentProof('<?php echo $clearance['clearance_id']; ?>', '<?php echo $clearance['student_proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['student_proof_remarks'] ?? '')); ?>')">
+                                                                            onclick="viewStudentProof('<?php echo $clearance['clearance_id']; ?>', '<?php echo $clearance['registrar_student_proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['registrar_student_proof_remarks'] ?? '')); ?>')">
                                                                             <i class="fas fa-paperclip"></i> View Proof
                                                                         </button>
                                                                 <?php endif; ?>
@@ -4573,7 +4742,7 @@ function getActivityIcon($action)
                                             'periodLabel' => $approval_period ?: 'Not specified',
                                             'processedDate' => $approval['formatted_date'] ?? (isset($approval['processed_date']) ? date('M d, Y h:i A', strtotime($approval['processed_date'])) : 'N/A'),
                                             'hadLacking' => !empty($approval['lacking_comment']),
-                                            'hadStudentProof' => !empty($approval['student_proof_file'])
+                                            'hadStudentProof' => !empty($approval['registrar_student_proof_file'])
                                         ];
                                         ?>
                                         <div class="undo-item" data-type="<?php echo $approval['clearance_type']; ?>"
@@ -4609,7 +4778,7 @@ function getActivityIcon($action)
                                                         <?php if (!empty($approval['lacking_comment'])): ?>
                                                                 <span class="badge badge-lacking">Had lacking comment</span>
                                                         <?php endif; ?>
-                                                        <?php if (!empty($approval['student_proof_file'])): ?>
+                                                        <?php if (!empty($approval['registrar_student_proof_file'])): ?>
                                                                 <span class="badge badge-proof">Had student proof</span>
                                                         <?php endif; ?>
                                                     </div>
@@ -4641,6 +4810,13 @@ function getActivityIcon($action)
                 <div class="section-card">
                     <div class="section-header">
                         <h2><i class="fas fa-history"></i> Clearance History</h2>
+                    </div>
+
+                    <div class="info-card" style="margin-bottom: 20px;">
+                        <i class="fas fa-filter"></i>
+                        <div>
+                            <strong>Proof separation:</strong> registrar history previews only office-relevant student proof, while organization-targeted uploads stay with their own workflow.
+                        </div>
                     </div>
 
                     <div class="summary-grid">
@@ -4784,18 +4960,18 @@ function getActivityIcon($action)
                                                         <?php endif; ?>
                                                     </td>
                                                     <td>
-                                                        <?php if (!empty($clearance['student_proof_file'])): ?>
+                                                        <?php if (!empty($clearance['registrar_student_proof_file'])): ?>
                                                                 <?php
-                                                                $file_ext = strtolower(pathinfo($clearance['student_proof_file'], PATHINFO_EXTENSION));
+                                                                $file_ext = strtolower(pathinfo($clearance['registrar_student_proof_file'], PATHINFO_EXTENSION));
                                                                 $is_image = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif']);
                                                                 ?>
                                                                 <?php if ($is_image): ?>
-                                                                        <img src="../<?php echo $clearance['student_proof_file']; ?>"
+                                                                        <img src="../<?php echo $clearance['registrar_student_proof_file']; ?>"
                                                                             style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; cursor: pointer;"
-                                                                            onclick="viewStudentProof('<?php echo $clearance['clearance_id']; ?>', '<?php echo $clearance['student_proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['student_proof_remarks'] ?? '')); ?>')">
+                                                                            onclick="viewStudentProof('<?php echo $clearance['clearance_id']; ?>', '<?php echo $clearance['registrar_student_proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['registrar_student_proof_remarks'] ?? '')); ?>')">
                                                                 <?php else: ?>
                                                                         <span class="proof-badge"
-                                                                            onclick="viewStudentProof('<?php echo $clearance['clearance_id']; ?>', '<?php echo $clearance['student_proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['student_proof_remarks'] ?? '')); ?>')">
+                                                                            onclick="viewStudentProof('<?php echo $clearance['clearance_id']; ?>', '<?php echo $clearance['registrar_student_proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['registrar_student_proof_remarks'] ?? '')); ?>')">
                                                                             <i class="fas fa-file"></i> View
                                                                         </span>
                                                                 <?php endif; ?>
@@ -4834,6 +5010,13 @@ function getActivityIcon($action)
                                                             onclick="viewStudentProgress(<?php echo $clearance['users_id']; ?>, '<?php echo $clearance['semester']; ?>', '<?php echo $clearance['school_year']; ?>', '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo $clearance['ismis_id']; ?>', '<?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?>', '<?php echo htmlspecialchars($clearance['college_name'] ?? 'N/A'); ?>', '<?php echo $clearance['address'] ?? ''; ?>', '<?php echo $clearance['contacts'] ?? ''; ?>', '<?php echo $clearance['age'] ?? ''; ?>')">
                                                             <i class="fas fa-eye"></i>
                                                         </button>
+                                                        <?php if (($clearance['status'] ?? '') === 'approved' && (int) ($clearance['workflow_total'] ?? 0) > 0 && (int) ($clearance['workflow_approved'] ?? 0) === (int) ($clearance['workflow_total'] ?? 0)): ?>
+                                                                <a class="action-btn print"
+                                                                    href="print_completed_clearance.php?clearance_id=<?php echo (int) $clearance['clearance_id']; ?>"
+                                                                    target="_blank" rel="noopener noreferrer" title="Print completed clearance certificate">
+                                                                    <i class="fas fa-print"></i>
+                                                                </a>
+                                                        <?php endif; ?>
                                                     </td>
                                                 </tr>
                                         <?php endforeach; ?>
@@ -5264,7 +5447,21 @@ function getActivityIcon($action)
         // Dark Mode Toggle
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('subAdminSidebar');
+        const sidebarBackdrop = document.getElementById('sidebarBackdrop');
         const body = document.body;
+
+        function closeMobileSidebar() {
+            if (!sidebar) return;
+            sidebar.classList.remove('show');
+            if (sidebarBackdrop) {
+                sidebarBackdrop.classList.remove('show');
+            }
+            if (menuToggle) {
+                menuToggle.setAttribute('aria-expanded', 'false');
+            }
+        }
 
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme === 'dark') {
@@ -5350,7 +5547,32 @@ function getActivityIcon($action)
             const url = new URL(window.location);
             url.searchParams.set('tab', tabName);
             window.history.pushState({}, '', url);
+
+            if (window.innerWidth <= 768) {
+                closeMobileSidebar();
+            }
         }
+
+        if (menuToggle && sidebar) {
+            menuToggle.addEventListener('click', () => {
+                const willOpen = !sidebar.classList.contains('show');
+                sidebar.classList.toggle('show', willOpen);
+                if (sidebarBackdrop) {
+                    sidebarBackdrop.classList.toggle('show', willOpen);
+                }
+                menuToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            });
+        }
+
+        if (sidebarBackdrop) {
+            sidebarBackdrop.addEventListener('click', closeMobileSidebar);
+        }
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                closeMobileSidebar();
+            }
+        });
 
         // Approve Modal
         function approveClearance(clearanceId) {
@@ -5638,11 +5860,12 @@ function getActivityIcon($action)
                             ? records.map(record => {
                                 const period = [record.semester, record.school_year].filter(Boolean).join(' ') || 'N/A';
                                 const flags = [];
+                                const hasRegistrarStudentProof = Boolean(record.student_proof_file) && !isOrganizationTargetedProof(record.student_proof_remarks);
 
                                 if (record.lacking_comment) {
                                     flags.push('<span class="badge badge-lacking">Lacking</span>');
                                 }
-                                if (record.student_proof_file) {
+                                if (hasRegistrarStudentProof) {
                                     flags.push('<span class="badge badge-proof">Student proof</span>');
                                 }
                                 if (record.proof_file) {
@@ -5762,6 +5985,11 @@ function getActivityIcon($action)
                         </div>
                     `;
                 });
+        }
+
+        function isOrganizationTargetedProof(remarks) {
+            const text = String(remarks || '').toLowerCase();
+            return text.includes('[org_proof]') || text.includes('submitted for ');
         }
 
         // Bulk Actions

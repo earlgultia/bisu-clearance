@@ -25,6 +25,62 @@ if ($_SESSION['user_role'] !== 'organization') {
 // Get database instance
 $db = Database::getInstance();
 
+function ensureOrganizationProofColumns($db)
+{
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    if (!shouldRunMaintenanceTask('organization_clearance_student_proof_columns', 21600)) {
+        return;
+    }
+
+    try {
+        if (!hasDatabaseColumn('organization_clearance', 'student_proof_file')) {
+            $db->query("ALTER TABLE organization_clearance
+                        ADD COLUMN student_proof_file VARCHAR(255) NULL AFTER remarks,
+                        ADD COLUMN student_proof_remarks TEXT NULL AFTER student_proof_file,
+                        ADD COLUMN student_proof_uploaded_at DATETIME NULL AFTER student_proof_remarks");
+            $db->execute();
+        }
+    } catch (Exception $e) {
+        error_log("Error ensuring SSG organization proof columns: " . $e->getMessage());
+    }
+}
+
+function extractOrganizationLackingComment($remarks)
+{
+    if (!is_string($remarks) || $remarks === '') {
+        return '';
+    }
+
+    if (preg_match('/\[ORG_LACKING\]\s*(.+?)(?=\s*\|\s*|$)/s', $remarks, $matches)) {
+        return trim($matches[1]);
+    }
+
+    return '';
+}
+
+function upsertOrganizationLackingComment($remarks, $comment)
+{
+    $base = preg_replace('/\s*\|\s*\[ORG_LACKING\]\s*.+?(?=\s*\|\s*|$)/s', '', (string) $remarks);
+    $base = preg_replace('/^\[ORG_LACKING\]\s*.+?(?=\s*\|\s*|$)/s', '', trim($base));
+    $base = trim($base, " \t\n\r\0\x0B|");
+    $comment = trim((string) $comment);
+
+    if ($comment === '') {
+        return $base;
+    }
+
+    return $base !== '' ? $base . ' | [ORG_LACKING] ' . $comment : '[ORG_LACKING] ' . $comment;
+}
+
+ensureOrganizationProofColumns($db);
+
 // Get organization information from session
 $org_id = $_SESSION['user_id'];
 $org_name = $_SESSION['user_name'] ?? '';
@@ -66,11 +122,75 @@ $filter_school_year = $_GET['school_year'] ?? '';
 $filter_year_level = $_GET['year_level'] ?? '';
 
 // ============================================
+// HANDLE LACKING COMMENT
+// ============================================
+if (isset($_POST['add_lacking_comment'])) {
+    $clearance_id = (int) ($_POST['clearance_id'] ?? 0);
+    $comment = trim($_POST['lacking_comment'] ?? '');
+
+    if ($clearance_id > 0 && $comment !== '') {
+        try {
+            $db->beginTransaction();
+
+            $db->query("SELECT oc.org_clearance_id, oc.org_id, oc.status as org_status, oc.remarks as org_remarks, oc.student_proof_file,
+                               c.clearance_id, c.users_id,
+                               u.fname, u.lname
+                        FROM organization_clearance oc
+                        JOIN clearance c ON oc.clearance_id = c.clearance_id
+                        JOIN users u ON c.users_id = u.users_id
+                        WHERE oc.org_id = :org_id AND c.clearance_id = :clearance_id");
+            $db->bind(':org_id', $org_id);
+            $db->bind(':clearance_id', $clearance_id);
+            $current = $db->single();
+
+            if (!$current) {
+                throw new Exception("Clearance not found for this organization.");
+            }
+
+            if ($current['org_status'] !== 'pending') {
+                throw new Exception("You can only add a lacking comment to pending clearances.");
+            }
+
+            $db->query("UPDATE organization_clearance SET
+                        remarks = :remarks,
+                        updated_at = NOW()
+                        WHERE org_clearance_id = :org_clearance_id
+                        AND org_id = :org_id");
+            $db->bind(':remarks', upsertOrganizationLackingComment($current['org_remarks'] ?? '', $comment));
+            $db->bind(':org_clearance_id', $current['org_clearance_id']);
+            $db->bind(':org_id', $org_id);
+
+            if (!$db->execute()) {
+                throw new Exception("Failed to save lacking comment.");
+            }
+
+            $db->commit();
+            $_SESSION['success_message'] = "Lacking comment saved for {$current['fname']} {$current['lname']}.";
+            header("Location: ssg_dashboard.php?tab=pending");
+            exit();
+        } catch (Exception $e) {
+            $db->rollback();
+            error_log("Error adding SSG lacking comment: " . $e->getMessage());
+            $error = "Error: " . $e->getMessage();
+        }
+    } else {
+        $error = "Please enter the lacking details before saving.";
+    }
+}
+
+// ============================================
 // HANDLE CLEARANCE APPROVAL/REJECTION
 // ============================================
 if (isset($_POST['process_clearance'])) {
     $org_clearance_id = $_POST['org_clearance_id'] ?? '';
-    $status = $_POST['status'] ?? '';
+    $status_input = strtolower(trim($_POST['status'] ?? ''));
+    $status_map = [
+        'approve' => 'approved',
+        'approved' => 'approved',
+        'reject' => 'rejected',
+        'rejected' => 'rejected'
+    ];
+    $status = $status_map[$status_input] ?? '';
     $remarks = trim($_POST['remarks'] ?? '');
 
     if ($org_clearance_id && $status) {
@@ -94,6 +214,11 @@ if (isset($_POST['process_clearance'])) {
             // Check if clearance is still pending
             if ($current['status'] !== 'pending') {
                 throw new Exception("This clearance has already been processed");
+            }
+
+            $org_lacking_comment = extractOrganizationLackingComment($current['remarks'] ?? '');
+            if ($status === 'approved' && $org_lacking_comment !== '' && empty($current['student_proof_file'])) {
+                throw new Exception("This clearance has an active lacking comment. Wait for the student proof before approving.");
             }
 
             // Update the organization clearance
@@ -137,14 +262,18 @@ if (isset($_POST['process_clearance'])) {
 // HANDLE BULK APPROVAL
 // ============================================
 if (isset($_POST['bulk_approve'])) {
-    $org_clearance_ids = $_POST['org_clearance_ids'] ?? [];
+    $org_clearance_ids = array_values(array_filter(array_map('intval', $_POST['org_clearance_ids'] ?? [])));
     $remarks = trim($_POST['bulk_remarks'] ?? '');
 
     if (!empty($org_clearance_ids)) {
         try {
             $db->beginTransaction();
 
-            $placeholders = implode(',', array_fill(0, count($org_clearance_ids), '?'));
+            $named_placeholders = [];
+            foreach ($org_clearance_ids as $index => $id) {
+                $named_placeholders[] = ':id_' . $index;
+            }
+            $placeholders = implode(',', $named_placeholders);
 
             // Verify all selected clearances belong to this organization and are pending
             $db->query("SELECT COUNT(*) as count 
@@ -154,7 +283,7 @@ if (isset($_POST['bulk_approve'])) {
                        AND status = 'pending'");
 
             foreach ($org_clearance_ids as $index => $id) {
-                $db->bind($index + 1, $id);
+                $db->bind(':id_' . $index, $id);
             }
             $db->bind(':org_id', $org_id);
             $verify = $db->single();
@@ -163,6 +292,27 @@ if (isset($_POST['bulk_approve'])) {
                 $db->rollback();
                 $error = "Some clearances are not valid for bulk approval.";
                 throw new Exception("Invalid clearances");
+            }
+
+            $db->query("SELECT org_clearance_id, remarks, student_proof_file
+                        FROM organization_clearance
+                        WHERE org_clearance_id IN ($placeholders)
+                        AND org_id = :org_id_check");
+            foreach ($org_clearance_ids as $index => $id) {
+                $db->bind(':id_' . $index, $id);
+            }
+            $db->bind(':org_id_check', $org_id);
+            $selected_clearances = $db->resultSet();
+
+            foreach ($selected_clearances as $selected_clearance) {
+                $has_lacking_comment = extractOrganizationLackingComment($selected_clearance['remarks'] ?? '') !== '';
+                $has_student_proof = !empty($selected_clearance['student_proof_file']);
+
+                if ($has_lacking_comment && !$has_student_proof) {
+                    $db->rollback();
+                    $error = "Bulk approval is blocked for organizations with unresolved lacking comments.";
+                    throw new Exception("Missing student proof");
+                }
             }
 
             // Update all eligible clearances
@@ -176,9 +326,10 @@ if (isset($_POST['bulk_approve'])) {
 
             $db->bind(':remarks', $remarks);
             $db->bind(':processed_by', $org_id);
+            $db->bind(':org_id', $org_id);
 
             foreach ($org_clearance_ids as $index => $id) {
-                $db->bind($index + 1, $id);
+                $db->bind(':id_' . $index, $id);
             }
 
             if ($db->execute()) {
@@ -291,6 +442,26 @@ $approvals_to_undo = [];
 try {
     if (!$org_id) {
         throw new Exception("No organization ID found");
+    }
+
+    ensureOrganizationProofColumns($db);
+
+    // Ensure organization_clearance rows exist for this org so pending applications appear.
+    $syncQuery = "INSERT INTO organization_clearance (clearance_id, org_id, office_id, status, created_at, updated_at)
+                  SELECT c.clearance_id, :org_id_insert, c.office_id, 'pending', NOW(), NOW()
+                  FROM clearance c
+                  LEFT JOIN organization_clearance oc
+                    ON oc.clearance_id = c.clearance_id
+                   AND oc.org_id = :org_id_match
+                  WHERE c.office_id = (SELECT office_id FROM offices WHERE office_name = 'Director_SAS' LIMIT 1)
+                    AND c.status = 'pending'
+                    AND oc.org_clearance_id IS NULL";
+
+    $db->query($syncQuery);
+    $db->bind(':org_id_insert', $org_id);
+    $db->bind(':org_id_match', $org_id);
+    if (!$db->execute()) {
+        error_log("Warning: SSG organization clearance sync failed for org_id=" . $org_id);
     }
 
     // Count statistics
@@ -406,6 +577,10 @@ try {
         $db->bind($key, $value);
     }
     $pending_clearances = $db->resultSet();
+    foreach ($pending_clearances as &$pending_clearance) {
+        $pending_clearance['lacking_comment'] = extractOrganizationLackingComment($pending_clearance['remarks'] ?? '');
+    }
+    unset($pending_clearance);
 
     // Get recent approved/rejected clearances
     $query = "SELECT 
@@ -421,9 +596,9 @@ try {
                 u.profile_picture,
                 cr.course_name, 
                 col.college_name,
-                ct.clearance_name as clearance_type,
-                p.fname as processed_fname, 
-                p.lname as processed_lname
+                                ct.clearance_name as clearance_type,
+                                COALESCE(p.fname, so_proc.org_name, 'Organization') as processed_fname,
+                                COALESCE(p.lname, '') as processed_lname
               FROM organization_clearance oc
               JOIN clearance c ON oc.clearance_id = c.clearance_id
               JOIN users u ON c.users_id = u.users_id
@@ -431,6 +606,7 @@ try {
               LEFT JOIN college col ON u.college_id = col.college_id
               LEFT JOIN clearance_type ct ON c.clearance_type_id = ct.clearance_type_id
               LEFT JOIN users p ON oc.processed_by = p.users_id
+                            LEFT JOIN student_organizations so_proc ON oc.processed_by = so_proc.org_id
               WHERE oc.org_id = :org_id 
               AND oc.status IN ('approved', 'rejected')
               ORDER BY oc.processed_date DESC
@@ -472,9 +648,9 @@ try {
                 u.profile_picture,
                 cr.course_name, 
                 col.college_name,
-                ct.clearance_name as clearance_type,
-                p.fname as processed_fname, 
-                p.lname as processed_lname
+                                ct.clearance_name as clearance_type,
+                                COALESCE(p.fname, so_proc.org_name, 'Organization') as processed_fname,
+                                COALESCE(p.lname, '') as processed_lname
               FROM organization_clearance oc
               JOIN clearance c ON oc.clearance_id = c.clearance_id
               JOIN users u ON c.users_id = u.users_id
@@ -482,6 +658,7 @@ try {
               LEFT JOIN college col ON u.college_id = col.college_id
               LEFT JOIN clearance_type ct ON c.clearance_type_id = ct.clearance_type_id
               LEFT JOIN users p ON oc.processed_by = p.users_id
+                            LEFT JOIN student_organizations so_proc ON oc.processed_by = so_proc.org_id
               WHERE oc.org_id = :org_id
               ORDER BY oc.created_at DESC 
               LIMIT 50";
@@ -642,8 +819,11 @@ function getYearLevelBadge($year_level)
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SSG Dashboard - BISU Online Clearance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * {
@@ -781,6 +961,21 @@ function getYearLevelBadge($year_level)
             gap: 15px;
         }
 
+        .menu-toggle {
+            display: none;
+            width: 46px;
+            height: 46px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.14);
+            color: white;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            backdrop-filter: blur(10px);
+        }
+
         .logo-icon {
             width: 45px;
             height: 45px;
@@ -872,6 +1067,18 @@ function getYearLevelBadge($year_level)
             transform: translateY(-2px);
         }
 
+        .nav-item.mobile-logout-item {
+            display: none;
+            margin-top: 8px;
+            background: rgba(220, 38, 38, 0.12);
+            color: #b91c1c;
+        }
+
+        .nav-item.mobile-logout-item:hover {
+            background: #dc2626;
+            color: #fff;
+        }
+
         .main-container {
             display: flex;
             margin-top: 70px;
@@ -890,6 +1097,23 @@ function getYearLevelBadge($year_level)
             height: calc(100vh - 70px);
             overflow-y: auto;
             transition: all 0.3s ease;
+        }
+
+        .sidebar-backdrop {
+            position: fixed;
+            inset: 70px 0 0;
+            background: rgba(2, 8, 23, 0.42);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
+            z-index: 1000;
+        }
+
+        .sidebar-backdrop.show {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
         }
 
         .profile-section {
@@ -1697,9 +1921,19 @@ function getYearLevelBadge($year_level)
             color: var(--danger);
         }
 
+        .action-btn.lacking {
+            background: var(--warning-soft);
+            color: var(--warning);
+        }
+
         .action-btn.view {
             background: var(--info-soft);
             color: var(--info);
+        }
+
+        .action-btn.view-proof {
+            background: rgba(14, 165, 233, 0.12);
+            color: #0ea5e9;
         }
 
         .action-btn:hover {
@@ -1711,6 +1945,178 @@ function getYearLevelBadge($year_level)
             height: 18px;
             cursor: pointer;
             accent-color: var(--primary);
+        }
+
+        .pending-flags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .mini-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+
+        .mini-badge.lacking {
+            background: var(--warning-soft);
+            color: var(--warning);
+        }
+
+        .mini-badge.proof {
+            background: var(--info-soft);
+            color: var(--info);
+        }
+
+        .proof-preview {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .proof-preview img {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+
+        .student-detail-shell {
+            display: grid;
+            gap: 20px;
+        }
+
+        .student-detail-hero {
+            display: flex;
+            gap: 18px;
+            align-items: center;
+            padding: 20px;
+            border-radius: 18px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .student-detail-avatar {
+            width: 68px;
+            height: 68px;
+            border-radius: 18px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .student-detail-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .student-detail-meta h4 {
+            font-family: 'Manrope', sans-serif;
+            font-size: 1.3rem;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .student-detail-meta p {
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .student-detail-tags,
+        .record-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .summary-card,
+        .record-item {
+            padding: 16px;
+            border-radius: 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .summary-card strong {
+            display: block;
+            color: var(--text-primary);
+            font-family: 'Manrope', sans-serif;
+            font-size: 1.35rem;
+            margin-bottom: 4px;
+        }
+
+        .summary-card span {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .detail-list,
+        .record-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .detail-item,
+        .record-topline {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .detail-item {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .detail-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .detail-item span:first-child {
+            color: var(--text-secondary);
+        }
+
+        .detail-item span:last-child,
+        .record-topline strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .record-note {
+            margin-top: 10px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .empty-inline {
+            padding: 18px;
+            border-radius: 16px;
+            background: var(--bg-secondary);
+            border: 1px dashed var(--border-color);
+            color: var(--text-secondary);
+            text-align: center;
         }
 
         .modal {
@@ -2117,6 +2523,76 @@ function getYearLevelBadge($year_level)
             font-size: 0.9rem;
         }
 
+        /* Professional UI polish */
+        body {
+            min-height: 100dvh;
+            background:
+                radial-gradient(circle at 100% 0%, rgba(255, 107, 122, 0.14), transparent 36%),
+                radial-gradient(circle at 0% 100%, rgba(230, 57, 70, 0.10), transparent 42%),
+                var(--bg-secondary);
+            font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        .logo h2,
+        .section-header h2,
+        .welcome-banner h1 {
+            font-family: 'Manrope', sans-serif;
+            letter-spacing: 0.01em;
+        }
+
+        .header {
+            padding: calc(0.85rem + env(safe-area-inset-top, 0px)) calc(1rem + env(safe-area-inset-right, 0px)) 0.85rem calc(1rem + env(safe-area-inset-left, 0px));
+            box-shadow: 0 10px 30px rgba(58, 9, 14, 0.22);
+        }
+
+        .section-card,
+        .stat-card,
+        .college-stat-card,
+        .course-stat-card,
+        .year-stat-card,
+        .student-card,
+        .undo-item,
+        .info-card {
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+        }
+
+        .filter-select,
+        .filter-input,
+        .form-group textarea,
+        .form-group input,
+        .form-group select {
+            border-radius: 12px;
+            border-width: 1px;
+        }
+
+        .table-responsive {
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            background: var(--card-bg);
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            backdrop-filter: blur(5px);
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(230, 57, 70, 0.03);
+        }
+
+        .btn,
+        .action-btn,
+        .filter-btn,
+        .clear-filter,
+        .nav-item,
+        .logout-btn {
+            min-height: 44px;
+        }
+
         @media (max-width: 1024px) {
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
@@ -2124,15 +2600,44 @@ function getYearLevelBadge($year_level)
         }
 
         @media (max-width: 768px) {
+            .menu-toggle {
+                display: inline-flex;
+            }
+
             .sidebar {
                 transform: translateX(-100%);
-                position: absolute;
+                position: fixed;
+                top: 70px;
+                left: 0;
                 z-index: 1001;
+                height: calc(100vh - 70px);
                 transition: 0.3s;
+                box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
             }
 
             .sidebar.show {
                 transform: translateX(0);
+            }
+
+            .logo h2 {
+                font-size: 1.05rem;
+            }
+
+            .user-menu {
+                gap: 10px;
+                margin-left: auto;
+            }
+
+            .user-info {
+                display: none;
+            }
+
+            .logout-btn {
+                display: none;
+            }
+
+            .nav-item.mobile-logout-item {
+                display: flex;
             }
 
             .content-area {
@@ -2188,6 +2693,9 @@ function getYearLevelBadge($year_level)
     <header class="header">
         <div class="header-content">
             <div class="logo">
+                <button class="menu-toggle" id="menuToggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="orgSidebar">
+                    <i class="fas fa-bars"></i>
+                </button>
                 <div class="logo-icon">
                     <i class="fas fa-users"></i>
                 </div>
@@ -2213,7 +2721,7 @@ function getYearLevelBadge($year_level)
     </header>
 
     <div class="main-container">
-        <aside class="sidebar">
+        <aside class="sidebar" id="orgSidebar">
             <div class="profile-section">
                 <div class="profile-avatar">
                     <i class="fas fa-users" style="font-size: 3rem; line-height: 100px;"></i>
@@ -2263,8 +2771,12 @@ function getYearLevelBadge($year_level)
                                 style="margin-left: auto;"><?php echo count($approvals_to_undo); ?></span>
                         </button>
                 <?php endif; ?>
+                <a href="../logout.php" class="nav-item mobile-logout-item">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
             </nav>
         </aside>
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
         <main class="content-area">
             <?php if (!empty($success)): ?>
@@ -2436,6 +2948,16 @@ function getYearLevelBadge($year_level)
                                                                 </div>
                                                                 <div class="id"><?php echo htmlspecialchars($clearance['ismis_id']); ?>
                                                                 </div>
+                                                                <?php if (!empty($clearance['lacking_comment']) || !empty($clearance['student_proof_file'])): ?>
+                                                                    <div class="pending-flags">
+                                                                        <?php if (!empty($clearance['lacking_comment'])): ?>
+                                                                            <span class="mini-badge lacking"><i class="fas fa-comment-dots"></i> Lacking</span>
+                                                                        <?php endif; ?>
+                                                                        <?php if (!empty($clearance['student_proof_file'])): ?>
+                                                                            <span class="mini-badge proof"><i class="fas fa-paperclip"></i> Proof Uploaded</span>
+                                                                        <?php endif; ?>
+                                                                    </div>
+                                                                <?php endif; ?>
                                                             </div>
                                                         </div>
                                                     </td>
@@ -2631,6 +3153,26 @@ function getYearLevelBadge($year_level)
                                                     </td>
                                                     <td>
                                                         <div class="action-btns">
+                                                            <button class="action-btn lacking"
+                                                                onclick='openLackingModal(
+                                                                    <?php echo (int) $clearance["main_clearance_id"]; ?>,
+                                                                    <?php echo htmlspecialchars(json_encode($clearance["fname"] . " " . $clearance["lname"]), ENT_QUOTES, "UTF-8"); ?>,
+                                                                    <?php echo htmlspecialchars(json_encode($clearance["lacking_comment"] ?? ""), ENT_QUOTES, "UTF-8"); ?>
+                                                                )'
+                                                                title="Add Lacking Comment">
+                                                                <i class="fas fa-comment-medical"></i>
+                                                            </button>
+                                                            <?php if (!empty($clearance['student_proof_file'])): ?>
+                                                                <button class="action-btn view-proof"
+                                                                    onclick='viewStudentProof(
+                                                                        <?php echo (int) $clearance["main_clearance_id"]; ?>,
+                                                                        <?php echo htmlspecialchars(json_encode($clearance["student_proof_file"]), ENT_QUOTES, "UTF-8"); ?>,
+                                                                        <?php echo htmlspecialchars(json_encode($clearance["student_proof_remarks"] ?? ""), ENT_QUOTES, "UTF-8"); ?>
+                                                                    )'
+                                                                    title="View Student Proof">
+                                                                    <i class="fas fa-paperclip"></i>
+                                                                </button>
+                                                            <?php endif; ?>
                                                             <button class="action-btn approve"
                                                                 onclick="openProcessModal(<?php echo $clearance['org_clearance_id']; ?>, 'approve')"
                                                                 title="Approve">
@@ -3073,6 +3615,31 @@ function getYearLevelBadge($year_level)
         </div>
     </div>
 
+    <div id="lackingModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-comment-medical"></i> Add Lacking Comment</h3>
+                <button class="close" onclick="closeLackingModal()">&times;</button>
+            </div>
+            <form method="POST" action="" id="lackingForm">
+                <div class="modal-body">
+                    <input type="hidden" name="clearance_id" id="lackingClearanceId">
+                    <div id="lackingStudentInfo" style="background: var(--bg-secondary); padding: 15px; border-radius: 12px; margin-bottom: 18px;">
+                        <p style="color: var(--text-secondary);">Loading student information...</p>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-list-check"></i> Lacking Comment <span style="color: var(--danger);">*</span></label>
+                        <textarea name="lacking_comment" id="lackingComment" rows="4" placeholder="Describe what is lacking and what proof the student needs to submit..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeLackingModal()">Cancel</button>
+                    <button type="submit" name="add_lacking_comment" class="btn btn-primary">Save Comment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Undo Approval Modal -->
     <div id="undoModal" class="modal">
         <div class="modal-content">
@@ -3111,6 +3678,33 @@ function getYearLevelBadge($year_level)
         </div>
     </div>
 
+    <div id="studentProofModal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3><i class="fas fa-paperclip"></i> Student Proof</h3>
+                <button class="close" onclick="closeStudentProofModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="studentProofPreview" class="proof-preview"></div>
+                <div class="section-card" style="margin: 18px 0 0;">
+                    <div class="section-header">
+                        <h2><i class="fas fa-circle-info"></i> Proof Details</h2>
+                    </div>
+                    <div id="studentProofInfo" class="detail-list">
+                        <p style="color: var(--text-secondary);">Loading proof information...</p>
+                    </div>
+                    <div class="detail-item" style="padding-top: 16px; border-bottom: none;">
+                        <span>Student remarks</span>
+                        <span id="studentProofRemarks">No remarks provided</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeStudentProofModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Student Details Modal -->
     <div id="studentModal" class="modal">
         <div class="modal-content large">
@@ -3134,7 +3728,21 @@ function getYearLevelBadge($year_level)
         // Dark Mode Toggle
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('orgSidebar');
+        const sidebarBackdrop = document.getElementById('sidebarBackdrop');
         const body = document.body;
+
+        function closeMobileSidebar() {
+            if (!sidebar) return;
+            sidebar.classList.remove('show');
+            if (sidebarBackdrop) {
+                sidebarBackdrop.classList.remove('show');
+            }
+            if (menuToggle) {
+                menuToggle.setAttribute('aria-expanded', 'false');
+            }
+        }
 
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme === 'dark') {
@@ -3157,22 +3765,52 @@ function getYearLevelBadge($year_level)
         });
 
         // Tab switching
-        function switchTab(tabName) {
+        function switchTab(tabName, triggerElement = null) {
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
             });
-            document.getElementById(tabName).classList.add('active');
+            const tabPanel = document.getElementById(tabName);
+            if (!tabPanel) return;
+            tabPanel.classList.add('active');
 
             document.querySelectorAll('.nav-item').forEach(item => {
                 item.classList.remove('active');
             });
 
-            event.target.closest('.nav-item').classList.add('active');
+            const activeNav = triggerElement || document.querySelector(`.nav-item[onclick*="switchTab('${tabName}')"]`);
+            if (activeNav) {
+                activeNav.classList.add('active');
+            }
 
             const url = new URL(window.location);
             url.searchParams.set('tab', tabName);
             window.history.pushState({}, '', url);
+
+            if (window.innerWidth <= 768) {
+                closeMobileSidebar();
+            }
         }
+
+        if (menuToggle && sidebar) {
+            menuToggle.addEventListener('click', () => {
+                const willOpen = !sidebar.classList.contains('show');
+                sidebar.classList.toggle('show', willOpen);
+                if (sidebarBackdrop) {
+                    sidebarBackdrop.classList.toggle('show', willOpen);
+                }
+                menuToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            });
+        }
+
+        if (sidebarBackdrop) {
+            sidebarBackdrop.addEventListener('click', closeMobileSidebar);
+        }
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                closeMobileSidebar();
+            }
+        });
 
         // Filter by college
         function filterByCollege(collegeId) {
@@ -3192,12 +3830,13 @@ function getYearLevelBadge($year_level)
         function openProcessModal(orgClearanceId, action) {
             document.getElementById('processModal').style.display = 'flex';
             document.getElementById('modalClearanceId').value = orgClearanceId;
-            document.getElementById('modalStatus').value = action;
+            const normalizedStatus = action === 'approve' ? 'approved' : 'rejected';
+            document.getElementById('modalStatus').value = normalizedStatus;
 
             const modalTitle = document.getElementById('modalTitle');
             const modalSubmitBtn = document.getElementById('modalSubmitBtn');
 
-            if (action === 'approve') {
+            if (normalizedStatus === 'approved') {
                 modalTitle.innerHTML = '<i class="fas fa-check-circle"></i> Approve Clearance';
                 modalSubmitBtn.className = 'btn btn-success';
                 modalSubmitBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
@@ -3211,6 +3850,21 @@ function getYearLevelBadge($year_level)
         function closeProcessModal() {
             document.getElementById('processModal').style.display = 'none';
             document.getElementById('modalRemarks').value = '';
+        }
+
+        function openLackingModal(clearanceId, studentName, currentComment = '') {
+            document.getElementById('lackingModal').style.display = 'flex';
+            document.getElementById('lackingClearanceId').value = clearanceId;
+            document.getElementById('lackingComment').value = currentComment || '';
+            document.getElementById('lackingStudentInfo').innerHTML = `
+                <p><strong>Student:</strong> ${escapeHtml(studentName || 'Unknown')}</p>
+                <p><small>Leave a clear note about what is lacking and what proof the student must submit.</small></p>
+            `;
+        }
+
+        function closeLackingModal() {
+            document.getElementById('lackingModal').style.display = 'none';
+            document.getElementById('lackingComment').value = '';
         }
 
         // Undo Modal
@@ -3232,8 +3886,65 @@ function getYearLevelBadge($year_level)
             document.getElementById('undoReason').value = '';
         }
 
+        function viewStudentProof(clearanceId, proofFile, remarks) {
+            const safeProofFile = String(proofFile || '');
+            const fileExt = safeProofFile.split('.').pop().toLowerCase();
+            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt);
+
+            document.getElementById('studentProofModal').style.display = 'flex';
+            document.getElementById('studentProofRemarks').textContent = remarks || 'No remarks provided';
+
+            if (isImage) {
+                document.getElementById('studentProofPreview').innerHTML = `<img src="../${encodeURI(safeProofFile)}" alt="Student proof" onclick="window.open('../${encodeURI(safeProofFile)}', '_blank')">`;
+            } else {
+                document.getElementById('studentProofPreview').innerHTML = `<a href="../${encodeURI(safeProofFile)}" target="_blank" class="btn btn-primary"><i class="fas fa-download"></i> Open Proof File</a>`;
+            }
+
+            document.getElementById('studentProofInfo').innerHTML = '<p style="color: var(--text-secondary);">Loading proof information...</p>';
+
+            fetch(`../get_clearance_info.php?clearance_id=${encodeURIComponent(clearanceId)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Proof details unavailable.');
+                    }
+
+                    document.getElementById('studentProofInfo').innerHTML = `
+                        <div class="detail-item"><span>Student</span><span>${escapeHtml(data.student_name || 'Unknown')}</span></div>
+                        <div class="detail-item"><span>ID</span><span>${escapeHtml(data.ismis_id || 'N/A')}</span></div>
+                        <div class="detail-item"><span>Uploaded</span><span>${data.uploaded_at ? new Date(data.uploaded_at).toLocaleString() : 'Unknown'}</span></div>
+                    `;
+                })
+                .catch(error => {
+                    document.getElementById('studentProofInfo').innerHTML = `<p style="color: var(--danger);">${escapeHtml(error.message || 'Proof details unavailable.')}</p>`;
+                });
+        }
+
+        function closeStudentProofModal() {
+            document.getElementById('studentProofModal').style.display = 'none';
+            document.getElementById('studentProofPreview').innerHTML = '';
+            document.getElementById('studentProofRemarks').textContent = 'No remarks provided';
+            document.getElementById('studentProofInfo').innerHTML = '<p style="color: var(--text-secondary);">Loading proof information...</p>';
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function recordStatusClass(status) {
+            const normalized = String(status || '').toLowerCase();
+            if (normalized === 'approved') return 'status-approved';
+            if (normalized === 'rejected') return 'status-rejected';
+            return 'status-pending';
+        }
+
         // Student Details Modal
-        function viewStudentDetails(userId) {
+        async function viewStudentDetails(userId) {
             const modal = document.getElementById('studentModal');
             const modalBody = document.getElementById('studentModalBody');
 
@@ -3249,6 +3960,76 @@ function getYearLevelBadge($year_level)
                     </div>
                 </div>
             `;
+
+            try {
+                const response = await fetch(`../get_student_records.php?user_id=${encodeURIComponent(userId)}`, { headers: { 'Accept': 'application/json' } });
+                if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+                const data = await response.json();
+                if (!data.success || !data.student) throw new Error(data.message || 'Student details could not be loaded.');
+
+                const student = data.student;
+                const summary = data.summary || {};
+                const records = Array.isArray(data.records) ? data.records : [];
+                const avatar = student.profile_picture
+                    ? `<img src="../${encodeURI(student.profile_picture)}" alt="${escapeHtml(student.fname || 'Student')}">`
+                    : '<i class="fas fa-user-graduate"></i>';
+
+                const recordMarkup = records.length
+                    ? records.map(record => `
+                        <div class="record-item">
+                            <div class="record-topline">
+                                <strong>${escapeHtml(record.office_name || 'Unknown office')}</strong>
+                                <span class="status-badge ${recordStatusClass(record.status)}">${escapeHtml(record.status || 'pending')}</span>
+                            </div>
+                            <div>${escapeHtml(record.clearance_type || 'General clearance')}</div>
+                            <div class="record-meta">
+                                <span class="type-badge">${escapeHtml(record.semester || 'N/A')} ${escapeHtml(record.school_year || '')}</span>
+                                <span class="type-badge">${escapeHtml(record.updated_label || record.updated_at || 'No date')}</span>
+                            </div>
+                            ${record.lacking_comment ? `<div class="record-note"><strong>Lacking:</strong> ${escapeHtml(record.lacking_comment)}</div>` : ''}
+                            ${(record.student_proof_file || record.proof_file) ? `<div class="record-meta">${record.student_proof_file ? '<span class="badge badge-primary">Student proof uploaded</span>' : ''}${record.proof_file ? '<span class="badge badge-success">Office proof uploaded</span>' : ''}</div>` : ''}
+                        </div>
+                    `).join('')
+                    : '<div class="empty-inline">No clearance records available for this student yet.</div>';
+
+                modalBody.innerHTML = `
+                    <div class="student-detail-shell">
+                        <div class="student-detail-hero">
+                            <div class="student-detail-avatar">${avatar}</div>
+                            <div class="student-detail-meta">
+                                <h4>${escapeHtml(`${student.fname || ''} ${student.lname || ''}`.trim() || 'Student')}</h4>
+                                <p>${escapeHtml(student.ismis_id || 'No ISMIS ID')}</p>
+                                <div class="student-detail-tags">
+                                    <span class="badge badge-primary">${escapeHtml(student.course_name || 'No course')}</span>
+                                    <span class="badge badge-primary">${escapeHtml(student.college_name || 'No college')}</span>
+                                    <span class="year-badge ${student.year_level ? 'primary' : 'secondary'}">${escapeHtml(student.year_level || 'N/A')}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="summary-grid">
+                            <div class="summary-card"><strong>${summary.total_records ?? 0}</strong><span>Total records</span></div>
+                            <div class="summary-card"><strong>${summary.approved_count ?? 0}</strong><span>Approved</span></div>
+                            <div class="summary-card"><strong>${summary.pending_count ?? 0}</strong><span>Pending</span></div>
+                            <div class="summary-card"><strong>${summary.rejected_count ?? 0}</strong><span>Rejected</span></div>
+                        </div>
+                        <div class="section-card" style="margin-bottom: 0;">
+                            <div class="section-header"><h2><i class="fas fa-id-card"></i> Student Information</h2></div>
+                            <div class="detail-list">
+                                <div class="detail-item"><span>Contact</span><span>${escapeHtml(student.contacts || 'Not provided')}</span></div>
+                                <div class="detail-item"><span>Age</span><span>${escapeHtml(student.age || 'N/A')}</span></div>
+                                <div class="detail-item"><span>Account email</span><span>${escapeHtml(student.email || 'Not available')}</span></div>
+                                <div class="detail-item"><span>Address</span><span>${escapeHtml(student.address || 'Not available')}</span></div>
+                            </div>
+                        </div>
+                        <div class="section-card" style="margin-bottom: 0;">
+                            <div class="section-header"><h2><i class="fas fa-list-check"></i> Recent Clearance Records</h2></div>
+                            <div class="record-list">${recordMarkup}</div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                modalBody.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h3>Unable to load student details</h3><p>${escapeHtml(error.message || 'Please try again.')}</p></div>`;
+            }
         }
 
         function closeStudentModal() {
@@ -3449,15 +4230,19 @@ function getYearLevelBadge($year_level)
         }
 
         // Close modals when clicking outside
-        window.onclick = function (event) {
+        window.addEventListener('click', function (event) {
             const processModal = document.getElementById('processModal');
+            const lackingModal = document.getElementById('lackingModal');
             const undoModal = document.getElementById('undoModal');
+            const studentProofModal = document.getElementById('studentProofModal');
             const studentModal = document.getElementById('studentModal');
 
             if (event.target == processModal) processModal.style.display = 'none';
+            if (event.target == lackingModal) closeLackingModal();
             if (event.target == undoModal) undoModal.style.display = 'none';
+            if (event.target == studentProofModal) closeStudentProofModal();
             if (event.target == studentModal) studentModal.style.display = 'none';
-        };
+        });
 
         // Auto-hide alerts
         setTimeout(() => {

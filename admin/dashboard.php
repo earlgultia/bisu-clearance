@@ -365,6 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Add User
     if (isset($_POST['add_user'])) {
+        $active_tab = 'users';
         $fname = trim($_POST['fname'] ?? '');
         $lname = trim($_POST['lname'] ?? '');
         $email = trim($_POST['email'] ?? '');
@@ -383,6 +384,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "Please enter a valid email address.";
         } elseif (strlen($password) < 8) {
             $error = "Password must be at least 8 characters.";
+        } elseif ($user_role === 'sub_admin' && empty($office_id)) {
+            $error = "Office assignment is required for Sub Admin.";
+        } elseif (in_array($user_role, ['dean', 'student'], true) && empty($college_id)) {
+            $error = "College assignment is required for this role.";
         } else {
             try {
                 // Check if email already exists
@@ -475,6 +480,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Edit User
     if (isset($_POST['edit_user'])) {
+        $active_tab = 'users';
         $user_id = $_POST['user_id'] ?? '';
         $fname = trim($_POST['fname'] ?? '');
         $lname = trim($_POST['lname'] ?? '');
@@ -492,6 +498,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "All required fields must be filled.";
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error = "Please enter a valid email address.";
+        } elseif ($user_role === 'sub_admin' && empty($office_id)) {
+            $error = "Office assignment is required for Sub Admin.";
+        } elseif (in_array($user_role, ['dean', 'student'], true) && empty($college_id)) {
+            $error = "College assignment is required for this role.";
         } else {
             try {
                 // Check if email already exists for another user
@@ -594,6 +604,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Toggle User Status (Activate/Deactivate)
     if (isset($_POST['toggle_user_status'])) {
+        $active_tab = 'users';
         $user_id = $_POST['user_id'] ?? '';
         $current_status = $_POST['current_status'] ?? '';
 
@@ -627,6 +638,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Delete User
     if (isset($_POST['delete_user'])) {
+        $active_tab = 'users';
         $user_id = $_POST['user_id'] ?? '';
 
         if ($user_id && $user_id != $admin_id) { // Can't delete yourself
@@ -859,6 +871,9 @@ function getRoleBadgeClass($role)
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Super Admin Dashboard - BISU Online Clearance</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         /* Copy ALL your CSS styles from your previous version here */
@@ -866,30 +881,32 @@ function getRoleBadgeClass($role)
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: var(--font-body);
         }
 
         /* Light Mode Colors */
         :root {
-            --primary: #412886;
-            --primary-dark: #2e1d5e;
-            --primary-light: #6b4bb8;
-            --primary-soft: rgba(65, 40, 134, 0.1);
-            --primary-glow: rgba(65, 40, 134, 0.2);
+            --font-body: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-display: 'Space Grotesk', 'Manrope', sans-serif;
+            --primary: #0f766e;
+            --primary-dark: #115e59;
+            --primary-light: #14b8a6;
+            --primary-soft: rgba(15, 118, 110, 0.12);
+            --primary-glow: rgba(20, 184, 166, 0.28);
             --bg-primary: #ffffff;
-            --bg-secondary: #f8fafc;
-            --bg-tertiary: #f1f5f9;
-            --text-primary: #1e293b;
-            --text-secondary: #64748b;
-            --text-muted: #94a3b8;
-            --border-color: #e2e8f0;
+            --bg-secondary: #f4f7fb;
+            --bg-tertiary: #eaf1f7;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #64748b;
+            --border-color: #dbe5ef;
             --card-bg: #ffffff;
-            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
-            --card-shadow-hover: 0 10px 30px rgba(65, 40, 134, 0.08);
-            --header-bg: linear-gradient(135deg, #412886 0%, #6b4bb8 100%);
-            --sidebar-bg: #ffffff;
+            --card-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+            --card-shadow-hover: 0 16px 36px rgba(15, 118, 110, 0.18);
+            --header-bg: linear-gradient(120deg, #0b3b61 0%, #0f766e 56%, #14b8a6 100%);
+            --sidebar-bg: #f7fbfd;
             --input-bg: #ffffff;
-            --input-border: #e2e8f0;
+            --input-border: #dbe5ef;
             --success: #10b981;
             --warning: #f59e0b;
             --danger: #ef4444;
@@ -902,25 +919,25 @@ function getRoleBadgeClass($role)
 
         /* Dark Mode Colors */
         .dark-mode {
-            --primary: #8b6fd8;
-            --primary-dark: #6b4bb8;
-            --primary-light: #a58bd1;
-            --primary-soft: rgba(139, 111, 216, 0.15);
-            --primary-glow: rgba(139, 111, 216, 0.25);
-            --bg-primary: #1a1a2e;
-            --bg-secondary: #16213e;
-            --bg-tertiary: #0f3460;
-            --text-primary: #e9e9e9;
-            --text-secondary: #b8b8b8;
-            --text-muted: #8a8a8a;
-            --border-color: #2a2a4a;
-            --card-bg: #16213e;
+            --primary: #2dd4bf;
+            --primary-dark: #14b8a6;
+            --primary-light: #5eead4;
+            --primary-soft: rgba(45, 212, 191, 0.16);
+            --primary-glow: rgba(45, 212, 191, 0.24);
+            --bg-primary: #0f172a;
+            --bg-secondary: #111c31;
+            --bg-tertiary: #1a2840;
+            --text-primary: #e2e8f0;
+            --text-secondary: #b6c2d2;
+            --text-muted: #8a9ab0;
+            --border-color: #243247;
+            --card-bg: #14223a;
             --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            --card-shadow-hover: 0 10px 30px rgba(139, 111, 216, 0.15);
-            --header-bg: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            --sidebar-bg: #16213e;
-            --input-bg: #1a1a2e;
-            --input-border: #2a2a4a;
+            --card-shadow-hover: 0 10px 30px rgba(45, 212, 191, 0.16);
+            --header-bg: linear-gradient(120deg, #0b1220 0%, #0f2a3a 100%);
+            --sidebar-bg: #132236;
+            --input-bg: #0f1c31;
+            --input-border: #2a3c54;
             --success: #4ade80;
             --warning: #fbbf24;
             --danger: #f87171;
@@ -932,10 +949,22 @@ function getRoleBadgeClass($role)
         }
 
         body {
-            background: var(--bg-secondary);
+            background:
+                radial-gradient(circle at 2% 6%, rgba(15, 118, 110, 0.1) 0%, transparent 36%),
+                radial-gradient(circle at 95% 12%, rgba(11, 59, 97, 0.1) 0%, transparent 32%),
+                var(--bg-secondary);
             color: var(--text-primary);
             min-height: 100vh;
             transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5 {
+            font-family: var(--font-display);
+            letter-spacing: -0.015em;
         }
 
         /* Dark Mode Toggle */
@@ -975,18 +1004,22 @@ function getRoleBadgeClass($role)
         .header {
             background: var(--header-bg);
             color: white;
-            padding: 1rem 5%;
+            padding: 0.95rem 4.5%;
             position: fixed;
             width: 100%;
             top: 0;
             z-index: 1000;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 30px rgba(9, 20, 37, 0.18);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(6px);
         }
 
         .header-content {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            max-width: 1440px;
+            margin: 0 auto;
         }
 
         .logo {
@@ -1007,11 +1040,40 @@ function getRoleBadgeClass($role)
             justify-content: center;
             font-weight: bold;
             font-size: 1.2rem;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .logo-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
         }
 
         .logo h2 {
             font-size: 1.3rem;
-            font-weight: 500;
+            font-weight: 600;
+        }
+
+        .mobile-menu-btn {
+            display: none;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.14);
+            color: #ffffff;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: 0.25s ease;
+        }
+
+        .mobile-menu-btn:hover {
+            background: rgba(255, 255, 255, 0.24);
+            transform: translateY(-1px);
         }
 
         .user-menu {
@@ -1097,6 +1159,23 @@ function getRoleBadgeClass($role)
             height: calc(100vh - 70px);
             overflow-y: auto;
             transition: background-color 0.3s ease, border-color 0.3s ease;
+            box-shadow: inset -1px 0 0 var(--border-color);
+        }
+
+        .sidebar-backdrop {
+            position: fixed;
+            inset: 70px 0 0;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(2px);
+            z-index: 999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .sidebar-backdrop.show {
+            opacity: 1;
+            pointer-events: auto;
         }
 
         .profile-section {
@@ -1212,16 +1291,19 @@ function getRoleBadgeClass($role)
             background: none;
             font-size: 0.95rem;
             text-align: left;
+            font-weight: 600;
         }
 
         .nav-item:hover {
             background: var(--primary-soft);
             color: var(--primary);
+            transform: translateX(4px);
         }
 
         .nav-item.active {
-            background: var(--primary);
+            background: linear-gradient(120deg, var(--primary-dark) 0%, var(--primary) 100%);
             color: white;
+            box-shadow: 0 10px 22px rgba(15, 118, 110, 0.24);
         }
 
         .nav-item i {
@@ -1229,11 +1311,16 @@ function getRoleBadgeClass($role)
             font-size: 1.2rem;
         }
 
+        .nav-item.mobile-logout-item {
+            display: none;
+        }
+
         /* Content Area */
         .content-area {
             flex: 1;
             margin-left: 280px;
-            padding: 30px;
+            padding: 34px;
+            max-width: calc(100vw - 280px);
         }
 
         /* Welcome Banner */
@@ -1244,6 +1331,19 @@ function getRoleBadgeClass($role)
             border-radius: 20px;
             margin-bottom: 30px;
             box-shadow: 0 10px 30px var(--primary-glow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .welcome-banner::after {
+            content: '';
+            position: absolute;
+            width: 220px;
+            height: 220px;
+            top: -100px;
+            right: -80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.12);
         }
 
         .welcome-banner h1 {
@@ -1275,6 +1375,18 @@ function getRoleBadgeClass($role)
             gap: 20px;
             transition: 0.3s;
             border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, var(--primary-light) 0%, var(--primary-dark) 100%);
         }
 
         .stat-card:hover {
@@ -1335,12 +1447,16 @@ function getRoleBadgeClass($role)
         /* Section Cards */
         .section-card {
             background: var(--card-bg);
-            border-radius: 20px;
+            border-radius: 22px;
             padding: 25px;
             margin-bottom: 30px;
             box-shadow: var(--card-shadow);
             border: 1px solid var(--border-color);
             transition: all 0.3s ease;
+        }
+
+        .section-card:hover {
+            box-shadow: var(--card-shadow-hover);
         }
 
         .section-header {
@@ -1416,7 +1532,7 @@ function getRoleBadgeClass($role)
 
         .modal-content {
             background: var(--card-bg);
-            border-radius: 30px;
+            border-radius: 24px;
             max-width: 500px;
             width: 90%;
             max-height: 85vh;
@@ -1448,7 +1564,7 @@ function getRoleBadgeClass($role)
             justify-content: space-between;
             align-items: center;
             background: linear-gradient(135deg, var(--primary-soft) 0%, transparent 100%);
-            border-radius: 30px 30px 0 0;
+            border-radius: 24px 24px 0 0;
         }
 
         .modal-header h3 {
@@ -1581,6 +1697,7 @@ function getRoleBadgeClass($role)
             transition: 0.3s;
             background: var(--input-bg);
             color: var(--text-primary);
+            font-weight: 500;
         }
 
         .input-wrapper textarea {
@@ -1639,6 +1756,7 @@ function getRoleBadgeClass($role)
             align-items: center;
             justify-content: center;
             gap: 10px;
+            letter-spacing: 0.01em;
         }
 
         .btn-primary {
@@ -1684,26 +1802,39 @@ function getRoleBadgeClass($role)
         .table-responsive {
             overflow-x: auto;
             border-radius: 15px;
+            border: 1px solid var(--border-color);
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
+            background: var(--card-bg);
         }
 
         th {
             text-align: left;
             padding: 15px 15px;
-            background: var(--primary-soft);
-            color: var(--primary);
+            background: color-mix(in srgb, var(--primary-soft) 75%, var(--bg-primary));
+            color: var(--primary-dark);
             font-weight: 600;
             font-size: 0.95rem;
+            position: sticky;
+            top: 0;
+            z-index: 1;
         }
 
         td {
             padding: 15px;
             border-bottom: 1px solid var(--border-color);
             color: var(--text-secondary);
+        }
+
+        tbody tr:nth-child(even) {
+            background: color-mix(in srgb, var(--primary-soft) 16%, transparent);
+        }
+
+        tbody tr:hover {
+            background: color-mix(in srgb, var(--primary-soft) 28%, transparent);
         }
 
         .status-badge {
@@ -1985,6 +2116,7 @@ function getRoleBadgeClass($role)
             border-radius: 20px;
             padding: 20px;
             border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
         }
 
         .report-card h3 {
@@ -2035,6 +2167,22 @@ function getRoleBadgeClass($role)
         .activity-log {
             max-height: 400px;
             overflow-y: auto;
+        }
+
+        .activity-log::-webkit-scrollbar,
+        .sidebar::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .activity-log::-webkit-scrollbar-thumb,
+        .sidebar::-webkit-scrollbar-thumb {
+            background: color-mix(in srgb, var(--primary) 42%, transparent);
+            border-radius: 999px;
+        }
+
+        .activity-log::-webkit-scrollbar-track,
+        .sidebar::-webkit-scrollbar-track {
+            background: transparent;
         }
 
         .activity-item {
@@ -2092,11 +2240,57 @@ function getRoleBadgeClass($role)
         }
 
         @media (max-width: 768px) {
+            .header {
+                padding: 0.85rem 1rem;
+            }
+
+            .logo h2 {
+                font-size: 1rem;
+            }
+
+            .mobile-menu-btn {
+                display: inline-flex;
+                margin-right: 8px;
+            }
+
+            .user-menu {
+                gap: 10px;
+            }
+
+            .user-info {
+                padding: 6px;
+                border-radius: 14px;
+                background: rgba(255, 255, 255, 0.12);
+            }
+
+            .user-details {
+                display: none;
+            }
+
+            .logout-btn {
+                display: none;
+            }
+
+            .nav-item.mobile-logout-item {
+                display: flex;
+                margin-top: 8px;
+                background: var(--danger-soft);
+                color: var(--danger);
+            }
+
+            .nav-item.mobile-logout-item:hover {
+                background: var(--danger);
+                color: #fff;
+            }
+
             .sidebar {
                 transform: translateX(-100%);
-                position: absolute;
+                position: fixed;
                 z-index: 1001;
                 transition: 0.3s;
+                top: 70px;
+                height: calc(100vh - 70px);
+                box-shadow: 14px 0 30px rgba(2, 8, 23, 0.18);
             }
 
             .sidebar.show {
@@ -2105,6 +2299,8 @@ function getRoleBadgeClass($role)
 
             .content-area {
                 margin-left: 0;
+                max-width: 100%;
+                padding: 22px 16px;
             }
 
             .stats-grid {
@@ -2144,8 +2340,11 @@ function getRoleBadgeClass($role)
     <header class="header">
         <div class="header-content">
             <div class="logo">
+                <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle navigation" type="button">
+                    <i class="fas fa-bars"></i>
+                </button>
                 <div class="logo-icon">
-                    <i class="fas fa-university"></i>
+                    <img src="../assets/img/logo.png" alt="BISU Logo">
                 </div>
                 <h2>Super Admin Dashboard</h2>
             </div>
@@ -2196,31 +2395,36 @@ function getRoleBadgeClass($role)
 
             <nav class="nav-menu">
                 <button class="nav-item <?php echo $active_tab == 'dashboard' ? 'active' : ''; ?>"
-                    onclick="switchTab('dashboard')">
+                    onclick="switchTab('dashboard', this)">
                     <i class="fas fa-tachometer-alt"></i> Dashboard
                 </button>
                 <button class="nav-item <?php echo $active_tab == 'users' ? 'active' : ''; ?>"
-                    onclick="switchTab('users')">
+                    onclick="switchTab('users', this)">
                     <i class="fas fa-users"></i> Manage Users
                 </button>
                 <button class="nav-item <?php echo $active_tab == 'colleges' ? 'active' : ''; ?>"
-                    onclick="switchTab('colleges')">
+                    onclick="switchTab('colleges', this)">
                     <i class="fas fa-university"></i> Manage Colleges
                 </button>
                 <button class="nav-item <?php echo $active_tab == 'courses' ? 'active' : ''; ?>"
-                    onclick="switchTab('courses')">
+                    onclick="switchTab('courses', this)">
                     <i class="fas fa-book"></i> Manage Courses
                 </button>
                 <button class="nav-item <?php echo $active_tab == 'offices' ? 'active' : ''; ?>"
-                    onclick="switchTab('offices')">
+                    onclick="switchTab('offices', this)">
                     <i class="fas fa-building"></i> Manage Offices
                 </button>
                 <button class="nav-item <?php echo $active_tab == 'reports' ? 'active' : ''; ?>"
-                    onclick="switchTab('reports')">
+                    onclick="switchTab('reports', this)">
                     <i class="fas fa-chart-bar"></i> Reports
                 </button>
+                <a href="../logout.php" class="nav-item mobile-logout-item">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
             </nav>
         </aside>
+
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
         <!-- Content Area -->
         <main class="content-area">
@@ -2450,7 +2654,11 @@ function getRoleBadgeClass($role)
                                                 } elseif ($user['user_role_name'] == 'dean' && $user['college_name']) {
                                                     echo '<i class="fas fa-university"></i> ' . htmlspecialchars($user['college_name']);
                                                 } elseif ($user['user_role_name'] == 'student') {
-                                                    echo '<i class="fas fa-graduation-cap"></i> Student';
+                                                    if (!empty($user['college_name'])) {
+                                                        echo '<i class="fas fa-graduation-cap"></i> ' . htmlspecialchars($user['college_name']);
+                                                    } else {
+                                                        echo '<i class="fas fa-graduation-cap"></i> No college assigned';
+                                                    }
                                                 } else {
                                                     echo '—';
                                                 }
@@ -2472,17 +2680,27 @@ function getRoleBadgeClass($role)
                                                             <i class="fas fa-power-off"></i>
                                                         </button>
                                                     </form>
-                                                    <button class="action-btn edit" onclick="editUser(<?php echo $user['users_id']; ?>)">
+                                                    <button class="action-btn edit" onclick="editUser(<?php echo htmlspecialchars(json_encode([
+                                                        'id' => $user['users_id'],
+                                                        'fname' => $user['fname'],
+                                                        'lname' => $user['lname'],
+                                                        'email' => $user['emails'],
+                                                        'role' => $user['user_role_name'],
+                                                        'ismis' => $user['ismis_id'] ?? '',
+                                                        'contact' => $user['contacts'] ?? '',
+                                                        'address' => $user['address'] ?? '',
+                                                        'age' => $user['age'] ?? '',
+                                                        'is_active' => (int) $user['is_active'],
+                                                        'office' => $user['office_id'] ?? '',
+                                                        'college' => $user['college_id'] ?? ''
+                                                    ]), ENT_QUOTES, 'UTF-8'); ?>)">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
-                                                    <form method="POST" action="" style="display: inline;"
-                                                        onsubmit="return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
-                                                        <input type="hidden" name="user_id" value="<?php echo $user['users_id']; ?>">
-                                                        <button type="submit" name="delete_user" class="action-btn delete"
-                                                            <?php echo ($user['users_id'] == $admin_id) ? 'disabled' : ''; ?>>
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
-                                                    </form>
+                                                    <button type="button" name="delete_user" class="action-btn delete"
+                                                        onclick="deleteUser(<?php echo (int) $user['users_id']; ?>, <?php echo ($user['users_id'] == $admin_id) ? 'true' : 'false'; ?>)"
+                                                        <?php echo ($user['users_id'] == $admin_id) ? 'disabled' : ''; ?>>
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -3105,7 +3323,7 @@ function getRoleBadgeClass($role)
         });
 
         // Tab switching
-        function switchTab(tabName) {
+        function switchTab(tabName, triggerEl = null) {
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
             });
@@ -3115,17 +3333,61 @@ function getRoleBadgeClass($role)
                 item.classList.remove('active');
             });
 
-            event.target.closest('.nav-item').classList.add('active');
+            const targetItem = triggerEl || document.querySelector(`.nav-item[onclick*=\"${tabName}\"]`);
+            if (targetItem) {
+                targetItem.classList.add('active');
+            }
 
             const url = new URL(window.location);
             url.searchParams.set('tab', tabName);
             window.history.pushState({}, '', url);
+
+            closeMobileSidebar();
             
             // Initialize charts when switching to reports tab
             if (tabName === 'reports') {
                 setTimeout(initCharts, 100);
             }
         }
+
+        // Mobile sidebar controls
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.querySelector('.sidebar');
+        const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
+        function openMobileSidebar() {
+            if (!sidebar || window.innerWidth > 768) return;
+            sidebar.classList.add('show');
+            if (sidebarBackdrop) sidebarBackdrop.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeMobileSidebar() {
+            if (!sidebar) return;
+            sidebar.classList.remove('show');
+            if (sidebarBackdrop) sidebarBackdrop.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        if (mobileMenuBtn) {
+            mobileMenuBtn.addEventListener('click', () => {
+                if (sidebar.classList.contains('show')) {
+                    closeMobileSidebar();
+                } else {
+                    openMobileSidebar();
+                }
+            });
+        }
+
+        if (sidebarBackdrop) {
+            sidebarBackdrop.addEventListener('click', closeMobileSidebar);
+        }
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                closeMobileSidebar();
+            }
+        });
 
         // College Modal Functions
         function openAddCollegeModal() {
@@ -3282,6 +3544,7 @@ function getRoleBadgeClass($role)
                 document.getElementById('edit_age').value = userData.age || '';
                 document.getElementById('modal_user_role').value = userData.role;
                 document.getElementById('edit_status').value = userData.is_active;
+                toggleModalRoleFields();
                 
                 if (userData.office) {
                     document.getElementById('edit_office').value = userData.office;
@@ -3320,21 +3583,20 @@ function getRoleBadgeClass($role)
             const role = document.getElementById('modal_user_role').value;
             const officeField = document.getElementById('modal_office_field');
             const collegeField = document.getElementById('modal_college_field');
+            const officeInput = document.querySelector('#modal_office_field select[name="office_id"]');
+            const collegeInput = document.querySelector('#modal_college_field select[name="college_id"]');
 
             officeField.classList.remove('show');
             collegeField.classList.remove('show');
+            if (officeInput) officeInput.required = false;
+            if (collegeInput) collegeInput.required = false;
 
             if (role === 'sub_admin') {
                 officeField.classList.add('show');
-                document.querySelector('[name="office_id"]').required = true;
-                document.querySelector('[name="college_id"]').required = false;
-            } else if (role === 'dean') {
+                if (officeInput) officeInput.required = true;
+            } else if (role === 'dean' || role === 'student') {
                 collegeField.classList.add('show');
-                document.querySelector('[name="college_id"]').required = true;
-                document.querySelector('[name="office_id"]').required = false;
-            } else {
-                document.querySelector('[name="office_id"]').required = false;
-                document.querySelector('[name="college_id"]').required = false;
+                if (collegeInput) collegeInput.required = true;
             }
         }
 
@@ -3397,25 +3659,39 @@ function getRoleBadgeClass($role)
         }
 
         // User action functions
-        function editUser(userId) {
-            // Get user data from the row
-            const row = event.target.closest('tr');
-            const cells = row.cells;
-            
-            const userData = {
-                id: userId,
-                fname: cells[1].textContent.split(' ')[0],
-                lname: cells[1].textContent.split(' ').slice(1).join(' '),
-                email: cells[2].textContent,
-                role: cells[3].textContent.toLowerCase().replace(' ', '_').trim(),
-                ismis: '',
-                contact: '',
-                address: '',
-                age: '',
-                is_active: cells[5].textContent.toLowerCase() === 'active' ? 1 : 0
-            };
-            
+        function editUser(userData) {
             openUserModal('edit', userData);
+        }
+
+        function deleteUser(userId, isCurrentAdmin = false) {
+            if (isCurrentAdmin) {
+                showToast('Cannot delete your own account.', 'error');
+                return;
+            }
+
+            const confirmed = confirm('Are you sure you want to delete this user? This action cannot be undone.');
+            if (!confirmed) {
+                return;
+            }
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+
+            const userIdInput = document.createElement('input');
+            userIdInput.type = 'hidden';
+            userIdInput.name = 'user_id';
+            userIdInput.value = String(userId);
+            form.appendChild(userIdInput);
+
+            const submitInput = document.createElement('input');
+            submitInput.type = 'hidden';
+            submitInput.name = 'delete_user';
+            submitInput.value = '1';
+            form.appendChild(submitInput);
+
+            document.body.appendChild(form);
+            form.submit();
         }
 
         // Toast notification function

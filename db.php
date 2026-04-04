@@ -23,10 +23,11 @@ define('BASE_URL', 'http://localhost/clearance/');  // Change this to your actua
 
 // Site information
 define('SITE_NAME', 'BISU Student Online Clearance System');
-define('SITE_VERSION', '1.0.0');
+define('SITE_VERSION', '1.2.0');
+define('DEBUG_MODE', file_exists(BASE_PATH . '/.env'));
 
 // Error reporting (turn off in production)
-if (file_exists(BASE_PATH . '/.env')) {
+if (DEBUG_MODE) {
     // Development environment
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
@@ -934,6 +935,138 @@ function initSession()
 function configureSession()
 {
     initSession();
+}
+
+/**
+ * Decide whether a maintenance task should run now.
+ * Uses APCu when available, otherwise falls back to session-scoped throttling.
+ */
+function shouldRunMaintenanceTask($taskKey, $intervalSeconds = 21600)
+{
+    static $requestMemo = [];
+
+    $taskKey = preg_replace('/[^a-zA-Z0-9_.:-]/', '_', (string) $taskKey);
+    if ($taskKey === '') {
+        $taskKey = 'default_task';
+    }
+
+    if (array_key_exists($taskKey, $requestMemo)) {
+        return false;
+    }
+
+    $intervalSeconds = max(60, (int) $intervalSeconds);
+    $now = time();
+    $shouldRun = false;
+
+    $apcuEnabled = function_exists('apcu_fetch')
+        && function_exists('apcu_store')
+        && (bool) ini_get(PHP_SAPI === 'cli' ? 'apc.enable_cli' : 'apc.enabled');
+
+    if ($apcuEnabled) {
+        $cacheKey = 'clearance:maintenance:' . $taskKey;
+        $success = false;
+        $lastRun = call_user_func('apcu_fetch', $cacheKey, $success);
+
+        if (!$success || ($now - (int) $lastRun) >= $intervalSeconds) {
+            call_user_func('apcu_store', $cacheKey, $now, $intervalSeconds * 2);
+            $shouldRun = true;
+        }
+    } elseif (session_status() === PHP_SESSION_ACTIVE) {
+        if (!isset($_SESSION['_maintenance_tasks']) || !is_array($_SESSION['_maintenance_tasks'])) {
+            $_SESSION['_maintenance_tasks'] = [];
+        }
+
+        $lastRun = (int) ($_SESSION['_maintenance_tasks'][$taskKey] ?? 0);
+        if ($lastRun <= 0 || ($now - $lastRun) >= $intervalSeconds) {
+            $_SESSION['_maintenance_tasks'][$taskKey] = $now;
+            $shouldRun = true;
+        }
+    } else {
+        // No shared storage is available; run once for this request.
+        $shouldRun = true;
+    }
+
+    $requestMemo[$taskKey] = true;
+    return $shouldRun;
+}
+
+/**
+ * Cached column-existence check to avoid repetitive SHOW COLUMNS calls.
+ */
+function hasDatabaseColumn($tableName, $columnName, $cacheTtlSeconds = 21600)
+{
+    static $requestCache = [];
+
+    $tableName = trim((string) $tableName);
+    $columnName = trim((string) $columnName);
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $tableName) || !preg_match('/^[A-Za-z0-9_]+$/', $columnName)) {
+        return false;
+    }
+
+    $cacheKey = strtolower($tableName . '.' . $columnName);
+    if (array_key_exists($cacheKey, $requestCache)) {
+        return $requestCache[$cacheKey];
+    }
+
+    $cacheTtlSeconds = max(60, (int) $cacheTtlSeconds);
+    $now = time();
+
+    $apcuEnabled = function_exists('apcu_fetch')
+        && function_exists('apcu_store')
+        && (bool) ini_get(PHP_SAPI === 'cli' ? 'apc.enable_cli' : 'apc.enabled');
+
+    if ($apcuEnabled) {
+        $apcuKey = 'clearance:column_exists:' . $cacheKey;
+        $success = false;
+        $cached = call_user_func('apcu_fetch', $apcuKey, $success);
+        if ($success) {
+            $requestCache[$cacheKey] = (bool) $cached;
+            return $requestCache[$cacheKey];
+        }
+    } elseif (session_status() === PHP_SESSION_ACTIVE) {
+        if (!isset($_SESSION['_schema_cache']) || !is_array($_SESSION['_schema_cache'])) {
+            $_SESSION['_schema_cache'] = [];
+        }
+
+        if (isset($_SESSION['_schema_cache'][$cacheKey])) {
+            $entry = $_SESSION['_schema_cache'][$cacheKey];
+            $expiresAt = (int) ($entry['expires_at'] ?? 0);
+            if ($expiresAt >= $now) {
+                $requestCache[$cacheKey] = (bool) ($entry['value'] ?? false);
+                return $requestCache[$cacheKey];
+            }
+        }
+    }
+
+    $db = Database::getInstance();
+    try {
+        $db->query("SELECT COUNT(*) AS column_count
+                    FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = :table_name
+                      AND COLUMN_NAME = :column_name
+                    LIMIT 1");
+        $db->bind(':table_name', $tableName);
+        $db->bind(':column_name', $columnName);
+        $columnCheckRow = $db->single();
+        $exists = ((int) ($columnCheckRow['column_count'] ?? 0)) > 0;
+    } catch (Exception $e) {
+        // Fail safe: avoid breaking page loads when metadata checks fail.
+        error_log('Schema column check error for ' . $tableName . '.' . $columnName . ': ' . $e->getMessage());
+        $exists = false;
+    }
+    $requestCache[$cacheKey] = $exists;
+
+    if ($apcuEnabled) {
+        call_user_func('apcu_store', 'clearance:column_exists:' . $cacheKey, $exists, $cacheTtlSeconds);
+    } elseif (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['_schema_cache'][$cacheKey] = [
+            'value' => $exists,
+            'expires_at' => $now + $cacheTtlSeconds
+        ];
+    }
+
+    return $exists;
 }
 
 // =====================================================

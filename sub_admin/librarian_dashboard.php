@@ -1023,6 +1023,21 @@ function getActivityIcon($action)
             gap: 15px;
         }
 
+        .menu-toggle {
+            display: none;
+            width: 46px;
+            height: 46px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.14);
+            color: white;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            backdrop-filter: blur(10px);
+        }
+
         .logo-icon {
             width: 45px;
             height: 45px;
@@ -1114,6 +1129,18 @@ function getActivityIcon($action)
             transform: translateY(-2px);
         }
 
+        .nav-item.mobile-logout-item {
+            display: none;
+            margin-top: 8px;
+            background: rgba(220, 38, 38, 0.12);
+            color: #b91c1c;
+        }
+
+        .nav-item.mobile-logout-item:hover {
+            background: #dc2626;
+            color: #fff;
+        }
+
         .main-container {
             display: flex;
             margin-top: 70px;
@@ -1132,6 +1159,23 @@ function getActivityIcon($action)
             height: calc(100vh - 70px);
             overflow-y: auto;
             transition: all 0.3s ease;
+        }
+
+        .sidebar-backdrop {
+            position: fixed;
+            inset: 70px 0 0;
+            background: rgba(2, 8, 23, 0.42);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
+            z-index: 1000;
+        }
+
+        .sidebar-backdrop.show {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
         }
 
         .profile-section {
@@ -3168,15 +3212,44 @@ function getActivityIcon($action)
         }
 
         @media (max-width: 768px) {
+            .menu-toggle {
+                display: inline-flex;
+            }
+
             .sidebar {
                 transform: translateX(-100%);
-                position: absolute;
+                position: fixed;
+                top: 70px;
+                left: 0;
                 z-index: 1001;
+                height: calc(100vh - 70px);
                 transition: 0.3s;
+                box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
             }
 
             .sidebar.show {
                 transform: translateX(0);
+            }
+
+            .logo h2 {
+                font-size: 1.05rem;
+            }
+
+            .user-menu {
+                gap: 10px;
+                margin-left: auto;
+            }
+
+            .user-info {
+                display: none;
+            }
+
+            .logout-btn {
+                display: none;
+            }
+
+            .nav-item.mobile-logout-item {
+                display: flex;
             }
 
             .content-area {
@@ -3278,6 +3351,9 @@ function getActivityIcon($action)
     <header class="header">
         <div class="header-content">
             <div class="logo">
+                <button class="menu-toggle" id="menuToggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="subAdminSidebar">
+                    <i class="fas fa-bars"></i>
+                </button>
                 <div class="logo-icon">
                     <i class="fas fa-book"></i>
                 </div>
@@ -3305,7 +3381,7 @@ function getActivityIcon($action)
     </header>
 
     <div class="main-container">
-        <aside class="sidebar">
+        <aside class="sidebar" id="subAdminSidebar">
             <div class="profile-section">
                 <div class="profile-avatar" id="avatarContainer">
                     <?php if (!empty($profile_pic) && file_exists('../' . $profile_pic)): ?>
@@ -3366,8 +3442,12 @@ function getActivityIcon($action)
                     onclick="switchTab('students')">
                     <i class="fas fa-users"></i> Student Records
                 </button>
+                <a href="../logout.php" class="nav-item mobile-logout-item">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
             </nav>
         </aside>
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
         <main class="content-area">
             <?php if (!empty($success)): ?>
@@ -4985,7 +5065,21 @@ function getActivityIcon($action)
         // Dark Mode Toggle
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('subAdminSidebar');
+        const sidebarBackdrop = document.getElementById('sidebarBackdrop');
         const body = document.body;
+
+        function closeMobileSidebar() {
+            if (!sidebar) return;
+            sidebar.classList.remove('show');
+            if (sidebarBackdrop) {
+                sidebarBackdrop.classList.remove('show');
+            }
+            if (menuToggle) {
+                menuToggle.setAttribute('aria-expanded', 'false');
+            }
+        }
 
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme === 'dark') {
@@ -5071,7 +5165,32 @@ function getActivityIcon($action)
             const url = new URL(window.location);
             url.searchParams.set('tab', tabName);
             window.history.pushState({}, '', url);
+
+            if (window.innerWidth <= 768) {
+                closeMobileSidebar();
+            }
         }
+
+        if (menuToggle && sidebar) {
+            menuToggle.addEventListener('click', () => {
+                const willOpen = !sidebar.classList.contains('show');
+                sidebar.classList.toggle('show', willOpen);
+                if (sidebarBackdrop) {
+                    sidebarBackdrop.classList.toggle('show', willOpen);
+                }
+                menuToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            });
+        }
+
+        if (sidebarBackdrop) {
+            sidebarBackdrop.addEventListener('click', closeMobileSidebar);
+        }
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                closeMobileSidebar();
+            }
+        });
 
         // Approve Modal
         function approveClearance(clearanceId) {

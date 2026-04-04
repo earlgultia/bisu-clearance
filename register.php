@@ -259,20 +259,26 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - BISU Online Clearance System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
         }
 
         /* Light Mode Colors */
         :root {
+            --font-display: 'Space Grotesk', 'Manrope', sans-serif;
             --primary: #412886;
             --primary-dark: #2e1d5e;
             --primary-light: #6b4bb8;
             --primary-soft: rgba(65, 40, 134, 0.1);
+            --primary-glow: rgba(65, 40, 134, 0.3);
             --bg-primary: #ffffff;
             --bg-secondary: #f8fafc;
             --bg-tertiary: #f1f5f9;
@@ -320,20 +326,24 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
         }
 
         body {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-            min-height: 100vh;
-            padding: 40px 20px;
+            background:
+                radial-gradient(circle at 90% 8%, rgba(255, 255, 255, 0.16) 0%, transparent 32%),
+                radial-gradient(circle at 10% 85%, rgba(255, 255, 255, 0.12) 0%, transparent 36%),
+                linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            min-height: 100dvh;
+            padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
             display: flex;
             align-items: center;
             justify-content: center;
             transition: background 0.3s ease;
+            -webkit-text-size-adjust: 100%;
         }
 
         /* Dark Mode Toggle Button */
         .theme-toggle {
             position: fixed;
-            top: 20px;
-            right: 20px;
+            top: calc(12px + env(safe-area-inset-top));
+            right: calc(12px + env(safe-area-inset-right));
             width: 60px;
             height: 30px;
             background: var(--bg-tertiary);
@@ -381,18 +391,84 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
         }
 
         .register-container {
-            max-width: 800px;
+            max-width: 1120px;
             width: 100%;
             margin: 0 auto;
         }
 
+        .register-shell {
+            display: grid;
+            grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+            gap: 20px;
+            align-items: start;
+        }
+
+        .register-aside {
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.26);
+            border-radius: 20px;
+            padding: 22px 18px;
+            backdrop-filter: blur(10px);
+            color: #fff;
+            box-shadow: 0 14px 30px rgba(16, 23, 42, 0.16);
+        }
+
+        .register-aside h3 {
+            font-family: var(--font-display);
+            font-size: 1.15rem;
+            margin-bottom: 12px;
+            letter-spacing: -0.01em;
+        }
+
+        .register-aside p {
+            font-size: 0.92rem;
+            line-height: 1.6;
+            opacity: 0.95;
+            margin-bottom: 14px;
+        }
+
+        .aside-list {
+            list-style: none;
+            display: grid;
+            gap: 10px;
+        }
+
+        .aside-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+
+        .aside-list i {
+            margin-top: 2px;
+            color: #dcfce7;
+        }
+
         .brand {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 22px;
+        }
+
+        .brand-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.26);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
         }
 
         .brand h1 {
-            font-size: 2rem;
+            font-family: var(--font-display);
+            font-size: clamp(1.8rem, 4vw, 2.25rem);
             margin-bottom: 10px;
             color: white;
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -406,10 +482,10 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
         .register-card {
             background: var(--card-bg);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(14px);
             border-radius: 24px;
-            padding: 40px;
-            box-shadow: 0 20px 40px var(--shadow-color);
+            padding: clamp(22px, 4vw, 40px);
+            box-shadow: 0 24px 44px var(--shadow-color);
             animation: slideUp 0.5s ease;
             border: 1px solid var(--border-color);
             transition: all 0.3s ease;
@@ -466,7 +542,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
         .form-title {
             color: var(--primary);
-            margin-bottom: 30px;
+            margin-bottom: 22px;
             padding-bottom: 15px;
             border-bottom: 2px solid var(--border-color);
             display: flex;
@@ -481,18 +557,44 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
         .form-title h2 {
             color: var(--text-primary);
-            font-size: 1.5rem;
+            font-size: 1.45rem;
+            font-family: var(--font-display);
+        }
+
+        .form-section {
+            margin-bottom: 14px;
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            background: linear-gradient(180deg, color-mix(in srgb, var(--hint-bg) 74%, white 26%) 0%, transparent 100%);
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+        }
+
+        .section-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-weight: 700;
+            color: var(--primary-dark);
+            font-size: 0.88rem;
+            letter-spacing: 0.01em;
+            text-transform: uppercase;
+        }
+
+        .section-label i {
+            color: var(--primary);
         }
 
         .form-row {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 20px;
             margin-bottom: 20px;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             position: relative;
         }
 
@@ -514,13 +616,29 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
         .form-group select,
         .form-group textarea {
             width: 100%;
-            padding: 12px 15px;
-            border: 2px solid var(--input-border);
+            padding: 12px 14px;
+            min-height: 48px;
+            border: 1px solid var(--input-border);
             border-radius: 12px;
-            font-size: 1rem;
+            font-size: 16px;
             transition: all 0.3s;
             background: var(--input-bg);
             color: var(--text-primary);
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        .form-group textarea {
+            min-height: 82px;
+            resize: vertical;
+        }
+
+        .form-group select {
+            background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+            background-position: calc(100% - 22px) calc(50% - 3px), calc(100% - 16px) calc(50% - 3px);
+            background-size: 6px 6px, 6px 6px;
+            background-repeat: no-repeat;
+            padding-right: 36px;
         }
 
         .form-group input:focus,
@@ -615,9 +733,9 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
         .password-requirements {
             background: var(--bg-secondary);
-            padding: 15px;
+            padding: 16px;
             border-radius: 12px;
-            margin: 20px 0;
+            margin: 16px 0;
             border: 1px solid var(--border-color);
             transition: all 0.3s ease;
         }
@@ -653,7 +771,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
         .btn-register {
             width: 100%;
-            padding: 16px;
+            padding: 15px 16px;
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
             color: white;
             border: none;
@@ -666,7 +784,8 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             align-items: center;
             justify-content: center;
             gap: 10px;
-            margin: 30px 0 20px;
+            margin: 18px 0 18px;
+            min-height: 48px;
         }
 
         .btn-register:hover {
@@ -711,6 +830,8 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             display: inline-flex;
             align-items: center;
             gap: 5px;
+            min-height: 44px;
+            padding: 0 6px;
         }
 
         .back-home a:hover {
@@ -764,20 +885,86 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             color: var(--text-primary);
         }
 
-        /* Responsive */
-        @media (max-width: 768px) {
-            .register-card {
-                padding: 30px 20px;
+        @media (max-width: 1024px) {
+            .register-container {
+                max-width: 760px;
             }
 
+            .register-shell {
+                grid-template-columns: 1fr;
+            }
+
+            .register-aside {
+                order: 2;
+            }
+
+            .register-card {
+                order: 1;
+            }
+
+            .register-card {
+                border-radius: 20px;
+            }
+
+            .form-row {
+                gap: 14px;
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
             .form-row {
                 grid-template-columns: 1fr;
                 gap: 0;
             }
 
+            .brand p {
+                font-size: 1rem;
+            }
+
+            .form-section {
+                padding: 12px;
+                border-radius: 14px;
+            }
+
             .theme-toggle {
-                top: 10px;
-                right: 10px;
+                transform: scale(0.95);
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding-top: max(18px, env(safe-area-inset-top));
+            }
+
+            .register-card {
+                border-radius: 16px;
+            }
+
+            .form-title h2 {
+                font-size: 1.25rem;
+            }
+
+            .btn-register {
+                font-size: 1rem;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation: none !important;
+                transition: none !important;
+            }
+        }
+
+        @supports (-webkit-touch-callout: none) {
+            input,
+            select,
+            textarea,
+            button {
+                font-size: 16px;
             }
         }
     </style>
@@ -792,9 +979,22 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
     <div class="register-container">
         <div class="brand">
+            <div class="brand-badge"><i class="fas fa-shield-alt"></i> Secure Student Onboarding</div>
             <h1>BISU Online Clearance</h1>
             <p>Create your student account</p>
         </div>
+
+        <div class="register-shell">
+        <aside class="register-aside">
+            <h3>Before You Register</h3>
+            <p>Use your official BISU credentials and complete details to avoid account approval issues.</p>
+            <ul class="aside-list">
+                <li><i class="fas fa-circle-check"></i><span>Use an active BISU email ending with @bisu.edu.ph</span></li>
+                <li><i class="fas fa-circle-check"></i><span>Prepare your 6-digit ISMIS ID before submitting</span></li>
+                <li><i class="fas fa-circle-check"></i><span>Choose the correct college and course for accurate records</span></li>
+                <li><i class="fas fa-circle-check"></i><span>Create a strong password to protect your account</span></li>
+            </ul>
+        </aside>
 
         <div class="register-card">
             <?php if ($error): ?>
@@ -818,6 +1018,8 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
             <form method="POST" action="" id="registerForm" onsubmit="return validateForm()">
                 <!-- Personal Information -->
+                <div class="form-section">
+                <div class="section-label"><i class="fas fa-user"></i> Personal Information</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label><i class="fas fa-user"></i> First Name *</label>
@@ -848,8 +1050,11 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                                placeholder="Enter contact number" required>
                     </div>
                 </div>
+                </div>
 
                 <!-- Account Information -->
+                <div class="form-section">
+                <div class="section-label"><i class="fas fa-id-card"></i> Account Information</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label><i class="fas fa-envelope"></i> Email Address *</label>
@@ -870,8 +1075,11 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                         </div>
                     </div>
                 </div>
+                </div>
 
                 <!-- Academic Information -->
+                <div class="form-section">
+                <div class="section-label"><i class="fas fa-graduation-cap"></i> Academic Information</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label><i class="fas fa-university"></i> College *</label>
@@ -891,8 +1099,11 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                         </select>
                     </div>
                 </div>
+                </div>
 
                 <!-- Password -->
+                <div class="form-section">
+                <div class="section-label"><i class="fas fa-lock"></i> Security Setup</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label><i class="fas fa-lock"></i> Password *</label>
@@ -908,6 +1119,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                             <i class="fas fa-eye password-toggle" id="toggleConfirmPassword" onclick="togglePassword('confirm_password', 'toggleConfirmPassword')"></i>
                         </div>
                     </div>
+                </div>
                 </div>
 
                 <!-- Password Requirements -->
@@ -939,6 +1151,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                     Already have an account? <a href="login.php">Login here</a>
                 </div>
             </form>
+        </div>
         </div>
 
         <div class="back-home">

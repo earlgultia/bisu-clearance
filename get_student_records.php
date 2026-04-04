@@ -53,6 +53,7 @@ if ($student) {
                     c.school_year,
                     c.lacking_comment,
                     c.student_proof_file,
+                    c.student_proof_remarks,
                     c.proof_file,
                     DATE_FORMAT(COALESCE(c.updated_at, c.created_at), '%Y-%m-%d %H:%i:%s') as updated_at,
                     DATE_FORMAT(COALESCE(c.updated_at, c.created_at), '%b %d, %Y %h:%i %p') as updated_label

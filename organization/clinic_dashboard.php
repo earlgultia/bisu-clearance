@@ -1,6 +1,6 @@
 <?php
 // clinic_dashboard.php - Clinic Dashboard for BISU Online Clearance System
-// Location: C:\xampp\htdocs\clearance\organization\dashboard.php
+// Location: C:\xampp\htdocs\clearance\organization\clinic_dashboard.php
 
 // Start session first
 if (session_status() === PHP_SESSION_NONE) {
@@ -25,6 +25,35 @@ if ($_SESSION['user_role'] !== 'organization') {
 // Get database instance
 $db = Database::getInstance();
 
+function ensureOrganizationProofColumns($db)
+{
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    if (!shouldRunMaintenanceTask('organization_clearance_student_proof_columns', 21600)) {
+        return;
+    }
+
+    try {
+        if (!hasDatabaseColumn('organization_clearance', 'student_proof_file')) {
+            $db->query("ALTER TABLE organization_clearance
+                        ADD COLUMN student_proof_file VARCHAR(255) NULL AFTER remarks,
+                        ADD COLUMN student_proof_remarks TEXT NULL AFTER student_proof_file,
+                        ADD COLUMN student_proof_uploaded_at DATETIME NULL AFTER student_proof_remarks");
+            $db->execute();
+        }
+    } catch (Exception $e) {
+        error_log("Error ensuring clinic organization proof columns: " . $e->getMessage());
+    }
+}
+
+ensureOrganizationProofColumns($db);
+
 // Get organization information from session
 $org_id = $_SESSION['user_id'];
 $org_name = $_SESSION['user_name'] ?? '';
@@ -38,10 +67,50 @@ if ($org_type !== 'clinic') {
     exit();
 }
 
-// Get clinic office ID from offices table
-$db->query("SELECT office_id FROM offices WHERE office_name = 'Clinic'");
-$clinic_office = $db->single();
-$clinic_office_id = $clinic_office ? $clinic_office['office_id'] : 6; // Default to ID 6 if not found
+function extractClinicLackingComment($remarks)
+{
+    if (!is_string($remarks) || $remarks === '') {
+        return '';
+    }
+
+    if (preg_match('/\[CLINIC_LACKING\]\s*(.+?)(?=\s*\|\s*|$)/s', $remarks, $matches)) {
+        return trim($matches[1]);
+    }
+
+    return '';
+}
+
+function upsertClinicLackingComment($remarks, $comment)
+{
+    $base = preg_replace('/\s*\|\s*\[CLINIC_LACKING\]\s*.+?(?=\s*\|\s*|$)/s', '', (string) $remarks);
+    $base = preg_replace('/^\[CLINIC_LACKING\]\s*.+?(?=\s*\|\s*|$)/s', '', trim($base));
+    $base = trim($base, " \t\n\r\0\x0B|");
+    $comment = trim((string) $comment);
+
+    if ($comment === '') {
+        return $base;
+    }
+
+    return $base !== '' ? $base . ' | [CLINIC_LACKING] ' . $comment : '[CLINIC_LACKING] ' . $comment;
+}
+
+function stripClinicLackingMarker($remarks)
+{
+    $clean = preg_replace('/\s*\|\s*\[CLINIC_LACKING\]\s*.+?(?=\s*\|\s*|$)/s', '', (string) $remarks);
+    $clean = preg_replace('/^\[CLINIC_LACKING\]\s*.+?(?=\s*\|\s*|$)/s', '', trim($clean));
+    $clean = trim($clean, " \t\n\r\0\x0B|");
+
+    return $clean;
+}
+
+// Get clinic organization details from student_organizations.
+$db->query("SELECT so.*, o.office_name, o.office_order
+            FROM student_organizations so
+            LEFT JOIN offices o ON so.office_id = o.office_id
+            WHERE so.org_id = :org_id");
+$db->bind(':org_id', $org_id);
+$clinic_org = $db->single();
+$clinic_office_id = $clinic_org['office_id'] ?? null;
 
 if (!$clinic_office_id) {
     $error = "Clinic office not configured in the system.";
@@ -56,33 +125,160 @@ $filter_semester = $_GET['semester'] ?? '';
 $filter_school_year = $_GET['school_year'] ?? '';
 $filter_status = $_GET['status'] ?? '';
 
+// Get SAS office ID once for organization_clearance sync.
+$db->query("SELECT office_id FROM offices WHERE office_name = 'Director_SAS' LIMIT 1");
+$sas_office_row = $db->single();
+$sas_office_id = $sas_office_row['office_id'] ?? null;
+
+/**
+ * Mirror clinic organization decision into SAS organization_clearance.
+ */
+function syncClinicOrganizationDecision($db, $source_clearance_id, $org_id, $status, $remarks, $sas_office_id)
+{
+        if (!$sas_office_id || !$source_clearance_id || !$org_id || !$status) {
+                return;
+        }
+
+        // Ensure org row exists for the matching SAS clearance of the same student/term.
+        $db->query("INSERT INTO organization_clearance (clearance_id, org_id, office_id, status, remarks, processed_by, processed_date, created_at, updated_at)
+                                SELECT c_sas.clearance_id, :org_id_insert, c_sas.office_id, :status_insert, :remarks_insert, :processed_by_insert, NOW(), NOW(), NOW()
+                                FROM clearance c_src
+                                JOIN clearance c_sas
+                                    ON c_sas.users_id = c_src.users_id
+                                 AND c_sas.semester = c_src.semester
+                                 AND c_sas.school_year = c_src.school_year
+                                 AND c_sas.office_id = :sas_office_id
+                                LEFT JOIN organization_clearance oc
+                                    ON oc.clearance_id = c_sas.clearance_id
+                                 AND oc.org_id = :org_id_match
+                                WHERE c_src.clearance_id = :source_clearance_id
+                                    AND oc.org_clearance_id IS NULL
+                                LIMIT 1");
+        $db->bind(':org_id_insert', $org_id);
+        $db->bind(':status_insert', $status);
+        $db->bind(':remarks_insert', $remarks);
+        $db->bind(':processed_by_insert', $org_id);
+        $db->bind(':sas_office_id', $sas_office_id);
+        $db->bind(':org_id_match', $org_id);
+        $db->bind(':source_clearance_id', $source_clearance_id);
+        $db->execute();
+
+        // Update existing org row for the same SAS clearance.
+        $db->query("UPDATE organization_clearance oc
+                                JOIN clearance c_sas ON oc.clearance_id = c_sas.clearance_id
+                                JOIN clearance c_src
+                                    ON c_sas.users_id = c_src.users_id
+                                 AND c_sas.semester = c_src.semester
+                                 AND c_sas.school_year = c_src.school_year
+                                SET oc.status = :status,
+                                        oc.remarks = CONCAT(IFNULL(oc.remarks, ''), ' | Clinic: ', :remarks),
+                                        oc.processed_by = :processed_by,
+                                        oc.processed_date = NOW(),
+                                        oc.updated_at = NOW()
+                                WHERE c_src.clearance_id = :source_clearance_id
+                                    AND c_sas.office_id = :sas_office_id
+                                    AND oc.org_id = :org_id");
+        $db->bind(':status', $status);
+        $db->bind(':remarks', $remarks);
+        $db->bind(':processed_by', $org_id);
+        $db->bind(':source_clearance_id', $source_clearance_id);
+        $db->bind(':sas_office_id', $sas_office_id);
+        $db->bind(':org_id', $org_id);
+        $db->execute();
+}
+
+// ============================================
+// HANDLE LACKING COMMENT
+// ============================================
+if (isset($_POST['add_lacking_comment'])) {
+    $clearance_id = (int) ($_POST['clearance_id'] ?? 0);
+    $comment = trim($_POST['lacking_comment'] ?? '');
+
+    if ($clearance_id > 0 && $comment !== '') {
+        try {
+            $db->beginTransaction();
+
+            $db->query("SELECT oc.org_clearance_id, oc.org_id, oc.status as org_status, oc.remarks as org_remarks,
+                               oc.student_proof_file,
+                               c.clearance_id, c.office_id,
+                               u.fname, u.lname
+                        FROM organization_clearance oc
+                        JOIN clearance c ON oc.clearance_id = c.clearance_id
+                        JOIN users u ON c.users_id = u.users_id
+                        WHERE oc.org_id = :org_id AND c.clearance_id = :clearance_id");
+            $db->bind(':org_id', $org_id);
+            $db->bind(':clearance_id', $clearance_id);
+            $current = $db->single();
+
+            if (!$current) {
+                throw new Exception("Clearance not found for this clinic organization.");
+            }
+
+            if ($current['org_status'] !== 'pending') {
+                throw new Exception("You can only add a lacking comment to pending clearances.");
+            }
+
+            $updated_remarks = upsertClinicLackingComment($current['org_remarks'] ?? '', $comment);
+
+            $db->query("UPDATE organization_clearance SET
+                        remarks = :remarks,
+                        updated_at = NOW()
+                        WHERE org_clearance_id = :org_clearance_id AND org_id = :org_id");
+            $db->bind(':remarks', $updated_remarks);
+            $db->bind(':org_clearance_id', $current['org_clearance_id']);
+            $db->bind(':org_id', $org_id);
+
+            if (!$db->execute()) {
+                throw new Exception("Failed to save lacking comment.");
+            }
+
+            $db->commit();
+            $success = "Lacking comment saved for {$current['fname']} {$current['lname']}.";
+            header("Location: clinic_dashboard.php?tab=pending&success=1");
+            exit();
+        } catch (Exception $e) {
+            $db->rollback();
+            error_log("Error adding clinic lacking comment: " . $e->getMessage());
+            $error = "Error: " . $e->getMessage();
+        }
+    } else {
+        $error = "Please enter the lacking details before saving.";
+    }
+}
+
 // ============================================
 // HANDLE CLEARANCE APPROVAL/REJECTION
 // ============================================
 if (isset($_POST['process_clearance'])) {
-    $clearance_id = $_POST['clearance_id'] ?? '';
-    $status = $_POST['status'] ?? '';
+    $org_clearance_id = (int) ($_POST['org_clearance_id'] ?? 0);
+    $status_input = strtolower(trim($_POST['status'] ?? ''));
+    $status_map = [
+        'approve' => 'approved',
+        'approved' => 'approved',
+        'reject' => 'rejected',
+        'rejected' => 'rejected'
+    ];
+    $status = $status_map[$status_input] ?? '';
     $remarks = trim($_POST['remarks'] ?? '');
 
-    if ($clearance_id && $status) {
+    if ($org_clearance_id > 0 && $status) {
         try {
             $db->beginTransaction();
 
             // Get current clearance info
-            $db->query("SELECT c.*, u.fname, u.lname, u.ismis_id, u.course_id
-                       FROM clearance c
+            $db->query("SELECT oc.org_clearance_id, oc.clearance_id, oc.status, oc.remarks as org_remarks,
+                               oc.student_proof_file,
+                               c.users_id, u.fname, u.lname, u.ismis_id, u.course_id
+                       FROM organization_clearance oc
+                       JOIN clearance c ON oc.clearance_id = c.clearance_id
                        JOIN users u ON c.users_id = u.users_id
-                       WHERE c.clearance_id = :id");
-            $db->bind(':id', $clearance_id);
+                       WHERE oc.org_clearance_id = :id AND oc.org_id = :org_id");
+            $db->bind(':id', $org_clearance_id);
+            $db->bind(':org_id', $org_id);
             $current = $db->single();
 
             if (!$current) {
                 throw new Exception("Clearance not found");
-            }
-
-            // Check if this clearance belongs to clinic office
-            if ($current['office_id'] != $clinic_office_id) {
-                throw new Exception("Unauthorized access to this clearance");
             }
 
             // Check if clearance is still pending
@@ -90,29 +286,36 @@ if (isset($_POST['process_clearance'])) {
                 throw new Exception("This clearance has already been processed");
             }
 
-            // Update the clearance
-            $db->query("UPDATE clearance SET 
+            $clinic_lacking_comment = extractClinicLackingComment($current['org_remarks'] ?? '');
+
+            if ($status === 'approved' && $clinic_lacking_comment !== '' && empty($current['student_proof_file'])) {
+                throw new Exception("This clearance has an active lacking comment. Wait for the student proof before approving.");
+            }
+
+            // Update the clinic organization clearance
+            $db->query("UPDATE organization_clearance SET 
                         status = :status, 
                         remarks = CONCAT(IFNULL(remarks, ''), ' | Clinic: ', :remarks),
                         processed_by = :processed_by, 
                         processed_date = NOW(),
                         updated_at = NOW()
-                        WHERE clearance_id = :id");
+                        WHERE org_clearance_id = :id AND org_id = :org_id");
             $db->bind(':status', $status);
             $db->bind(':remarks', $remarks);
             $db->bind(':processed_by', $org_id);
-            $db->bind(':id', $clearance_id);
+            $db->bind(':id', $org_clearance_id);
+            $db->bind(':org_id', $org_id);
 
             if ($db->execute()) {
                 // Log the activity
                 $logModel = new ActivityLogModel();
-                $logModel->log($org_id, 'PROCESS_CLEARANCE', ucfirst($status) . " clinic clearance ID: $clearance_id for student: {$current['fname']} {$current['lname']} ({$current['ismis_id']})");
+                $logModel->log($org_id, 'PROCESS_CLEARANCE', ucfirst($status) . " clinic org clearance ID: {$current['org_clearance_id']} for student: {$current['fname']} {$current['lname']} ({$current['ismis_id']})");
 
                 $db->commit();
                 $success = "Clinic clearance " . ($status == 'approved' ? 'approved' : 'rejected') . " successfully!";
 
                 // Redirect to refresh the page
-                header("Location: dashboard.php?tab=pending&success=1");
+                header("Location: clinic_dashboard.php?tab=pending&success=1");
                 exit();
             } else {
                 $db->rollback();
@@ -130,66 +333,92 @@ if (isset($_POST['process_clearance'])) {
 // HANDLE BULK APPROVAL
 // ============================================
 if (isset($_POST['bulk_approve'])) {
-    $clearance_ids = $_POST['clearance_ids'] ?? [];
+    $org_clearance_ids = array_values(array_filter(array_map('intval', $_POST['org_clearance_ids'] ?? [])));
     $remarks = trim($_POST['bulk_remarks'] ?? '');
 
-    if (!empty($clearance_ids)) {
+    if (!empty($org_clearance_ids)) {
         try {
             $db->beginTransaction();
 
-            $placeholders = implode(',', array_fill(0, count($clearance_ids), '?'));
+            $named_placeholders = [];
+            foreach ($org_clearance_ids as $index => $id) {
+                $named_placeholders[] = ':id_' . $index;
+            }
+            $placeholders = implode(',', $named_placeholders);
 
-            // Verify all selected clearances belong to clinic and are pending
             $db->query("SELECT COUNT(*) as count 
-                       FROM clearance 
-                       WHERE clearance_id IN ($placeholders)
-                       AND office_id = :office_id
+                       FROM organization_clearance
+                       WHERE org_clearance_id IN ($placeholders)
+                       AND org_id = :org_id
                        AND status = 'pending'");
 
-            foreach ($clearance_ids as $index => $id) {
-                $db->bind($index + 1, $id);
+            foreach ($org_clearance_ids as $index => $id) {
+                $db->bind(':id_' . $index, $id);
             }
-            $db->bind(':office_id', $clinic_office_id);
+            $db->bind(':org_id', $org_id);
             $verify = $db->single();
 
-            if ($verify['count'] != count($clearance_ids)) {
+            if ($verify['count'] != count($org_clearance_ids)) {
                 $db->rollback();
                 $error = "Some clearances are not valid for bulk approval.";
                 throw new Exception("Invalid clearances");
             }
 
-            // Update all eligible clearances
-            $db->query("UPDATE clearance SET 
+            $db->query("SELECT oc.org_clearance_id, oc.remarks, oc.student_proof_file
+                       FROM organization_clearance oc
+                       WHERE oc.org_clearance_id IN ($placeholders)
+                       AND oc.org_id = :org_id");
+
+            foreach ($org_clearance_ids as $index => $id) {
+                $db->bind(':id_' . $index, $id);
+            }
+            $db->bind(':org_id', $org_id);
+            $selected_clearances = $db->resultSet();
+
+            foreach ($selected_clearances as $selected_clearance) {
+                $has_lacking_comment = extractClinicLackingComment($selected_clearance['remarks'] ?? '') !== '';
+                $has_student_proof = !empty($selected_clearance['student_proof_file']);
+
+                if ($has_lacking_comment && !$has_student_proof) {
+                    $db->rollback();
+                    $error = "One or more selected clinic clearances still require student proof.";
+                    throw new Exception("Missing student proof");
+                }
+            }
+
+            $db->query("UPDATE organization_clearance SET 
                         status = 'approved', 
                         remarks = CONCAT(IFNULL(remarks, ''), ' | Clinic (Bulk): ', :remarks),
                         processed_by = :processed_by, 
                         processed_date = NOW(),
                         updated_at = NOW()
-                        WHERE clearance_id IN ($placeholders)");
+                        WHERE org_clearance_id IN ($placeholders)
+                        AND org_id = :org_id");
 
             $db->bind(':remarks', $remarks);
             $db->bind(':processed_by', $org_id);
+            $db->bind(':org_id', $org_id);
 
-            foreach ($clearance_ids as $index => $id) {
-                $db->bind($index + 1, $id);
+            foreach ($org_clearance_ids as $index => $id) {
+                $db->bind(':id_' . $index, $id);
             }
 
             if ($db->execute()) {
                 // Log bulk approval
                 $logModel = new ActivityLogModel();
-                $logModel->log($org_id, 'BULK_APPROVE', "Bulk approved " . count($clearance_ids) . " clinic clearances");
+                $logModel->log($org_id, 'BULK_APPROVE', "Bulk approved " . count($org_clearance_ids) . " clinic clearances");
 
                 $db->commit();
-                $success = count($clearance_ids) . " clinic clearance(s) approved successfully!";
+                $success = count($org_clearance_ids) . " clinic clearance(s) approved successfully!";
 
-                header("Location: dashboard.php?tab=pending&success=1");
+                header("Location: clinic_dashboard.php?tab=pending&success=1");
                 exit();
             } else {
                 $db->rollback();
                 $error = "Failed to approve clearances.";
             }
         } catch (Exception $e) {
-            if ($e->getMessage() !== "Invalid clearances") {
+            if (!in_array($e->getMessage(), ["Invalid clearances", "Missing student proof"], true)) {
                 $db->rollback();
                 error_log("Error in bulk approval: " . $e->getMessage());
                 $error = "Database error occurred.";
@@ -211,32 +440,38 @@ $clinic_records = [];
 try {
     // Count statistics for clinic
     if ($clinic_office_id) {
+        ensureOrganizationProofColumns($db);
         // Pending clearances
-        $db->query("SELECT COUNT(*) as count FROM clearance WHERE office_id = :office_id AND status = 'pending'");
-        $db->bind(':office_id', $clinic_office_id);
+        $db->query("SELECT COUNT(*) as count FROM organization_clearance WHERE org_id = :org_id AND status = 'pending'");
+        $db->bind(':org_id', $org_id);
         $result = $db->single();
         $stats['pending'] = $result ? (int) $result['count'] : 0;
 
         // Approved clearances
-        $db->query("SELECT COUNT(*) as count FROM clearance WHERE office_id = :office_id AND status = 'approved'");
-        $db->bind(':office_id', $clinic_office_id);
+        $db->query("SELECT COUNT(*) as count FROM organization_clearance WHERE org_id = :org_id AND status = 'approved'");
+        $db->bind(':org_id', $org_id);
         $result = $db->single();
         $stats['approved'] = $result ? (int) $result['count'] : 0;
 
         // Rejected clearances
-        $db->query("SELECT COUNT(*) as count FROM clearance WHERE office_id = :office_id AND status = 'rejected'");
-        $db->bind(':office_id', $clinic_office_id);
+        $db->query("SELECT COUNT(*) as count FROM organization_clearance WHERE org_id = :org_id AND status = 'rejected'");
+        $db->bind(':org_id', $org_id);
         $result = $db->single();
         $stats['rejected'] = $result ? (int) $result['count'] : 0;
 
         // Total students processed
-        $db->query("SELECT COUNT(DISTINCT users_id) as count FROM clearance WHERE office_id = :office_id");
-        $db->bind(':office_id', $clinic_office_id);
+        $db->query("SELECT COUNT(DISTINCT c.users_id) as count
+                    FROM organization_clearance oc
+                    JOIN clearance c ON oc.clearance_id = c.clearance_id
+                    WHERE oc.org_id = :org_id");
+        $db->bind(':org_id', $org_id);
         $result = $db->single();
         $stats['students'] = $result ? (int) $result['count'] : 0;
 
-        // Get pending clearances with student info - USING NEW DATABASE STRUCTURE
-        $query = "SELECT c.*, u.fname, u.lname, u.ismis_id, u.course_id, u.address, u.contacts, u.age,
+        // Get pending clinic organization clearances with student info.
+        $query = "SELECT oc.org_clearance_id, oc.status, oc.remarks, oc.student_proof_file, oc.student_proof_remarks, oc.student_proof_uploaded_at, oc.processed_by, oc.processed_date, oc.updated_at as org_updated_at,
+                         c.clearance_id, c.users_id, c.semester, c.school_year, c.created_at,
+                         u.fname, u.lname, u.ismis_id, u.course_id, u.address, u.contacts, u.age,
                          cr.course_name, col.college_name,
                          ct.clearance_name as clearance_type,
                          (SELECT COUNT(*) FROM clearance c2 
@@ -255,17 +490,18 @@ try {
                           AND c4.semester = c.semester 
                           AND c4.school_year = c.school_year 
                           AND c4.status = 'approved') as approved_offices
-                  FROM clearance c
+                  FROM organization_clearance oc
+                  JOIN clearance c ON oc.clearance_id = c.clearance_id
                   JOIN users u ON c.users_id = u.users_id
                   LEFT JOIN course cr ON u.course_id = cr.course_id
                   LEFT JOIN college col ON u.college_id = col.college_id
                   LEFT JOIN clearance_type ct ON c.clearance_type_id = ct.clearance_type_id
-                  WHERE c.office_id = :office_id AND c.status = 'pending'";
+                  WHERE oc.org_id = :org_id AND oc.status = 'pending'";
 
-        $params = [':office_id' => $clinic_office_id];
+        $params = [':org_id' => $org_id];
 
         if (!empty($filter_status)) {
-            $query .= " AND c.status = :status";
+            $query .= " AND oc.status = :status";
             $params[':status'] = $filter_status;
         }
 
@@ -276,38 +512,57 @@ try {
             $db->bind($key, $value);
         }
         $pending_clearances = $db->resultSet();
+        foreach ($pending_clearances as &$pending_clearance) {
+            $pending_clearance['lacking_comment'] = extractClinicLackingComment($pending_clearance['remarks'] ?? '');
+            $pending_clearance['remarks_display'] = stripClinicLackingMarker($pending_clearance['remarks'] ?? '');
+        }
+        unset($pending_clearance);
 
         // Get recent approved/rejected clearances
-        $query = "SELECT c.*, u.fname, u.lname, u.ismis_id, cr.course_name, col.college_name,
-                         ct.clearance_name as clearance_type,
-                         p.fname as processed_fname, p.lname as processed_lname
-                  FROM clearance c
+         $query = "SELECT oc.org_clearance_id, oc.status, oc.remarks, oc.processed_by, oc.processed_date,
+                    c.clearance_id, c.users_id, c.semester, c.school_year,
+                    u.fname, u.lname, u.ismis_id, cr.course_name, col.college_name,
+                    ct.clearance_name as clearance_type,
+                    COALESCE(p.fname, so_proc.org_name, 'Clinic') as processed_fname,
+                    COALESCE(p.lname, '') as processed_lname
+                  FROM organization_clearance oc
+                  JOIN clearance c ON oc.clearance_id = c.clearance_id
                   JOIN users u ON c.users_id = u.users_id
                   LEFT JOIN course cr ON u.course_id = cr.course_id
                   LEFT JOIN college col ON u.college_id = col.college_id
                   LEFT JOIN clearance_type ct ON c.clearance_type_id = ct.clearance_type_id
-                  LEFT JOIN users p ON c.processed_by = p.users_id
-                  WHERE c.office_id = :office_id AND c.status IN ('approved', 'rejected')
-                  ORDER BY c.processed_date DESC
+                  LEFT JOIN users p ON oc.processed_by = p.users_id
+                LEFT JOIN student_organizations so_proc ON oc.processed_by = so_proc.org_id
+                  WHERE oc.org_id = :org_id AND oc.status IN ('approved', 'rejected')
+                  ORDER BY oc.processed_date DESC
                   LIMIT 20";
 
         $db->query($query);
-        $db->bind(':office_id', $clinic_office_id);
+        $db->bind(':org_id', $org_id);
         $recent_clearances = $db->resultSet();
+        foreach ($recent_clearances as &$recent_clearance) {
+            $recent_clearance['remarks_display'] = stripClinicLackingMarker($recent_clearance['remarks'] ?? '');
+        }
+        unset($recent_clearance);
 
         // Get clearance history with filters
-        $query = "SELECT c.*, u.fname, u.lname, u.ismis_id, cr.course_name, col.college_name,
-                         ct.clearance_name as clearance_type,
-                         p.fname as processed_fname, p.lname as processed_lname
-                  FROM clearance c
+         $query = "SELECT oc.org_clearance_id, oc.status, oc.remarks, oc.processed_by, oc.processed_date,
+                    c.clearance_id, c.users_id, c.semester, c.school_year, c.created_at,
+                    u.fname, u.lname, u.ismis_id, u.address, u.contacts, u.age, cr.course_name, col.college_name,
+                    ct.clearance_name as clearance_type,
+                    COALESCE(p.fname, so_proc.org_name, 'Clinic') as processed_fname,
+                    COALESCE(p.lname, '') as processed_lname
+                  FROM organization_clearance oc
+                  JOIN clearance c ON oc.clearance_id = c.clearance_id
                   JOIN users u ON c.users_id = u.users_id
                   LEFT JOIN course cr ON u.course_id = cr.course_id
                   LEFT JOIN college col ON u.college_id = col.college_id
                   LEFT JOIN clearance_type ct ON c.clearance_type_id = ct.clearance_type_id
-                  LEFT JOIN users p ON c.processed_by = p.users_id
-                  WHERE c.office_id = :office_id";
+                  LEFT JOIN users p ON oc.processed_by = p.users_id
+                LEFT JOIN student_organizations so_proc ON oc.processed_by = so_proc.org_id
+                  WHERE oc.org_id = :org_id";
 
-        $params = [':office_id' => $clinic_office_id];
+        $params = [':org_id' => $org_id];
 
         if (!empty($filter_semester)) {
             $query .= " AND c.semester = :semester";
@@ -331,6 +586,10 @@ try {
             $db->bind($key, $value);
         }
         $clearance_history = $db->resultSet();
+        foreach ($clearance_history as &$history_clearance) {
+            $history_clearance['remarks_display'] = stripClinicLackingMarker($history_clearance['remarks'] ?? '');
+        }
+        unset($history_clearance);
 
         // Get clinic records from clinic_records table (if exists)
         $db->query("SELECT cr.*, u.fname, u.lname, u.ismis_id, u.course_id,
@@ -366,6 +625,14 @@ try {
     $error = "Error loading dashboard data: " . $e->getMessage();
 }
 
+$approval_total = ($stats['approved'] ?? 0) + ($stats['rejected'] ?? 0);
+$approval_rate = $approval_total > 0 ? round((($stats['approved'] ?? 0) / $approval_total) * 100) : 0;
+$longest_wait_days = !empty($pending_clearances) ? max(array_map(static function ($clearance) {
+    return isset($clearance['created_at']) ? max(0, (int) floor((time() - strtotime($clearance['created_at'])) / 86400)) : 0;
+}, $pending_clearances)) : 0;
+$recent_activity_count = count($recent_clearances ?? []);
+$today_label = date('l, F j, Y');
+
 // Helper function to get status class
 function getStatusClass($status)
 {
@@ -377,8 +644,11 @@ function getStatusClass($status)
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Clinic Dashboard - BISU Online Clearance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * {
@@ -504,12 +774,28 @@ function getStatusClass($status)
             align-items: center;
             max-width: 1400px;
             margin: 0 auto;
+            gap: 16px;
         }
 
         .logo {
             display: flex;
             align-items: center;
             gap: 15px;
+        }
+
+        .menu-toggle {
+            display: none;
+            width: 46px;
+            height: 46px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.14);
+            color: white;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            backdrop-filter: blur(10px);
         }
 
         .logo-icon {
@@ -603,6 +889,18 @@ function getStatusClass($status)
             transform: translateY(-2px);
         }
 
+        .nav-item.mobile-logout-item {
+            display: none;
+            margin-top: 8px;
+            background: rgba(220, 38, 38, 0.12);
+            color: #b91c1c;
+        }
+
+        .nav-item.mobile-logout-item:hover {
+            background: #dc2626;
+            color: #fff;
+        }
+
         .main-container {
             display: flex;
             margin-top: 70px;
@@ -621,6 +919,23 @@ function getStatusClass($status)
             height: calc(100vh - 70px);
             overflow-y: auto;
             transition: all 0.3s ease;
+        }
+
+        .sidebar-backdrop {
+            position: fixed;
+            inset: 70px 0 0;
+            background: rgba(2, 8, 23, 0.42);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
+            z-index: 1000;
+        }
+
+        .sidebar-backdrop.show {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
         }
 
         .profile-section {
@@ -774,6 +1089,11 @@ function getStatusClass($status)
             display: block;
         }
 
+        .dashboard-stack {
+            display: grid;
+            gap: 24px;
+        }
+
         .welcome-banner {
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
             color: white;
@@ -826,6 +1146,185 @@ function getStatusClass($status)
             margin-top: 15px;
             backdrop-filter: blur(10px);
             position: relative;
+        }
+
+        .hero-grid {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.95fr);
+            gap: 24px;
+            align-items: start;
+        }
+
+        .hero-copy {
+            max-width: 720px;
+        }
+
+        .hero-kpis {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 22px;
+        }
+
+        .hero-kpi {
+            min-width: 140px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(12px);
+        }
+
+        .hero-kpi strong {
+            display: block;
+            font-size: 1.2rem;
+            font-family: 'Manrope', sans-serif;
+        }
+
+        .hero-kpi span {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .hero-panel {
+            padding: 22px;
+            border-radius: 22px;
+            background: rgba(8, 38, 29, 0.24);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(14px);
+        }
+
+        .hero-panel h3 {
+            font-family: 'Manrope', sans-serif;
+            font-size: 1.05rem;
+            margin-bottom: 14px;
+        }
+
+        .hero-actions {
+            display: grid;
+            gap: 12px;
+        }
+
+        .hero-action {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.14);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .hero-action:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .hero-action-label strong,
+        .hero-action-label span {
+            display: block;
+        }
+
+        .hero-action-label span {
+            opacity: 0.84;
+            font-size: 0.88rem;
+            margin-top: 3px;
+        }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 20px;
+        }
+
+        .insight-card {
+            padding: 20px;
+            border-radius: 18px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+        }
+
+        .insight-card .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 14px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .insight-card h3 {
+            font-family: 'Manrope', sans-serif;
+            font-size: 1.55rem;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .insight-card p {
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        .search-results-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .search-result-card {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: center;
+            padding: 16px 18px;
+            border-radius: 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .search-result-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .office-progress-list {
+            display: grid;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .office-progress-item {
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .office-progress-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .office-progress-note {
+            color: var(--text-secondary);
+            line-height: 1.5;
+            font-size: 0.92rem;
         }
 
         .stats-grid {
@@ -1113,9 +1612,19 @@ function getStatusClass($status)
             color: var(--danger);
         }
 
+        .action-btn.lacking {
+            background: var(--warning-soft);
+            color: var(--warning);
+        }
+
         .action-btn.view {
             background: var(--info-soft);
             color: var(--info);
+        }
+
+        .action-btn.view-proof {
+            background: rgba(14, 165, 233, 0.12);
+            color: #0ea5e9;
         }
 
         .action-btn:hover {
@@ -1132,6 +1641,76 @@ function getStatusClass($status)
             height: 18px;
             cursor: pointer;
             accent-color: var(--primary);
+        }
+
+        .pending-flags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .mini-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+
+        .mini-badge.lacking {
+            background: var(--warning-soft);
+            color: var(--warning);
+        }
+
+        .mini-badge.proof {
+            background: var(--info-soft);
+            color: var(--info);
+        }
+
+        .proof-preview {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .proof-preview img {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+
+        .detail-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .detail-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .detail-item span:first-child {
+            color: var(--text-secondary);
+        }
+
+        .detail-item span:last-child {
+            color: var(--text-primary);
+            font-weight: 600;
         }
 
         .progress-indicator {
@@ -1581,9 +2160,84 @@ function getStatusClass($status)
             }
         }
 
+        /* Professional UI polish */
+        body {
+            min-height: 100dvh;
+            background:
+                radial-gradient(circle at 100% 0%, rgba(46, 155, 122, 0.12), transparent 36%),
+                radial-gradient(circle at 0% 100%, rgba(11, 125, 90, 0.09), transparent 42%),
+                var(--bg-secondary);
+            font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        .logo h2,
+        .section-header h2,
+        .welcome-banner h1 {
+            font-family: 'Manrope', sans-serif;
+            letter-spacing: 0.01em;
+        }
+
+        .header {
+            padding: calc(0.85rem + env(safe-area-inset-top, 0px)) calc(1rem + env(safe-area-inset-right, 0px)) 0.85rem calc(1rem + env(safe-area-inset-left, 0px));
+            box-shadow: 0 10px 30px rgba(8, 38, 29, 0.22);
+        }
+
+        .section-card,
+        .stat-card,
+        .college-stat-card,
+        .course-stat-card,
+        .year-stat-card,
+        .student-card,
+        .undo-item,
+        .info-card {
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+        }
+
+        .filter-select,
+        .filter-input,
+        .form-group textarea,
+        .form-group input,
+        .form-group select {
+            border-radius: 12px;
+            border-width: 1px;
+        }
+
+        .table-responsive {
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            background: var(--card-bg);
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            backdrop-filter: blur(5px);
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(11, 125, 90, 0.03);
+        }
+
+        .btn,
+        .action-btn,
+        .filter-btn,
+        .clear-filter,
+        .nav-item,
+        .logout-btn {
+            min-height: 44px;
+        }
+
         @media (max-width: 1024px) {
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
+            }
+
+            .hero-grid,
+            .insights-grid {
+                grid-template-columns: 1fr;
             }
 
             .student-info-grid {
@@ -1592,19 +2246,53 @@ function getStatusClass($status)
         }
 
         @media (max-width: 768px) {
+            .menu-toggle {
+                display: inline-flex;
+            }
+
             .sidebar {
                 transform: translateX(-100%);
-                position: absolute;
+                position: fixed;
+                top: 70px;
+                left: 0;
                 z-index: 1001;
+                height: calc(100vh - 70px);
                 transition: 0.3s;
+                box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
             }
 
             .sidebar.show {
                 transform: translateX(0);
             }
 
+            .header-content {
+                align-items: flex-start;
+            }
+
+            .logo h2 {
+                font-size: 1.05rem;
+            }
+
+            .user-menu {
+                gap: 10px;
+                margin-left: auto;
+            }
+
+            .user-info {
+                display: none;
+            }
+
+            .logout-btn {
+                display: none;
+            }
+
+            .nav-item.mobile-logout-item {
+                display: flex;
+            }
+
             .content-area {
                 margin-left: 0;
+                padding: 20px 16px 32px;
             }
 
             .stats-grid {
@@ -1633,6 +2321,19 @@ function getStatusClass($status)
             .students-grid {
                 grid-template-columns: 1fr;
             }
+
+            .welcome-banner {
+                padding: 24px 20px;
+            }
+
+            .hero-kpis {
+                flex-direction: column;
+            }
+
+            .search-result-card {
+                flex-direction: column;
+                align-items: stretch;
+            }
         }
     </style>
 </head>
@@ -1645,6 +2346,9 @@ function getStatusClass($status)
     <header class="header">
         <div class="header-content">
             <div class="logo">
+                <button class="menu-toggle" id="menuToggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="orgSidebar">
+                    <i class="fas fa-bars"></i>
+                </button>
                 <div class="logo-icon">
                     <i class="fas fa-clinic-medical"></i>
                 </div>
@@ -1672,7 +2376,7 @@ function getStatusClass($status)
     </header>
 
     <div class="main-container">
-        <aside class="sidebar">
+        <aside class="sidebar" id="orgSidebar">
             <div class="profile-section">
                 <div class="profile-avatar">
                     <i class="fas fa-hospital" style="font-size: 3rem; line-height: 100px;"></i>
@@ -1715,8 +2419,12 @@ function getStatusClass($status)
                     onclick="switchTab('students')">
                     <i class="fas fa-users"></i> Student Records
                 </button>
+                <a href="../logout.php" class="nav-item mobile-logout-item">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
             </nav>
         </aside>
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
         <main class="content-area">
             <?php if (!empty($success)): ?>
@@ -1737,59 +2445,113 @@ function getStatusClass($status)
 
             <!-- Dashboard Tab -->
             <div id="dashboard" class="tab-content <?php echo $active_tab == 'dashboard' ? 'active' : ''; ?>">
-                <div class="welcome-banner">
-                    <h1>Welcome,
-                        <?php echo htmlspecialchars(explode(' ', $org_name)[0]); ?>! 👋
-                    </h1>
-                    <p>Manage medical clearances and student health records.</p>
-                    <div class="org-info">
-                        <i class="fas fa-info-circle"></i> University Clinic
+                <div class="dashboard-stack">
+                    <div class="welcome-banner">
+                        <div class="hero-grid">
+                            <div class="hero-copy">
+                                <h1>Welcome back, <?php echo htmlspecialchars(explode(' ', trim($org_name))[0] ?: 'Clinic'); ?></h1>
+                                <p>Monitor medical clearances, catch unresolved requirements earlier, and review student progress from one focused clinic workspace.</p>
+                                <div class="org-info">
+                                    <i class="fas fa-info-circle"></i> University Clinic • <?php echo htmlspecialchars($today_label); ?>
+                                </div>
+                                <div class="hero-kpis">
+                                    <div class="hero-kpi">
+                                        <strong><?php echo (int) ($stats['pending'] ?? 0); ?></strong>
+                                        <span>Pending right now</span>
+                                    </div>
+                                    <div class="hero-kpi">
+                                        <strong><?php echo $approval_rate; ?>%</strong>
+                                        <span>Approval rate</span>
+                                    </div>
+                                    <div class="hero-kpi">
+                                        <strong><?php echo $longest_wait_days; ?> day<?php echo $longest_wait_days === 1 ? '' : 's'; ?></strong>
+                                        <span>Longest current wait</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="hero-panel">
+                                <h3>Quick actions</h3>
+                                <div class="hero-actions">
+                                    <button class="hero-action" type="button" onclick="switchTab('pending')">
+                                        <span class="hero-action-label">
+                                            <strong>Review pending queue</strong>
+                                            <span>Handle clearances, check proof, and resolve lacking cases.</span>
+                                        </span>
+                                        <i class="fas fa-arrow-right"></i>
+                                    </button>
+                                    <button class="hero-action" type="button" onclick="switchTab('history')">
+                                        <span class="hero-action-label">
+                                            <strong>Audit recent decisions</strong>
+                                            <span>Inspect approved and rejected clinic outcomes.</span>
+                                        </span>
+                                        <i class="fas fa-history"></i>
+                                    </button>
+                                    <button class="hero-action" type="button" onclick="switchTab('records')">
+                                        <span class="hero-action-label">
+                                            <strong>Open medical records</strong>
+                                            <span>Jump to clinic records and student health status.</span>
+                                        </span>
+                                        <i class="fas fa-notes-medical"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon pending">
-                            <i class="fas fa-clock"></i>
+                    <div class="insights-grid">
+                        <div class="insight-card">
+                            <div class="eyebrow"><i class="fas fa-stethoscope"></i> Queue focus</div>
+                            <h3><?php echo (int) ($stats['pending'] ?? 0); ?></h3>
+                            <p>Medical clearances currently waiting for clinic action.</p>
                         </div>
-                        <div class="stat-details">
-                            <h3>
-                                <?php echo $stats['pending'] ?? 0; ?>
-                            </h3>
-                            <p>Pending</p>
+                        <div class="insight-card">
+                            <div class="eyebrow"><i class="fas fa-clipboard-check"></i> Activity</div>
+                            <h3><?php echo $recent_activity_count; ?></h3>
+                            <p>Recent clinic decisions available for quick follow-up and review.</p>
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon approved">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="stat-details">
-                            <h3>
-                                <?php echo $stats['approved'] ?? 0; ?>
-                            </h3>
-                            <p>Approved</p>
+                        <div class="insight-card">
+                            <div class="eyebrow"><i class="fas fa-users"></i> Student reach</div>
+                            <h3><?php echo (int) ($stats['students'] ?? 0); ?></h3>
+                            <p>Distinct students already tracked in the clinic clearance process.</p>
                         </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon rejected">
-                            <i class="fas fa-times-circle"></i>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon pending">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="stat-details">
+                                <h3><?php echo $stats['pending'] ?? 0; ?></h3>
+                                <p>Pending</p>
+                            </div>
                         </div>
-                        <div class="stat-details">
-                            <h3>
-                                <?php echo $stats['rejected'] ?? 0; ?>
-                            </h3>
-                            <p>Rejected</p>
+                        <div class="stat-card">
+                            <div class="stat-icon approved">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="stat-details">
+                                <h3><?php echo $stats['approved'] ?? 0; ?></h3>
+                                <p>Approved</p>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon students">
-                            <i class="fas fa-users"></i>
+                        <div class="stat-card">
+                            <div class="stat-icon rejected">
+                                <i class="fas fa-times-circle"></i>
+                            </div>
+                            <div class="stat-details">
+                                <h3><?php echo $stats['rejected'] ?? 0; ?></h3>
+                                <p>Rejected</p>
+                            </div>
                         </div>
-                        <div class="stat-details">
-                            <h3>
-                                <?php echo $stats['students'] ?? 0; ?>
-                            </h3>
-                            <p>Students</p>
+                        <div class="stat-card">
+                            <div class="stat-icon students">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stat-details">
+                                <h3><?php echo $stats['students'] ?? 0; ?></h3>
+                                <p>Students</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1935,11 +2697,23 @@ function getStatusClass($status)
                                             data-id="<?php echo strtolower($clearance['ismis_id']); ?>">
                                             <td>
                                                 <input type="checkbox" class="select-checkbox clearance-checkbox"
-                                                    value="<?php echo $clearance['clearance_id']; ?>">
+                                                    value="<?php echo $clearance['org_clearance_id']; ?>">
                                             </td>
-                                            <td><strong>
-                                                    <?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>
-                                                </strong></td>
+                                            <td>
+                                                <div class="student-info-small">
+                                                    <div class="name"><?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?></div>
+                                                    <?php if (!empty($clearance['lacking_comment']) || !empty($clearance['student_proof_file'])): ?>
+                                                        <div class="pending-flags">
+                                                            <?php if (!empty($clearance['lacking_comment'])): ?>
+                                                                <span class="mini-badge lacking"><i class="fas fa-comment-dots"></i> Lacking</span>
+                                                            <?php endif; ?>
+                                                            <?php if (!empty($clearance['student_proof_file'])): ?>
+                                                                <span class="mini-badge proof"><i class="fas fa-paperclip"></i> Proof Uploaded</span>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </td>
                                             <td>
                                                 <?php echo htmlspecialchars($clearance['ismis_id']); ?>
                                             </td>
@@ -1961,12 +2735,32 @@ function getStatusClass($status)
                                             </td>
                                             <td>
                                                 <div class="action-btns">
+                                                    <button class="action-btn lacking"
+                                                        onclick='openLackingModal(
+                                                            <?php echo (int) $clearance["clearance_id"]; ?>,
+                                                            <?php echo htmlspecialchars(json_encode($clearance["fname"] . " " . $clearance["lname"]), ENT_QUOTES, "UTF-8"); ?>,
+                                                            <?php echo htmlspecialchars(json_encode($clearance["lacking_comment"] ?? ""), ENT_QUOTES, "UTF-8"); ?>
+                                                        )'
+                                                        title="Add Lacking Comment">
+                                                        <i class="fas fa-comment-medical"></i>
+                                                    </button>
+                                                    <?php if (!empty($clearance['student_proof_file'])): ?>
+                                                        <button class="action-btn view-proof"
+                                                            onclick='viewStudentProof(
+                                                                <?php echo (int) $clearance["clearance_id"]; ?>,
+                                                                <?php echo htmlspecialchars(json_encode($clearance["student_proof_file"]), ENT_QUOTES, "UTF-8"); ?>,
+                                                                <?php echo htmlspecialchars(json_encode($clearance["student_proof_remarks"] ?? ""), ENT_QUOTES, "UTF-8"); ?>
+                                                            )'
+                                                            title="View Student Proof">
+                                                            <i class="fas fa-paperclip"></i>
+                                                        </button>
+                                                    <?php endif; ?>
                                                     <button class="action-btn approve"
-                                                        onclick="openProcessModal(<?php echo $clearance['clearance_id']; ?>, 'approve')">
+                                                        onclick="openProcessModal(<?php echo $clearance['org_clearance_id']; ?>, 'approve')">
                                                         <i class="fas fa-check"></i>
                                                     </button>
                                                     <button class="action-btn reject"
-                                                        onclick="openProcessModal(<?php echo $clearance['clearance_id']; ?>, 'reject')">
+                                                        onclick="openProcessModal(<?php echo $clearance['org_clearance_id']; ?>, 'reject')">
                                                         <i class="fas fa-times"></i>
                                                     </button>
                                                     <button class="action-btn view"
@@ -2075,7 +2869,7 @@ function getStatusClass($status)
                                                 <?php echo isset($clearance['processed_date']) ? date('M d, Y', strtotime($clearance['processed_date'])) : 'N/A'; ?>
                                             </td>
                                             <td>
-                                                <?php echo htmlspecialchars($clearance['remarks'] ?? '—'); ?>
+                                                <?php echo htmlspecialchars($clearance['remarks_display'] !== '' ? $clearance['remarks_display'] : '-'); ?>
                                             </td>
                                             <td>
                                                 <button class="action-btn view"
@@ -2216,7 +3010,7 @@ function getStatusClass($status)
             </div>
             <form method="POST" action="" id="processForm">
                 <div class="modal-body">
-                    <input type="hidden" name="clearance_id" id="modalClearanceId">
+                    <input type="hidden" name="org_clearance_id" id="modalClearanceId">
                     <input type="hidden" name="status" id="modalStatus">
 
                     <div class="form-group">
@@ -2229,6 +3023,31 @@ function getStatusClass($status)
                     <button type="button" class="btn btn-secondary" onclick="closeProcessModal()">Cancel</button>
                     <button type="submit" name="process_clearance" class="btn btn-primary"
                         id="modalSubmitBtn">Process</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="lackingModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-comment-medical"></i> Add Lacking Comment</h3>
+                <button class="close" onclick="closeLackingModal()">&times;</button>
+            </div>
+            <form method="POST" action="" id="lackingForm">
+                <div class="modal-body">
+                    <input type="hidden" name="clearance_id" id="lackingClearanceId">
+                    <div id="lackingStudentInfo" style="background: var(--bg-secondary); padding: 15px; border-radius: 12px; margin-bottom: 18px;">
+                        <p style="color: var(--text-secondary);">Loading student information...</p>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-list-check"></i> Lacking Comment <span style="color: var(--danger);">*</span></label>
+                        <textarea name="lacking_comment" id="lackingComment" rows="4" placeholder="Describe what is lacking and what proof the student needs to submit..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeLackingModal()">Cancel</button>
+                    <button type="submit" name="add_lacking_comment" class="btn btn-primary">Save Comment</button>
                 </div>
             </form>
         </div>
@@ -2253,11 +3072,51 @@ function getStatusClass($status)
         </div>
     </div>
 
+    <div id="studentProofModal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3><i class="fas fa-paperclip"></i> Student Proof</h3>
+                <button class="close" onclick="closeStudentProofModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="studentProofPreview" class="proof-preview"></div>
+                <div class="section-card" style="margin: 18px 0 0;">
+                    <div class="section-header">
+                        <h2><i class="fas fa-circle-info"></i> Proof Details</h2>
+                    </div>
+                    <div id="studentProofInfo" class="detail-list">
+                        <p style="color: var(--text-secondary);">Loading proof information...</p>
+                    </div>
+                    <div class="detail-item" style="padding-top: 16px; border-bottom: none;">
+                        <span>Student remarks</span>
+                        <span id="studentProofRemarks">No remarks provided</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeStudentProofModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Dark Mode Toggle
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('orgSidebar');
+        const sidebarBackdrop = document.getElementById('sidebarBackdrop');
         const body = document.body;
+        const clinicStudents = <?php
+            echo json_encode(array_map(static function ($student) {
+                return [
+                    'users_id' => (int) ($student['users_id'] ?? 0),
+                    'fname' => $student['fname'] ?? '',
+                    'lname' => $student['lname'] ?? '',
+                    'ismis_id' => $student['ismis_id'] ?? ''
+                ];
+            }, $students ?? []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        ?>;
 
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme === 'dark') {
@@ -2280,34 +3139,55 @@ function getStatusClass($status)
             }
         });
 
+        function closeMobileSidebar() {
+            if (!sidebar) return;
+            sidebar.classList.remove('show');
+            if (sidebarBackdrop) {
+                sidebarBackdrop.classList.remove('show');
+            }
+            if (menuToggle) {
+                menuToggle.setAttribute('aria-expanded', 'false');
+            }
+        }
+
         // Tab switching
-        function switchTab(tabName) {
+        function switchTab(tabName, triggerElement = null) {
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
             });
-            document.getElementById(tabName).classList.add('active');
+            const tabPanel = document.getElementById(tabName);
+            if (!tabPanel) return;
+            tabPanel.classList.add('active');
 
             document.querySelectorAll('.nav-item').forEach(item => {
                 item.classList.remove('active');
             });
 
-            event.target.closest('.nav-item').classList.add('active');
+            const activeNav = triggerElement || document.querySelector(`.nav-item[onclick*="switchTab('${tabName}')"]`);
+            if (activeNav) {
+                activeNav.classList.add('active');
+            }
 
             const url = new URL(window.location);
             url.searchParams.set('tab', tabName);
             window.history.pushState({}, '', url);
+
+            if (window.innerWidth <= 768) {
+                closeMobileSidebar();
+            }
         }
 
         // Process Modal
         function openProcessModal(clearanceId, action) {
             document.getElementById('processModal').style.display = 'flex';
             document.getElementById('modalClearanceId').value = clearanceId;
-            document.getElementById('modalStatus').value = action;
+            const normalizedStatus = action === 'approve' ? 'approved' : 'rejected';
+            document.getElementById('modalStatus').value = normalizedStatus;
 
             const modalTitle = document.getElementById('modalTitle');
             const modalSubmitBtn = document.getElementById('modalSubmitBtn');
 
-            if (action === 'approve') {
+            if (normalizedStatus === 'approved') {
                 modalTitle.innerHTML = '<i class="fas fa-check-circle"></i> Approve Medical Clearance';
                 modalSubmitBtn.className = 'btn btn-success';
                 modalSubmitBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
@@ -2323,12 +3203,77 @@ function getStatusClass($status)
             document.getElementById('modalRemarks').value = '';
         }
 
+        function openLackingModal(clearanceId, studentName, currentComment = '') {
+            document.getElementById('lackingModal').style.display = 'flex';
+            document.getElementById('lackingClearanceId').value = clearanceId;
+            document.getElementById('lackingComment').value = currentComment || '';
+            document.getElementById('lackingStudentInfo').innerHTML = `
+                <p><strong>Student:</strong> ${escapeHtml(studentName || 'Unknown')}</p>
+                <p><small>Leave a clear note about what is lacking and what proof the student must submit.</small></p>
+            `;
+        }
+
+        function closeLackingModal() {
+            document.getElementById('lackingModal').style.display = 'none';
+            document.getElementById('lackingComment').value = '';
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function viewStudentProof(clearanceId, proofFile, remarks) {
+            const safeProofFile = String(proofFile || '');
+            const fileExt = safeProofFile.split('.').pop().toLowerCase();
+            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt);
+
+            document.getElementById('studentProofModal').style.display = 'flex';
+            document.getElementById('studentProofRemarks').textContent = remarks || 'No remarks provided';
+
+            if (isImage) {
+                document.getElementById('studentProofPreview').innerHTML = `<img src="../${encodeURI(safeProofFile)}" alt="Student proof" onclick="window.open('../${encodeURI(safeProofFile)}', '_blank')">`;
+            } else {
+                document.getElementById('studentProofPreview').innerHTML = `<a href="../${encodeURI(safeProofFile)}" target="_blank" class="btn btn-primary"><i class="fas fa-download"></i> Open Proof File</a>`;
+            }
+
+            document.getElementById('studentProofInfo').innerHTML = '<p style="color: var(--text-secondary);">Loading proof information...</p>';
+
+            fetch(`../get_clearance_info.php?clearance_id=${encodeURIComponent(clearanceId)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Proof details unavailable.');
+                    }
+
+                    document.getElementById('studentProofInfo').innerHTML = `
+                        <div class="detail-item"><span>Student</span><span>${escapeHtml(data.student_name || 'Unknown')}</span></div>
+                        <div class="detail-item"><span>ID</span><span>${escapeHtml(data.ismis_id || 'N/A')}</span></div>
+                        <div class="detail-item"><span>Uploaded</span><span>${data.uploaded_at ? new Date(data.uploaded_at).toLocaleString() : 'Unknown'}</span></div>
+                    `;
+                })
+                .catch(error => {
+                    document.getElementById('studentProofInfo').innerHTML = `<p style="color: var(--danger);">${escapeHtml(error.message || 'Proof details unavailable.')}</p>`;
+                });
+        }
+
+        function closeStudentProofModal() {
+            document.getElementById('studentProofModal').style.display = 'none';
+            document.getElementById('studentProofPreview').innerHTML = '';
+            document.getElementById('studentProofRemarks').textContent = 'No remarks provided';
+            document.getElementById('studentProofInfo').innerHTML = '<p style="color: var(--text-secondary);">Loading proof information...</p>';
+        }
+
         function closeProgressModal() {
             document.getElementById('progressModal').style.display = 'none';
         }
 
         // View Student Progress
-        function viewStudentProgress(userId, semester, schoolYear, studentName, studentId, course, college, address, contact, age) {
+        async function viewStudentProgress(userId, semester, schoolYear, studentName, studentId, course, college, address, contact, age) {
             const modal = document.getElementById('progressModal');
             const modalBody = document.getElementById('progressModalBody');
 
@@ -2370,10 +3315,218 @@ function getStatusClass($status)
                     </div>
                 </div>
             `;
+
+            try {
+                const response = await fetch(`../get_student_progress.php?user_id=${encodeURIComponent(userId)}&semester=${encodeURIComponent(semester || '')}&school_year=${encodeURIComponent(schoolYear || '')}`, {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Request failed with status ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.message || 'Progress data unavailable.');
+                }
+
+                const officeMarkup = (data.offices || []).length
+                    ? data.offices.map(office => `
+                        <div class="office-progress-item">
+                            <div class="office-progress-top">
+                                <strong>${escapeHtml(office.office_name || 'Unknown office')}</strong>
+                                <span class="status-badge ${office.status === 'approved' ? 'status-approved' : office.status === 'rejected' ? 'status-rejected' : 'status-pending'}">${escapeHtml(office.status || 'pending')}</span>
+                            </div>
+                            <div class="office-progress-note">
+                                ${office.processed_date ? `Updated ${new Date(office.processed_date).toLocaleString()}` : 'No processing date yet'}
+                            </div>
+                            ${office.lacking_comment ? `<div class="office-progress-note"><strong>Lacking:</strong> ${escapeHtml(office.lacking_comment)}</div>` : ''}
+                            ${office.remarks ? `<div class="office-progress-note"><strong>Remarks:</strong> ${escapeHtml(office.remarks)}</div>` : ''}
+                        </div>
+                    `).join('')
+                    : '<div class="empty-inline">No clearance progress records found for this student yet.</div>';
+
+                modalBody.innerHTML = `
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                        <div class="student-info-card">
+                            <div class="student-info-header">
+                                <h4><i class="fas fa-user-graduate"></i> Student Information</h4>
+                                <span class="badge badge-primary">ID: ${escapeHtml(studentId || 'N/A')}</span>
+                            </div>
+                            <div class="student-info-grid">
+                                <div class="student-info-item"><span class="label">Full Name</span><span class="value">${escapeHtml(studentName || 'N/A')}</span></div>
+                                <div class="student-info-item"><span class="label">College</span><span class="value">${escapeHtml(college || 'N/A')}</span></div>
+                                <div class="student-info-item"><span class="label">Course</span><span class="value">${escapeHtml(course || 'N/A')}</span></div>
+                                <div class="student-info-item"><span class="label">Age</span><span class="value">${escapeHtml(age || 'N/A')}</span></div>
+                                <div class="student-info-item"><span class="label">Contact</span><span class="value">${escapeHtml(contact || 'N/A')}</span></div>
+                                <div class="student-info-item"><span class="label">Address</span><span class="value">${escapeHtml(address || 'N/A')}</span></div>
+                            </div>
+                        </div>
+                        <div class="section-card" style="margin-bottom: 0;">
+                            <div class="section-header">
+                                <h2><i class="fas fa-list-check"></i> Clearance Progress</h2>
+                                <span class="badge badge-primary">${escapeHtml(`${semester || 'All'} ${schoolYear || ''}`.trim() || 'All Terms')}</span>
+                            </div>
+                            <div class="office-progress-list">${officeMarkup}</div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                modalBody.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <h3>Unable to load progress</h3>
+                        <p>${escapeHtml(error.message || 'Please try again.')}</p>
+                    </div>
+                `;
+            }
         }
 
         function viewStudentRecords(userId) {
-            viewStudentProgress(userId, '', '', 'Loading...', '', '', '', '', '', '');
+            const modal = document.getElementById('progressModal');
+            const modalBody = document.getElementById('progressModalBody');
+
+            modal.style.display = 'flex';
+            modalBody.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <h3>Loading student records</h3>
+                    <p>Please wait while the clinic dashboard gathers the latest record details.</p>
+                </div>
+            `;
+
+            fetch(`../get_student_records.php?user_id=${encodeURIComponent(userId)}`, {
+                headers: {
+                    'Accept': 'application/json'
+                }
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Request failed with status ${response.status}`);
+                    }
+
+                    return response.json();
+                })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Student records unavailable.');
+                    }
+
+                    const student = data.student || {};
+                    const summary = data.summary || {};
+                    const records = Array.isArray(data.records) ? data.records : [];
+
+                    const formatLabel = value => String(value || '')
+                        .replace(/_/g, ' ')
+                        .replace(/\b\w/g, char => char.toUpperCase());
+
+                    const recordsMarkup = records.length
+                        ? `
+                            <div class="table-responsive">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Office</th>
+                                            <th>Type</th>
+                                            <th>Period</th>
+                                            <th>Status</th>
+                                            <th>Flags</th>
+                                            <th>Updated</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${records.map(record => {
+                                            const period = [record.semester, record.school_year].filter(Boolean).join(' ') || 'N/A';
+                                            const flags = [];
+
+                                            if (record.lacking_comment) {
+                                                flags.push('<span class="badge badge-warning">Lacking</span>');
+                                            }
+                                            if (record.student_proof_file) {
+                                                flags.push('<span class="badge badge-primary">Student Proof</span>');
+                                            }
+                                            if (record.proof_file) {
+                                                flags.push('<span class="badge badge-success">Office Proof</span>');
+                                            }
+
+                                            return `
+                                                <tr>
+                                                    <td>${escapeHtml(record.office_name || 'Unknown')}</td>
+                                                    <td>${escapeHtml(formatLabel(record.clearance_type || 'clearance'))}</td>
+                                                    <td>${escapeHtml(period)}</td>
+                                                    <td><span class="status-badge ${getStatusClass(record.status || 'pending')}">${escapeHtml(formatLabel(record.status || 'pending'))}</span></td>
+                                                    <td>${flags.length ? flags.join(' ') : '<span style="color: var(--text-secondary);">None</span>'}</td>
+                                                    <td>${escapeHtml(record.updated_label || 'N/A')}</td>
+                                                </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `
+                        : '<div class="empty-inline">No clearance records found for this student yet.</div>';
+
+                    modalBody.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 20px;">
+                            <div class="student-info-card">
+                                <div class="student-info-header">
+                                    <h4><i class="fas fa-address-card"></i> Student Record Overview</h4>
+                                    <span class="badge badge-primary">ID: ${escapeHtml(student.ismis_id || 'N/A')}</span>
+                                </div>
+                                <div class="student-info-grid">
+                                    <div class="student-info-item"><span class="label">Full Name</span><span class="value">${escapeHtml(`${student.fname || ''} ${student.lname || ''}`.trim() || 'N/A')}</span></div>
+                                    <div class="student-info-item"><span class="label">College</span><span class="value">${escapeHtml(student.college_name || 'N/A')}</span></div>
+                                    <div class="student-info-item"><span class="label">Course</span><span class="value">${escapeHtml(student.course_name || 'N/A')}</span></div>
+                                    <div class="student-info-item"><span class="label">Email</span><span class="value">${escapeHtml(student.emails || student.email || 'N/A')}</span></div>
+                                    <div class="student-info-item"><span class="label">Contact</span><span class="value">${escapeHtml(student.contacts || 'N/A')}</span></div>
+                                    <div class="student-info-item"><span class="label">Address</span><span class="value">${escapeHtml(student.address || 'N/A')}</span></div>
+                                </div>
+                            </div>
+
+                            <div class="summary-grid" style="margin: 0;">
+                                <div class="summary-card">
+                                    <div class="label">Total Records</div>
+                                    <div class="value">${Number(summary.total_records || 0)}</div>
+                                    <div class="meta">All clearance rows linked to this student</div>
+                                </div>
+                                <div class="summary-card">
+                                    <div class="label">Pending</div>
+                                    <div class="value">${Number(summary.pending_count || 0)}</div>
+                                    <div class="meta">Still waiting for office or organization action</div>
+                                </div>
+                                <div class="summary-card">
+                                    <div class="label">Approved</div>
+                                    <div class="value">${Number(summary.approved_count || 0)}</div>
+                                    <div class="meta">Records already cleared</div>
+                                </div>
+                                <div class="summary-card">
+                                    <div class="label">With Proof</div>
+                                    <div class="value">${Number(summary.student_proof_count || 0)}</div>
+                                    <div class="meta">Student-uploaded proof currently on file</div>
+                                </div>
+                            </div>
+
+                            <div class="section-card" style="margin-bottom: 0;">
+                                <div class="section-header">
+                                    <h2><i class="fas fa-folder-open"></i> Recent Clearance Records</h2>
+                                    <span class="badge badge-primary">${records.length} shown</span>
+                                </div>
+                                ${recordsMarkup}
+                            </div>
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    modalBody.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <h3>Unable to load records</h3>
+                            <p>${escapeHtml(error.message || 'Please try again.')}</p>
+                        </div>
+                    `;
+                });
         }
 
         // Bulk Actions
@@ -2406,7 +3559,7 @@ function getStatusClass($status)
             selected.forEach(id => {
                 const input = document.createElement('input');
                 input.type = 'hidden';
-                input.name = 'clearance_ids[]';
+                input.name = 'org_clearance_ids[]';
                 input.value = id;
                 form.appendChild(input);
             });
@@ -2523,20 +3676,42 @@ function getStatusClass($status)
         }
 
         function searchStudent() {
-            const search = document.getElementById('quickSearch').value;
+            const search = document.getElementById('quickSearch').value.trim().toLowerCase();
             if (!search) {
                 alert('Please enter a search term');
                 return;
             }
 
-            showToast('Searching for: ' + search, 'info');
-
             const resultsDiv = document.getElementById('quickSearchResults');
+            const matches = clinicStudents.filter(student => {
+                const fullName = `${student.fname || ''} ${student.lname || ''}`.toLowerCase();
+                const id = String(student.ismis_id || '').toLowerCase();
+                return fullName.includes(search) || id.includes(search);
+            }).slice(0, 8);
+
             resultsDiv.style.display = 'block';
+            if (!matches.length) {
+                resultsDiv.innerHTML = `
+                    <div class="empty-inline">No students matched "${escapeHtml(search)}".</div>
+                `;
+                return;
+            }
+
             resultsDiv.innerHTML = `
-                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 20px;">
-                    <h4 style="color: var(--text-primary); margin-bottom: 15px;">Search Results</h4>
-                    <p style="color: var(--text-secondary);">Search functionality would show results for "${search}" here.</p>
+                <div class="search-results-grid">
+                    ${matches.map(student => `
+                        <div class="search-result-card">
+                            <div>
+                                <strong>${escapeHtml(`${student.fname || ''} ${student.lname || ''}`.trim())}</strong>
+                                <div class="search-result-meta">
+                                    <span class="badge badge-primary">${escapeHtml(student.ismis_id || 'No ISMIS ID')}</span>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-primary" onclick="viewStudentRecords(${Number(student.users_id || 0)})">
+                                <i class="fas fa-eye"></i> View Records
+                            </button>
+                        </div>
+                    `).join('')}
                 </div>
             `;
         }
@@ -2559,17 +3734,46 @@ function getStatusClass($status)
         }
 
         // Close modals when clicking outside
-        window.onclick = function (event) {
+        window.addEventListener('click', function (event) {
             const processModal = document.getElementById('processModal');
+            const lackingModal = document.getElementById('lackingModal');
             const progressModal = document.getElementById('progressModal');
+            const studentProofModal = document.getElementById('studentProofModal');
 
             if (event.target == processModal) {
                 processModal.style.display = 'none';
             }
+            if (event.target == lackingModal) {
+                closeLackingModal();
+            }
             if (event.target == progressModal) {
                 progressModal.style.display = 'none';
             }
-        };
+            if (event.target == studentProofModal) {
+                closeStudentProofModal();
+            }
+        });
+
+        if (menuToggle && sidebar) {
+            menuToggle.addEventListener('click', function () {
+                const willOpen = !sidebar.classList.contains('show');
+                sidebar.classList.toggle('show', willOpen);
+                if (sidebarBackdrop) {
+                    sidebarBackdrop.classList.toggle('show', willOpen);
+                }
+                menuToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            });
+        }
+
+        if (sidebarBackdrop) {
+            sidebarBackdrop.addEventListener('click', closeMobileSidebar);
+        }
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                closeMobileSidebar();
+            }
+        });
 
         // Auto-hide alerts
         setTimeout(() => {

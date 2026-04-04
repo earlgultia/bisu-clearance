@@ -359,64 +359,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get demo credentials from database for display
-$db = Database::getInstance();
-
-// Initialize demo variables
-$studentDemo = null;
-$superAdminDemo = null;
-$subAdminDemos = [];
-$orgDemos = [];
-
-// Get student demo account
-$db->query("SELECT u.emails, u.ismis_id, u.fname, u.lname, r.user_role_name 
-            FROM users u 
-            JOIN user_role r ON u.user_role_id = r.user_role_id 
-            WHERE r.user_role_name = 'student' AND u.is_active = 1 
-            LIMIT 1");
-$studentDemo = $db->single();
-
-// Get super admin demo account
-$db->query("SELECT u.emails, u.ismis_id, u.fname, u.lname, r.user_role_name 
-            FROM users u 
-            JOIN user_role r ON u.user_role_id = r.user_role_id 
-            WHERE r.user_role_name = 'super_admin' AND u.is_active = 1 
-            LIMIT 1");
-$superAdminDemo = $db->single();
-
-// Get sub admin demo accounts
-$db->query("SELECT u.emails, u.ismis_id, u.fname, u.lname, o.office_name 
-            FROM users u 
-            JOIN user_role r ON u.user_role_id = r.user_role_id 
-            LEFT JOIN offices o ON u.office_id = o.office_id
-            WHERE r.user_role_name = 'sub_admin' AND u.is_active = 1 
-            LIMIT 5");
-$subAdminDemos = $db->resultSet();
-
-// Get organization demo accounts - with dashboard types - FIXED query
-$db->query("SELECT so.org_email, so.org_name, so.org_type, 
-                   COALESCE(so.dashboard_type, so.org_type) as dashboard_type,
-                   odv.view_file,
-                   CASE 
-                       WHEN so.org_type = 'clinic' THEN 'Clinic'
-                       WHEN so.org_type = 'town' THEN 'Town'
-                       WHEN so.org_type = 'college' THEN 'College'
-                       WHEN so.org_type = 'ssg' THEN 'SSG'
-                       ELSE so.org_type
-                   END as display_type
-            FROM student_organizations so
-            LEFT JOIN organization_dashboard_views odv ON COALESCE(so.dashboard_type, so.org_type) = odv.dashboard_type
-            WHERE so.status = 'active' 
-            LIMIT 4");
-$orgDemos = $db->resultSet();
-
-// Default passwords for demo display (these are just for display, actual passwords are hashed in DB)
-$defaultPasswords = [
-    'student' => 'password',
-    'super_admin' => 'superadmin123',
-    'sub_admin' => 'password',
-    'organization' => 'password'
-];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -425,21 +367,27 @@ $defaultPasswords = [
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BISU Online Clearance • Login</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
         }
 
         /* Light Mode Colors */
         :root {
+            --font-display: 'Space Grotesk', 'Manrope', sans-serif;
             --primary: #412886;
             --primary-dark: #2e1d5e;
             --primary-light: #6b4bb8;
             --primary-soft: rgba(65, 40, 134, 0.1);
             --primary-glow: rgba(65, 40, 134, 0.3);
+            --success: #10b981;
             --bg-primary: #ffffff;
             --bg-secondary: #f8fafc;
             --bg-tertiary: #f1f5f9;
@@ -484,22 +432,26 @@ $defaultPasswords = [
         }
 
         body {
-            background: linear-gradient(145deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
-            min-height: 100vh;
+            background:
+                radial-gradient(circle at 12% 20%, rgba(65, 40, 134, 0.12) 0%, transparent 38%),
+                radial-gradient(circle at 90% 10%, rgba(56, 189, 248, 0.10) 0%, transparent 34%),
+                linear-gradient(145deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+            min-height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
             position: relative;
             overflow-x: hidden;
             transition: background 0.3s ease;
+            -webkit-text-size-adjust: 100%;
         }
 
         /* Dark Mode Toggle Button */
         .theme-toggle {
             position: fixed;
-            top: 20px;
-            right: 20px;
+            top: calc(10px + env(safe-area-inset-top));
+            right: calc(10px + env(safe-area-inset-right));
             width: 60px;
             height: 30px;
             background: var(--bg-tertiary);
@@ -607,7 +559,7 @@ $defaultPasswords = [
         /* Login Wrapper */
         .login-wrapper {
             width: 100%;
-            max-width: 480px;
+            max-width: 520px;
             position: relative;
             z-index: 1;
             animation: scaleIn 0.8s ease;
@@ -628,8 +580,27 @@ $defaultPasswords = [
         /* Brand Header */
         .brand {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 24px;
             animation: slideDown 0.8s ease;
+        }
+
+        .brand-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 14px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            color: var(--primary-dark);
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(65, 40, 134, 0.12);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .brand-badge i {
+            color: var(--primary);
         }
 
         @keyframes slideDown {
@@ -654,7 +625,6 @@ $defaultPasswords = [
             justify-content: center;
             margin: 0 auto 20px;
             box-shadow: 0 10px 30px var(--primary-glow);
-            animation: pulse 2s infinite;
             position: relative;
             overflow: hidden;
             transition: background 0.3s ease;
@@ -665,7 +635,16 @@ $defaultPasswords = [
             color: white;
         }
 
+        .brand-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 24px;
+            display: block;
+        }
+
         .brand h1 {
+            font-family: var(--font-display);
             font-size: 28px;
             font-weight: 700;
             color: var(--primary-dark);
@@ -682,13 +661,29 @@ $defaultPasswords = [
         /* Login Container */
         .login-container {
             background: var(--card-bg);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(14px);
             border-radius: 24px;
-            box-shadow: 0 20px 40px var(--shadow-color);
+            box-shadow: 0 24px 45px var(--shadow-color);
             padding: 40px;
             border: 1px solid var(--border-color);
             animation: slideUp 0.8s ease 0.2s both;
             transition: all 0.3s ease;
+        }
+
+        .login-header {
+            margin-bottom: 20px;
+        }
+
+        .login-header h2 {
+            font-family: var(--font-display);
+            color: var(--text-primary);
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        .login-header p {
+            color: var(--text-secondary);
+            font-size: 14px;
         }
 
         @keyframes slideUp {
@@ -796,21 +791,22 @@ $defaultPasswords = [
         .input-wrapper input {
             width: 100%;
             padding: 16px 50px 16px 48px;
-            border: 2px solid var(--input-border);
+            border: 1px solid var(--input-border);
             border-radius: 14px;
-            font-size: 15px;
+            font-size: 16px;
             transition: all 0.3s;
             background: var(--input-bg);
             color: var(--text-primary);
             position: relative;
             z-index: 0;
+            min-height: 48px;
         }
 
         .input-wrapper input:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 4px var(--primary-soft);
-            transform: translateY(-2px);
+            transform: translateY(-1px);
         }
 
         .input-wrapper input::placeholder {
@@ -855,6 +851,7 @@ $defaultPasswords = [
             font-size: 14px;
             cursor: pointer;
             transition: color 0.3s ease;
+            min-height: 44px;
         }
 
         .remember-me input[type="checkbox"] {
@@ -869,6 +866,9 @@ $defaultPasswords = [
             font-size: 14px;
             font-weight: 500;
             transition: color 0.3s ease;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
         }
 
         .forgot-link:hover {
@@ -881,9 +881,9 @@ $defaultPasswords = [
             width: 100%;
             padding: 16px;
             border: none;
-            border-radius: 14px;
+            border-radius: 12px;
             font-size: 16px;
-            font-weight: 600;
+            font-weight: 700;
             color: white;
             cursor: pointer;
             transition: all 0.3s;
@@ -892,6 +892,7 @@ $defaultPasswords = [
             justify-content: center;
             gap: 10px;
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            min-height: 48px;
         }
 
         .login-btn:hover {
@@ -941,12 +942,27 @@ $defaultPasswords = [
         /* Links */
         .register-link {
             text-align: center;
-            margin-top: 25px;
-            padding-top: 25px;
+            margin-top: 20px;
+            padding-top: 20px;
             border-top: 1px solid var(--border-color);
             color: var(--text-secondary);
             font-size: 14px;
             transition: all 0.3s ease;
+        }
+
+        .trust-note {
+            margin-top: 12px;
+            color: var(--text-muted);
+            font-size: 12px;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .trust-note i {
+            color: var(--success);
         }
 
         .register-link a {
@@ -974,172 +990,63 @@ $defaultPasswords = [
             display: inline-flex;
             align-items: center;
             gap: 6px;
+            min-height: 44px;
         }
 
         .back-home a:hover {
             color: var(--primary);
         }
 
-        /* Role indicators */
-        .role-student { color: #10b981; }
-        .role-admin { color: #f59e0b; }
-        .role-sas { color: #3b82f6; }
-        .role-librarian { color: #8b5cf6; }
-        .role-dean { color: #ec4899; }
-        .role-cashier { color: #14b8a6; }
-        .role-mis { color: #f97316; }
-        .role-registrar { color: #ef4444; }
-        .role-org { color: #f97316; }
-        .role-clinic { color: #0b7d5a; }
-        .role-town { color: #b45f2e; }
-        .role-college { color: #3b82f6; }
-        .role-ssg { color: #8b5cf6; }
-
-        /* Organization-specific badges */
-        .badge-clinic {
-            background: var(--org-clinic);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 600;
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation: none !important;
+                transition: none !important;
+            }
         }
 
-        .badge-town {
-            background: var(--org-town);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 600;
-        }
+        @media (max-width: 1024px) {
+            .login-wrapper {
+                max-width: 600px;
+            }
 
-        .badge-college {
-            background: var(--org-college);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 600;
-        }
+            .login-container {
+                padding: 34px 30px;
+            }
 
-        .badge-ssg {
-            background: var(--org-ssg);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 600;
-        }
-
-        /* Demo Credentials Panel */
-        .demo-panel {
-            margin-top: 25px;
-            background: var(--demo-bg);
-            backdrop-filter: blur(10px);
-            border-radius: 16px;
-            padding: 20px;
-            border: 1px solid var(--border-color);
-            transition: all 0.3s ease;
-        }
-
-        .demo-panel h4 {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--primary-dark);
-            font-size: 14px;
-            margin-bottom: 15px;
-            font-weight: 600;
-            transition: color 0.3s ease;
-        }
-
-        .demo-panel h4 i {
-            color: var(--primary);
-            transition: color 0.3s ease;
-        }
-
-        .demo-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-        }
-
-        .demo-item {
-            background: var(--input-bg);
-            padding: 12px;
-            border-radius: 10px;
-            border: 1px solid var(--border-color);
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 12px;
-        }
-
-        .demo-item:hover {
-            border-color: var(--primary);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px var(--primary-glow);
-        }
-
-        .demo-item .role {
-            font-weight: 600;
-            color: var(--primary-dark);
-            margin-bottom: 5px;
-            transition: color 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .demo-item .role i {
-            font-size: 12px;
-        }
-
-        .demo-item .email {
-            color: var(--primary);
-            font-size: 11px;
-            margin-bottom: 3px;
-            word-break: break-all;
-            transition: color 0.3s ease;
-        }
-
-        .demo-item .pass {
-            color: var(--text-secondary);
-            font-size: 11px;
-            transition: color 0.3s ease;
-        }
-
-        .demo-item i {
-            color: #10b981;
-            font-size: 10px;
-            margin-right: 3px;
-        }
-
-        /* Dashboard type indicator */
-        .dashboard-badge {
-            display: inline-block;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 8px;
-            font-weight: 600;
-            background: var(--primary-soft);
-            color: var(--primary);
-            margin-left: 4px;
         }
 
         /* Responsive */
         @media (max-width: 480px) {
-            .login-container {
-                padding: 30px 20px;
+            .brand h1 {
+                font-size: 24px;
             }
 
-            .demo-grid {
-                grid-template-columns: 1fr;
+            .brand p {
+                font-size: 14px;
+            }
+
+            .login-container {
+                padding: 30px 20px;
+                border-radius: 18px;
+            }
+
+            .form-options {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
             }
 
             .theme-toggle {
-                top: 10px;
-                right: 10px;
+                transform: scale(0.95);
+            }
+        }
+
+        @supports (-webkit-touch-callout: none) {
+            input,
+            button,
+            textarea,
+            select {
+                font-size: 16px;
             }
         }
     </style>
@@ -1162,8 +1069,9 @@ $defaultPasswords = [
     <div class="login-wrapper">
         <!-- Brand Header -->
         <div class="brand">
+            <div class="brand-badge"><i class="fas fa-shield-alt"></i> Secure Access Portal</div>
             <div class="brand-icon">
-                <i class="fas fa-university"></i>
+                <img src="assets/img/logo.png" alt="BISU Logo">
             </div>
             <h1>BISU Online Clearance</h1>
             <p>Bohol Island State University</p>
@@ -1171,6 +1079,11 @@ $defaultPasswords = [
 
         <!-- Login Container -->
         <div class="login-container">
+            <div class="login-header">
+                <h2>Sign in to continue</h2>
+                <p>Use your BISU account credentials to access your dashboard.</p>
+            </div>
+
             <!-- Alerts -->
             <?php if ($error): ?>
                 <div class="alert alert-error">
@@ -1219,7 +1132,7 @@ $defaultPasswords = [
                     <label class="remember-me">
                         <input type="checkbox" name="remember" value="1"
                                <?php echo isset($_COOKIE['remembered_email']) ? 'checked' : ''; ?>>
-                        <i class="far fa-check-square"></i> Remember me
+                        Remember me
                     </label>
                     <a href="forgot-password.php" class="forgot-link">
                         <i class="fas fa-question-circle"></i> Forgot Password?
@@ -1230,6 +1143,11 @@ $defaultPasswords = [
                     <span class="btn-text"><i class="fas fa-sign-in-alt"></i> Login to Your Account</span>
                     <span class="spinner"></span>
                 </button>
+
+                <div class="trust-note">
+                    <i class="fas fa-lock"></i>
+                    Your sign-in is protected with session security controls.
+                </div>
             </form>
 
             <div class="register-link">
@@ -1243,87 +1161,6 @@ $defaultPasswords = [
             </div>
         </div>
 
-        <!-- Demo Credentials Panel -->
-        <?php if ($studentDemo || $superAdminDemo || !empty($subAdminDemos) || !empty($orgDemos)): ?>
-        <div class="demo-panel">
-            <h4>
-                <i class="fas fa-flask"></i>
-                Demo Accounts (Click to auto-fill)
-            </h4>
-            <div class="demo-grid">
-                <!-- Student Demo -->
-                <?php if ($studentDemo): ?>
-                <div class="demo-item" 
-                     data-username="<?php echo htmlspecialchars($studentDemo['emails']); ?>" 
-                     data-password="<?php echo $defaultPasswords['student']; ?>">
-                    <div class="role"><i class="fas fa-graduation-cap role-student"></i> Student</div>
-                    <div class="email"><?php echo htmlspecialchars($studentDemo['emails']); ?></div>
-                    <div class="pass"><i class="fas fa-key"></i> <?php echo $defaultPasswords['student']; ?></div>
-                </div>
-                <?php endif; ?>
-
-                <!-- Super Admin Demo -->
-                <?php if ($superAdminDemo): ?>
-                <div class="demo-item" 
-                     data-username="<?php echo htmlspecialchars($superAdminDemo['emails']); ?>" 
-                     data-password="<?php echo $defaultPasswords['super_admin']; ?>">
-                    <div class="role"><i class="fas fa-crown role-admin"></i> Super Admin</div>
-                    <div class="email"><?php echo htmlspecialchars($superAdminDemo['emails']); ?></div>
-                    <div class="pass"><i class="fas fa-key"></i> <?php echo $defaultPasswords['super_admin']; ?></div>
-                </div>
-                <?php endif; ?>
-
-                <!-- Sub Admin Demos -->
-                <?php foreach ($subAdminDemos as $admin): ?>
-                <div class="demo-item" 
-                     data-username="<?php echo htmlspecialchars($admin['emails']); ?>" 
-                     data-password="<?php echo $defaultPasswords['sub_admin']; ?>">
-                    <div class="role">
-                        <i class="fas fa-user-tie 
-                            <?php 
-                            $office = strtolower($admin['office_name'] ?? '');
-                            if (strpos($office, 'sas') !== false) echo 'role-sas';
-                            elseif (strpos($office, 'libra') !== false) echo 'role-librarian';
-                            elseif (strpos($office, 'dean') !== false) echo 'role-dean';
-                            elseif (strpos($office, 'cash') !== false) echo 'role-cashier';
-                            elseif (strpos($office, 'mis') !== false) echo 'role-mis';
-                            elseif (strpos($office, 'registrar') !== false) echo 'role-registrar';
-                            ?>">
-                        </i> 
-                        <?php echo htmlspecialchars($admin['office_name'] ?? 'Sub Admin'); ?>
-                    </div>
-                    <div class="email"><?php echo htmlspecialchars($admin['emails']); ?></div>
-                    <div class="pass"><i class="fas fa-key"></i> <?php echo $defaultPasswords['sub_admin']; ?></div>
-                </div>
-                <?php endforeach; ?>
-
-                <!-- Organization Demos - Showing which dashboard they'll get -->
-                <?php foreach ($orgDemos as $org): ?>
-                <div class="demo-item" 
-                     data-username="<?php echo htmlspecialchars($org['org_email']); ?>" 
-                     data-password="<?php echo $defaultPasswords['organization']; ?>">
-                    <div class="role">
-                        <i class="fas fa-users 
-                            <?php 
-                            if ($org['org_type'] == 'clinic') echo 'role-clinic';
-                            elseif ($org['org_type'] == 'town') echo 'role-town';
-                            elseif ($org['org_type'] == 'college') echo 'role-college';
-                            elseif ($org['org_type'] == 'ssg') echo 'role-ssg';
-                            else echo 'role-org';
-                            ?>">
-                        </i> 
-                        <?php echo htmlspecialchars($org['display_type'] ?? ucfirst($org['org_type'])); ?> Org
-                        <span class="dashboard-badge">
-                            <?php echo ucfirst($org['dashboard_type'] ?? $org['org_type']); ?>
-                        </span>
-                    </div>
-                    <div class="email"><?php echo htmlspecialchars($org['org_email']); ?></div>
-                    <div class="pass"><i class="fas fa-key"></i> <?php echo $defaultPasswords['organization']; ?></div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <?php endif; ?>
     </div>
 
     <script>
@@ -1363,29 +1200,6 @@ $defaultPasswords = [
                     document.getElementById('loginBtn').disabled = true;
                 });
             }
-
-            // Demo items click handler
-            const demoItems = document.querySelectorAll('.demo-item');
-            demoItems.forEach(item => {
-                item.addEventListener('click', function () {
-                    const username = this.getAttribute('data-username');
-                    const password = this.getAttribute('data-password');
-                    
-                    if (username && password) {
-                        document.getElementById('username').value = username;
-                        document.getElementById('password').value = password;
-
-                        // Highlight the filled fields
-                        document.getElementById('username').style.borderColor = '#10b981';
-                        document.getElementById('password').style.borderColor = '#10b981';
-
-                        setTimeout(() => {
-                            document.getElementById('username').style.borderColor = '';
-                            document.getElementById('password').style.borderColor = '';
-                        }, 1000);
-                    }
-                });
-            });
 
             // Remove loading state when navigating back
             window.addEventListener('pageshow', function () {

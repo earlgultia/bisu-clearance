@@ -61,6 +61,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <!-- CSS Libraries -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
         /* =====================================================
@@ -70,14 +73,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: var(--font-body);
         }
 
         :root {
+            --font-body: 'Plus Jakarta Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --font-display: 'Space Grotesk', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --header-height: 68px;
             /* Light Mode Colors */
             --primary: #412886;
             --primary-dark: #2e1d5e;
             --primary-light: #6b4bb8;
+            --accent: #0f766e;
             --primary-soft: rgba(65, 40, 134, 0.05);
             --bg-primary: #ffffff;
             --bg-secondary: #fafafa;
@@ -105,28 +112,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
 
         /* Dark Mode Colors */
         .dark-mode {
-            --primary: #8b6fd8;
-            --primary-dark: #6b4bb8;
-            --primary-light: #a58bd1;
-            --primary-soft: rgba(139, 111, 216, 0.15);
-            --bg-primary: #1a1a2e;
-            --bg-secondary: #16213e;
-            --bg-tertiary: #0f3460;
-            --text-primary: #e9e9e9;
-            --text-secondary: #b8b8b8;
-            --text-muted: #8a8a8a;
-            --border-color: #2a2a4a;
-            --card-bg: #16213e;
+            --primary: #9b87f5;
+            --primary-dark: #7e68df;
+            --primary-light: #b6a6ff;
+            --primary-soft: rgba(155, 135, 245, 0.2);
+            --bg-primary: #0f172a;
+            --bg-secondary: #111b33;
+            --bg-tertiary: #162748;
+            --text-primary: #f3f6ff;
+            --text-secondary: #c2cde2;
+            --text-muted: #94a3c1;
+            --border-color: #2a3d62;
+            --card-bg: #131f36;
             --card-shadow: 0 5px 30px rgba(0, 0, 0, 0.3);
             --card-shadow-hover: 0 15px 40px rgba(139, 111, 216, 0.2);
-            --header-bg: #16213e;
+            --header-bg: #131f36;
             --header-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
-            --footer-bg: #16213e;
-            --footer-text: #b8b8b8;
-            --input-bg: #1a1a2e;
-            --input-border: #2a2a4a;
-            --social-bg: #1a1a2e;
+            --footer-bg: #131f36;
+            --footer-text: #b7c5e0;
+            --input-bg: #0f1a30;
+            --input-border: #334a71;
+            --social-bg: #0f1a30;
             --scroll-top-shadow: 0 5px 20px rgba(139, 111, 216, 0.4);
+        }
+
+        .dark-mode .hero-badge {
+            background: rgba(155, 135, 245, 0.2);
+            border-color: rgba(155, 135, 245, 0.45);
+            color: #e9ddff;
+        }
+
+        .dark-mode .hero-panel {
+            background: rgba(12, 24, 46, 0.78);
+            border-color: #32496f;
+        }
+
+        .dark-mode .hero-chip,
+        .dark-mode .hero-mini-card {
+            background: #172744;
+            border-color: #38527a;
+            color: #dbe8ff;
+        }
+
+        .dark-mode .stat-item,
+        .dark-mode .feature-card,
+        .dark-mode .office-card,
+        .dark-mode .step,
+        .dark-mode .testimonial-card,
+        .dark-mode .contact-info,
+        .dark-mode .contact-form,
+        .dark-mode .map-container {
+            border-color: #2f4469;
+        }
+
+        .dark-mode .map-placeholder {
+            background: linear-gradient(135deg, #101b33 0%, #162748 100%);
+        }
+
+        .dark-mode .newsletter-input::placeholder,
+        .dark-mode .form-group input::placeholder,
+        .dark-mode .form-group textarea::placeholder {
+            color: #8fa2c4;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5 {
+            font-family: var(--font-display);
+            letter-spacing: -0.02em;
         }
 
         body {
@@ -134,7 +189,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             color: var(--text-primary);
             line-height: 1.6;
             overflow-x: hidden;
+            padding-top: var(--header-height);
             transition: background-color 0.3s ease, color 0.3s ease;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        body.nav-open {
+            overflow: hidden;
+        }
+
+        .nav-toggle {
+            display: none;
+            width: 42px;
+            height: 42px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--card-bg);
+            color: var(--primary);
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        .nav-backdrop {
+            display: none;
+            pointer-events: none;
+        }
+
+        a:focus-visible,
+        button:focus-visible,
+        input:focus-visible,
+        textarea:focus-visible {
+            outline: 3px solid rgba(65, 40, 134, 0.35);
+            outline-offset: 2px;
         }
 
         /* Animations */
@@ -180,6 +268,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 12px;
+            width: min(1200px, calc(100% - 24px));
+        }
+
+        .alert span:first-child {
+            min-width: 0;
+            overflow-wrap: anywhere;
         }
 
         .alert-success {
@@ -250,9 +345,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
 
         /* Header */
         header {
-            background: var(--header-bg);
+            background: color-mix(in srgb, var(--header-bg) 84%, transparent);
             color: var(--text-primary);
-            padding: 1rem 5%;
+            padding: calc(0.45rem + env(safe-area-inset-top)) max(14px, 3.5%) 0.45rem;
             position: fixed;
             width: 100%;
             top: 0;
@@ -261,57 +356,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             animation: slideInLeft 0.5s ease;
             border-bottom: 1px solid var(--border-color);
             transition: background-color 0.3s ease, box-shadow 0.3s ease;
+            backdrop-filter: blur(8px);
         }
 
         nav {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            max-width: 1240px;
+            margin: 0 auto;
+            min-height: var(--header-height);
         }
 
         .logo {
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 10px;
         }
 
         .logo-icon {
-            width: 50px;
-            height: 50px;
+            width: 44px;
+            height: 44px;
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
             color: white;
-            border-radius: 50%;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
+            font-size: 0.95rem;
             font-weight: bold;
             transition: all 0.3s;
-            animation: pulse 2s infinite;
+            letter-spacing: 0.05em;
             box-shadow: 0 4px 10px rgba(65, 40, 134, 0.2);
         }
 
+        .logo-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 12px;
+            display: block;
+        }
+
         .logo-icon:hover {
-            transform: rotate(360deg);
+            transform: translateY(-2px) rotate(-4deg);
         }
 
         .logo-text h1 {
             color: var(--primary);
-            font-size: 1.5rem;
-            font-weight: 600;
+            font-size: 1.02rem;
+            font-weight: 700;
+            line-height: 1.1;
             transition: color 0.3s ease;
         }
 
         .logo-text p {
             color: var(--text-secondary);
-            font-size: 0.8rem;
+            font-size: 0.72rem;
+            line-height: 1.1;
             transition: color 0.3s ease;
         }
 
         .nav-links {
             display: flex;
-            gap: 30px;
+            gap: 16px;
             align-items: center;
+        }
+
+        .mobile-auth-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .theme-toggle {
+            flex-shrink: 0;
         }
 
         .nav-links a {
@@ -345,8 +464,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         .signup-btn {
             background: transparent;
             color: var(--primary) !important;
-            padding: 8px 20px;
-            border-radius: 5px;
+            padding: 9px 18px;
+            border-radius: 999px;
             font-weight: 600;
             border: 2px solid var(--primary);
             transition: 0.3s;
@@ -366,15 +485,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         .login-btn {
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
             color: white !important;
-            padding: 8px 20px;
-            border-radius: 5px;
+            padding: 10px 18px;
+            border-radius: 999px;
             font-weight: 600;
-            animation: bounce 2s infinite;
             box-shadow: 0 4px 15px rgba(65, 40, 134, 0.3);
         }
 
         .login-btn:hover {
-            animation: none;
             transform: translateY(-3px);
             box-shadow: 0 8px 20px rgba(65, 40, 134, 0.4);
         }
@@ -385,15 +502,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
 
         /* Hero Section */
         .hero {
-            background: var(--bg-primary);
-            min-height: 100vh;
+            background:
+                radial-gradient(circle at 88% 20%, rgba(15, 118, 110, 0.12) 0%, transparent 34%),
+                radial-gradient(circle at 8% 84%, rgba(65, 40, 134, 0.10) 0%, transparent 42%),
+                var(--bg-primary);
+            min-height: calc(100vh - var(--header-height));
             display: flex;
             align-items: center;
-            padding: 80px 5% 0;
-            margin-top: 70px;
+            padding: 56px 5% 0;
             position: relative;
             overflow: hidden;
             transition: background-color 0.3s ease;
+        }
+
+        img,
+        svg,
+        video,
+        canvas {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .hero-content > *,
+        .stats-container > *,
+        .features-grid > *,
+        .offices-grid > *,
+        .steps-container > *,
+        .testimonials-grid > *,
+        .contact-container > *,
+        .footer-content > * {
+            min-width: 0;
+        }
+
+        .section-title p,
+        .feature-card p,
+        .office-card p,
+        .step p,
+        .contact-text p,
+        .footer-section p,
+        .hero-mini-card span,
+        .testimonial-text {
+            overflow-wrap: anywhere;
         }
 
         .hero::before {
@@ -415,26 +564,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             color: var(--text-primary);
             position: relative;
             z-index: 1;
+            max-width: 1240px;
+            margin: 0 auto;
+            width: 100%;
         }
 
         .hero-text {
             animation: slideInLeft 0.8s ease;
         }
 
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--primary-soft) 75%, #fff 25%);
+            border: 1px solid color-mix(in srgb, var(--primary) 18%, #fff 82%);
+            color: var(--primary-dark);
+            font-weight: 600;
+            margin-bottom: 18px;
+        }
+
+        .hero-badge i {
+            color: var(--accent);
+        }
+
         .hero-text h1 {
-            font-size: 3rem;
+            font-size: clamp(2.2rem, 4vw, 3.5rem);
             margin-bottom: 20px;
             animation: fadeIn 1s ease 0.3s both;
             color: var(--primary);
-            line-height: 1.2;
+            line-height: 1.08;
             transition: color 0.3s ease;
+            max-width: 16ch;
         }
 
         .hero-text p {
-            font-size: 1.2rem;
+            font-size: 1.08rem;
             margin-bottom: 30px;
             color: var(--text-secondary);
             animation: fadeIn 1s ease 0.5s both;
+            max-width: 54ch;
+        }
+
+        .hero-version {
+            margin-top: -12px;
+            margin-bottom: 26px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
         }
 
         .hero-buttons {
@@ -446,7 +626,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
 
         .btn {
             padding: 12px 30px;
-            border-radius: 5px;
+            border-radius: 999px;
             text-decoration: none;
             font-weight: 600;
             display: inline-flex;
@@ -455,6 +635,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             transition: 0.3s;
             position: relative;
             overflow: hidden;
+        }
+
+        .btn,
+        .signup-btn,
+        .login-btn,
+        .newsletter-btn,
+        .submit-btn,
+        .scroll-top {
+            min-height: 44px;
         }
 
         .btn::before {
@@ -504,16 +693,143 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             animation: float 6s ease-in-out infinite;
         }
 
-        .hero-image i {
-            font-size: 20rem;
-            color: var(--primary);
-            opacity: 0.1;
-            transition: 0.3s;
+        .hero-visual {
+            margin: 0 auto;
+            width: min(100%, 480px);
+            border-radius: 28px;
+            background: linear-gradient(145deg, color-mix(in srgb, var(--card-bg) 90%, #fff 10%) 0%, var(--card-bg) 100%);
+            border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--border-color) 86%);
+            box-shadow: 0 25px 55px rgba(65, 40, 134, 0.12);
+            padding: 28px;
+            position: relative;
+            overflow: hidden;
         }
 
-        .hero-image:hover i {
-            opacity: 0.2;
-            transform: scale(1.1);
+        .hero-visual::before {
+            content: '';
+            position: absolute;
+            top: -35%;
+            right: -30%;
+            width: 260px;
+            height: 260px;
+            background: radial-gradient(circle, rgba(65, 40, 134, 0.16) 0%, transparent 65%);
+        }
+
+        .hero-icon-wrap {
+            width: 140px;
+            height: 140px;
+            margin: 6px auto 18px;
+            border-radius: 28px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 18px 40px rgba(65, 40, 134, 0.28);
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-icon-wrap i {
+            font-size: 3.2rem;
+            color: #fff;
+        }
+
+        .hero-icon-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 28px;
+            display: block;
+        }
+
+        .hero-panel {
+            position: relative;
+            z-index: 1;
+            border-radius: 18px;
+            background: color-mix(in srgb, var(--bg-secondary) 65%, #fff 35%);
+            border: 1px solid var(--border-color);
+            padding: 16px 18px;
+        }
+
+        .hero-panel h3 {
+            color: var(--primary);
+            margin-bottom: 6px;
+            font-size: 1.1rem;
+        }
+
+        .hero-panel p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .hero-highlights {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            animation: fadeIn 1s ease 0.9s both;
+        }
+
+        .hero-mini-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 24px;
+            animation: fadeIn 1s ease 1s both;
+        }
+
+        .hero-mini-card {
+            background: color-mix(in srgb, var(--card-bg) 84%, transparent);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 14px 16px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .hero-mini-card strong {
+            display: block;
+            color: var(--primary);
+            font-size: 1.05rem;
+            margin-bottom: 4px;
+        }
+
+        .hero-mini-card span {
+            color: var(--text-secondary);
+            font-size: 0.84rem;
+        }
+
+        .section-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 14px;
+        }
+
+        .section-kicker i {
+            color: var(--accent);
+        }
+
+        .hero-chip {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            font-weight: 600;
+        }
+
+        .hero-chip i {
+            color: var(--accent);
+            margin-right: 6px;
         }
 
         /* Stats Section */
@@ -536,16 +852,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             text-align: center;
             padding: 30px;
             background: var(--card-bg);
-            border-radius: 10px;
+            border-radius: 18px;
             box-shadow: var(--card-shadow);
             transition: 0.3s;
             border: 1px solid var(--border-color);
             animation: fadeIn 0.8s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-item::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
 
         .stat-item:hover {
             transform: translateY(-5px);
             box-shadow: var(--card-shadow-hover);
+        }
+
+        .stat-item:hover::after {
+            opacity: 1;
         }
 
         .stat-number {
@@ -619,7 +953,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             background: var(--card-bg);
             text-align: center;
             padding: 40px 30px;
-            border-radius: 10px;
+            border-radius: 22px;
             box-shadow: var(--card-shadow);
             transition: all 0.3s ease;
             animation: fadeIn 0.8s ease;
@@ -642,7 +976,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             width: 80px;
             height: 80px;
             background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
-            border-radius: 50%;
+            border-radius: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -680,7 +1014,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         .office-card {
             background: var(--card-bg);
             padding: 30px 25px;
-            border-radius: 10px;
+            border-radius: 22px;
             text-align: center;
             box-shadow: var(--card-shadow);
             transition: all 0.3s ease;
@@ -730,7 +1064,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             animation: fadeIn 0.8s ease;
             animation-fill-mode: both;
             background: var(--card-bg);
-            border-radius: 10px;
+            border-radius: 22px;
             box-shadow: var(--card-shadow);
             transition: all 0.3s ease;
             border: 1px solid var(--border-color);
@@ -791,7 +1125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         .testimonial-card {
             background: var(--card-bg);
             padding: 30px;
-            border-radius: 10px;
+            border-radius: 22px;
             box-shadow: var(--card-shadow);
             transition: 0.3s;
             border: 1px solid var(--border-color);
@@ -862,7 +1196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         .contact-info {
             background: var(--card-bg);
             padding: 40px;
-            border-radius: 10px;
+            border-radius: 22px;
             box-shadow: var(--card-shadow);
             animation: slideInLeft 0.8s ease;
             border: 1px solid var(--border-color);
@@ -918,7 +1252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         .contact-form {
             background: var(--card-bg);
             padding: 40px;
-            border-radius: 10px;
+            border-radius: 22px;
             box-shadow: var(--card-shadow);
             animation: slideInRight 0.8s ease;
             border: 1px solid var(--border-color);
@@ -1018,7 +1352,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             max-width: 1200px;
             margin: 0 auto;
             background: var(--card-bg);
-            border-radius: 10px;
+            border-radius: 22px;
             overflow: hidden;
             box-shadow: var(--card-shadow);
             animation: fadeIn 1s ease;
@@ -1035,6 +1369,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             position: relative;
             overflow: hidden;
             transition: background 0.3s ease;
+        }
+
+        .map-placeholder iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+            display: block;
         }
 
         .map-placeholder::before {
@@ -1312,6 +1653,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             transition: 0.3s;
             background: var(--input-bg);
             color: var(--text-primary);
+            min-height: 44px;
+            font-size: 16px;
         }
 
         .newsletter-input:focus {
@@ -1358,21 +1701,279 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             .stats-container {
                 grid-template-columns: repeat(2, 1fr);
             }
+
+            .hero-mini-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 920px) {
             nav {
-                flex-direction: column;
-                gap: 15px;
+                gap: 10px;
+                align-items: center;
+                position: relative;
+            }
+
+            .logo {
+                min-width: 0;
+                flex: 1;
+                gap: 8px;
+            }
+
+            .logo-icon {
+                width: 38px;
+                height: 38px;
+                border-radius: 10px;
+            }
+
+            .logo-icon img {
+                border-radius: 10px;
+            }
+
+            .logo-text h1 {
+                font-size: 0.86rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .logo-text p {
+                font-size: 0.64rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .nav-toggle {
+                display: inline-flex;
+                margin-left: auto;
             }
 
             .nav-links {
-                flex-wrap: wrap;
+                width: 100%;
+                display: none;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+                padding: 12px;
+                border-radius: 14px;
+                background: var(--card-bg);
+                border: 1px solid var(--border-color);
+                box-shadow: var(--card-shadow);
+                position: absolute;
+                top: calc(100% + 8px);
+                left: 0;
+                right: 0;
+                z-index: 1002;
+            }
+
+            .nav-links.open {
+                display: flex;
+            }
+
+            .nav-backdrop.show {
+                display: block;
+                position: fixed;
+                inset: 0;
+                background: rgba(15, 23, 42, 0.22);
+                backdrop-filter: blur(2px);
+                z-index: 999;
+                pointer-events: auto;
+            }
+
+            .nav-links a {
+                width: 100%;
+                padding: 10px 12px;
+                border-radius: 10px;
+            }
+
+            .mobile-auth-row {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .mobile-auth-row .signup-btn,
+            .mobile-auth-row .login-btn {
+                width: 100%;
                 justify-content: center;
+                padding: 9px 10px;
+                font-size: 0.92rem;
+                min-height: 40px;
+            }
+
+            .nav-links a::after {
+                display: none;
+            }
+
+            .theme-toggle {
+                margin-left: 0;
+            }
+
+            .contact-container {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+
+            .contact-info,
+            .contact-form {
+                padding: 30px 24px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            :root {
+                --header-height: 62px;
+            }
+
+            header {
+                padding-top: calc(0.35rem + env(safe-area-inset-top));
+            }
+
+            nav {
+                gap: 10px;
+                align-items: center;
+                position: relative;
+            }
+
+            .logo {
+                min-width: 0;
+                flex: 1;
+                gap: 8px;
+            }
+
+            .logo-icon {
+                width: 38px;
+                height: 38px;
+                border-radius: 10px;
+            }
+
+            .logo-icon img {
+                border-radius: 10px;
+            }
+
+            .logo-text h1 {
+                font-size: 0.86rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .logo-text p {
+                font-size: 0.64rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .nav-toggle {
+                display: inline-flex;
+                margin-left: auto;
+            }
+
+            .nav-links {
+                width: 100%;
+                display: none;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+                padding: 12px;
+                border-radius: 14px;
+                background: var(--card-bg);
+                border: 1px solid var(--border-color);
+                box-shadow: var(--card-shadow);
+                position: absolute;
+                top: calc(100% + 8px);
+                left: 0;
+                right: 0;
+                z-index: 1002;
+            }
+
+            .nav-links.open {
+                display: flex;
+            }
+
+            .nav-backdrop.show {
+                display: block;
+                position: fixed;
+                inset: 0;
+                background: rgba(15, 23, 42, 0.22);
+                backdrop-filter: blur(2px);
+                z-index: 999;
+                pointer-events: auto;
+            }
+
+            .nav-links a {
+                width: 100%;
+                padding: 10px 12px;
+                border-radius: 10px;
+            }
+
+            .mobile-auth-row {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .mobile-auth-row .signup-btn,
+            .mobile-auth-row .login-btn {
+                width: 100%;
+                justify-content: center;
+                padding: 9px 10px;
+                font-size: 0.92rem;
+                min-height: 40px;
+            }
+
+            .nav-links a::after {
+                display: none;
+            }
+
+            .theme-toggle {
+                margin-left: 0;
             }
 
             .hero-text h1 {
                 font-size: 2rem;
+                max-width: unset;
+            }
+
+            .hero-text p {
+                font-size: 1rem;
+            }
+
+            .hero-version {
+                margin-top: -10px;
+                margin-bottom: 22px;
+                text-align: center;
+            }
+
+            .hero {
+                min-height: calc(100dvh - var(--header-height));
+                padding: 38px 18px 24px;
+            }
+
+            .hero-badge {
+                width: 100%;
+                justify-content: center;
+                text-align: center;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .hero-buttons .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .hero-highlights {
+                justify-content: center;
+            }
+
+            .hero-mini-grid {
+                grid-template-columns: 1fr;
             }
 
             .steps-container,
@@ -1381,8 +1982,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                 grid-template-columns: 1fr;
             }
 
-            .hero-image i {
-                font-size: 10rem;
+            .stats-section,
+            .features,
+            .offices,
+            .how-it-works,
+            .testimonials,
+            .contact,
+            .map-section {
+                padding: 64px 18px;
+            }
+
+            .section-title {
+                margin-bottom: 34px;
+            }
+
+            .section-title h2 {
+                font-size: 2rem;
+            }
+
+            .hero-visual {
+                padding: 22px;
+            }
+
+            .hero-icon-wrap {
+                width: 110px;
+                height: 110px;
+                border-radius: 22px;
+            }
+
+            .hero-icon-wrap i {
+                font-size: 2.6rem;
             }
 
             .cta-buttons {
@@ -1395,6 +2024,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                 width: 100%;
                 max-width: 300px;
             }
+
+            .newsletter-form {
+                flex-direction: column;
+            }
+
+            .newsletter-btn {
+                width: 100%;
+            }
+
+            .alert {
+                padding: 12px 14px;
+                margin: 14px auto;
+                font-size: 0.92rem;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation: none !important;
+                transition: none !important;
+                scroll-behavior: auto !important;
+            }
         }
     </style>
 </head>
@@ -1404,31 +2057,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <button class="scroll-top" id="scrollTop" onclick="scrollToTop()">
         <i class="fas fa-arrow-up"></i>
     </button>
+    <div class="nav-backdrop" id="navBackdrop"></div>
 
     <!-- Header -->
     <header id="header">
         <nav>
             <div class="logo">
-                <div class="logo-icon">BISU</div>
+                <div class="logo-icon">
+                    <img src="assets/img/logo.png" alt="BISU Logo">
+                </div>
                 <div class="logo-text">
                     <h1>Online Student Clearance</h1>
                     <p>Bohol Island State University</p>
                 </div>
             </div>
-            <div class="nav-links">
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="navLinks">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="nav-links" id="navLinks">
                 <a href="#home">Home</a>
                 <a href="#features">Features</a>
                 <a href="#offices">Offices</a>
                 <a href="#how-it-works">How It Works</a>
                 <a href="#contact">Contact</a>
-                
+
                 <!-- Sign Up and Login Buttons Only -->
-                <a href="signup.php" class="signup-btn">
-                    <i class="fas fa-user-plus"></i> Sign Up
-                </a>
-                <a href="login.php" class="login-btn">
-                    <i class="fas fa-sign-in-alt"></i> Login
-                </a>
+                <div class="mobile-auth-row">
+                    <a href="register.php" class="signup-btn">
+                        <i class="fas fa-user-plus"></i> Sign Up
+                    </a>
+                    <a href="login.php" class="login-btn">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </a>
+                </div>
                 
                 <!-- Dark Mode Toggle -->
                 <div class="theme-toggle" id="themeToggle">
@@ -1461,20 +2122,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <section class="hero" id="home">
         <div class="hero-content">
             <div class="hero-text">
+                <div class="hero-badge">
+                    <i class="fas fa-bolt"></i>
+                    Digital-first campus service · Version <?php echo SITE_VERSION; ?>
+                </div>
                 <h1>Streamline Your Student Clearance Process</h1>
                 <p>Experience a faster, more efficient way to complete your clearance requirements online. No more long
                     queues and paper forms!</p>
+                <p class="hero-version">Version <?php echo SITE_VERSION; ?></p>
                 <div class="hero-buttons">
-                    <a href="signup.php" class="btn btn-primary">
+                    <a href="register.php" class="btn btn-primary">
                         <i class="fas fa-user-plus"></i> Sign Up Now
                     </a>
                     <a href="login.php" class="btn btn-outline">
                         <i class="fas fa-sign-in-alt"></i> Login
                     </a>
                 </div>
+                <div class="hero-highlights">
+                    <span class="hero-chip"><i class="fas fa-check-circle"></i> Real-time updates</span>
+                    <span class="hero-chip"><i class="fas fa-shield-alt"></i> Secure records</span>
+                    <span class="hero-chip"><i class="fas fa-mobile-alt"></i> Mobile-ready</span>
+                </div>
+                <div class="hero-mini-grid">
+                    <div class="hero-mini-card">
+                        <strong><?php echo number_format($stats['total_students'] ?? 0); ?>+</strong>
+                        <span>students supported</span>
+                    </div>
+                    <div class="hero-mini-card">
+                        <strong><?php echo number_format($stats['total_offices'] ?? 0); ?></strong>
+                        <span>office checkpoints</span>
+                    </div>
+                    <div class="hero-mini-card">
+                        <strong><?php echo SITE_VERSION; ?></strong>
+                        <span>refined mobile-ready release</span>
+                    </div>
+                </div>
             </div>
             <div class="hero-image">
-                <i class="fas fa-university"></i>
+                <div class="hero-visual">
+                    <div class="hero-icon-wrap">
+                        <img src="assets/img/logo.png" alt="BISU Logo">
+                    </div>
+                    <div class="hero-panel">
+                        <h3>Clearance Journey, Reimagined</h3>
+                        <p>From application to approval, track every step without queueing between offices.</p>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -1504,6 +2197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <!-- Features Section -->
     <section class="features" id="features">
         <div class="section-title">
+            <div class="section-kicker"><i class="fas fa-sparkles"></i> What Improved In 1.2.0</div>
             <h2>Why Choose Our System?</h2>
             <p>Designed to make your clearance process seamless and hassle-free</p>
         </div>
@@ -1538,6 +2232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <!-- Offices Section - Dynamic from Database -->
     <section class="offices" id="offices">
         <div class="section-title">
+            <div class="section-kicker"><i class="fas fa-building-shield"></i> Guided Workflow</div>
             <h2>Offices You'll Encounter</h2>
             <p>Complete your clearance with these university offices</p>
         </div>
@@ -1567,6 +2262,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <!-- How It Works Section -->
     <section class="how-it-works" id="how-it-works">
         <div class="section-title">
+            <div class="section-kicker"><i class="fas fa-route"></i> Simple Journey</div>
             <h2>How It Works</h2>
             <p>Get cleared in four simple steps</p>
         </div>
@@ -1627,6 +2323,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <!-- Contact Section -->
     <section class="contact" id="contact">
         <div class="section-title">
+            <div class="section-kicker"><i class="fas fa-headset"></i> Need Help?</div>
             <h2>Contact Us</h2>
             <p>Get in touch with us for any questions or concerns</p>
         </div>
@@ -1638,7 +2335,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                         <div class="contact-icon"><i class="fas fa-map-marker-alt"></i></div>
                         <div class="contact-text">
                             <h4>Address</h4>
-                            <p>Tagbilaran City, Bohol, Philippines</p>
+                            <p>Candijay, Cogtong, Bohol, Philippines</p>
                         </div>
                     </div>
                     <div class="contact-item">
@@ -1691,12 +2388,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <section class="map-section">
         <div class="map-container">
             <div class="map-placeholder">
-                <div class="map-content">
-                    <i class="fas fa-map-marked-alt"></i>
-                    <h3>Find Us Here</h3>
-                    <p>Bohol Island State University - Main Campus</p>
-                    <p>Tagbilaran City, Bohol</p>
-                </div>
+                <iframe
+                    title="Map to Candijay Cogtong"
+                    loading="lazy"
+                    allowfullscreen
+                    referrerpolicy="no-referrer-when-downgrade"
+                    src="https://www.google.com/maps?q=Candijay%2C%20Cogtong%2C%20Bohol&output=embed">
+                </iframe>
             </div>
         </div>
     </section>
@@ -1706,7 +2404,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         <h2>Ready to Get Cleared?</h2>
         <p>Join thousands of BISU students who have experienced hassle-free clearance processing</p>
         <div class="cta-buttons">
-            <a href="signup.php" class="btn btn-primary">
+            <a href="register.php" class="btn btn-primary">
                 <i class="fas fa-user-plus"></i> Sign Up Now
             </a>
             <a href="login.php" class="btn btn-outline-light">
@@ -1761,19 +2459,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         </div>
         <div class="footer-bottom">
             <p>&copy; <?php echo date('Y'); ?> Bohol Island State University. All rights reserved. | Version <?php echo SITE_VERSION; ?></p>
+            <p>Developer: EARL O. GULTIA</p>
         </div>
     </footer>
 
     <script>
+        const navToggle = document.getElementById('navToggle');
+        const navLinks = document.getElementById('navLinks');
+        const navBackdrop = document.getElementById('navBackdrop');
+
+        const syncHeaderHeight = () => {
+            const header = document.getElementById('header');
+            if (!header) {
+                return;
+            }
+
+            const measuredHeight = Math.ceil(header.getBoundingClientRect().height);
+            if (measuredHeight > 0) {
+                document.documentElement.style.setProperty('--header-height', `${measuredHeight}px`);
+            }
+        };
+
+        syncHeaderHeight();
+        window.addEventListener('load', syncHeaderHeight);
+        window.addEventListener('resize', syncHeaderHeight);
+
+        const closeMobileNav = () => {
+            navLinks?.classList.remove('open');
+            navToggle?.setAttribute('aria-expanded', 'false');
+            navBackdrop?.classList.remove('show');
+            document.body.classList.remove('nav-open');
+        };
+
+        const openMobileNav = () => {
+            navLinks?.classList.add('open');
+            navToggle?.setAttribute('aria-expanded', 'true');
+            navBackdrop?.classList.add('show');
+            document.body.classList.add('nav-open');
+        };
+
+        if (navToggle && navLinks) {
+            navToggle.addEventListener('click', () => {
+                const isOpen = navLinks.classList.contains('open');
+                if (isOpen) {
+                    closeMobileNav();
+                } else {
+                    openMobileNav();
+                }
+            });
+
+            navLinks.querySelectorAll('a').forEach((link) => {
+                link.addEventListener('click', () => {
+                    closeMobileNav();
+                });
+            });
+        }
+
+        navBackdrop?.addEventListener('click', closeMobileNav);
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeMobileNav();
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 920) {
+                closeMobileNav();
+            }
+        });
+
         // Smooth scrolling for anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
+                const href = this.getAttribute('href');
+                if (!href || href === '#') {
+                    return;
+                }
+
+                const target = document.querySelector(href);
                 if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
+                    e.preventDefault();
+                    const headerOffset = document.getElementById('header')?.offsetHeight || 0;
+                    const targetPosition = target.getBoundingClientRect().top + window.pageYOffset - headerOffset + 2;
+                    window.scrollTo({
+                        top: targetPosition,
+                        behavior: 'smooth'
                     });
                 }
             });

@@ -44,10 +44,10 @@ if ($file['error'] !== UPLOAD_ERR_OK) {
     ], 400);
 }
 
-if ($file['size'] > 2 * 1024 * 1024) {
+if ($file['size'] > 5 * 1024 * 1024) {
     jsonResponse([
         'success' => false,
-        'message' => 'File size must be less than 2MB.'
+        'message' => 'File size must be less than 5MB.'
     ], 400);
 }
 
