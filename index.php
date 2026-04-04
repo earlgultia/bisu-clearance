@@ -2212,9 +2212,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <!-- Features Section -->
     <section class="features" id="features">
         <div class="section-title">
-            <div class="section-kicker"><i class="fas fa-sparkles"></i> What's New In Beta 1.3.0</div>
+            <div class="section-kicker"><i class="fas fa-sparkles"></i> What's New In <?php echo SITE_VERSION; ?></div>
             <h2>Why Choose Our System?</h2>
-            <p>Beta 1.3.0 includes a new and improved messaging UI for clearer, faster communication.</p>
+            <p><?php echo SITE_VERSION; ?> includes a new and improved messaging UI for clearer, faster communication.</p>
         </div>
         <div class="features-grid">
             <div class="feature-card">
