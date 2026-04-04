@@ -80,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             --font-body: 'Plus Jakarta Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             --font-display: 'Space Grotesk', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             --header-height: 68px;
+            --header-offset: 68px;
             /* Light Mode Colors */
             --primary: #412886;
             --primary-dark: #2e1d5e;
@@ -189,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             color: var(--text-primary);
             line-height: 1.6;
             overflow-x: hidden;
-            padding-top: var(--header-height);
+            padding-top: var(--header-offset);
             transition: background-color 0.3s ease, color 0.3s ease;
             -webkit-text-size-adjust: 100%;
         }
@@ -811,6 +812,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             text-transform: uppercase;
             letter-spacing: 0.06em;
             margin-bottom: 14px;
+        }
+
+        .features .section-kicker {
+            margin-bottom: 22px;
         }
 
         .section-kicker i {
@@ -1824,6 +1829,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         @media (max-width: 768px) {
             :root {
                 --header-height: 62px;
+                --header-offset: 62px;
             }
 
             header {
@@ -1930,6 +1936,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
 
             .theme-toggle {
                 margin-left: 0;
+            }
+
+            .contact .section-kicker {
+                margin-bottom: 22px;
             }
 
             .hero-text h1 {
@@ -2476,7 +2486,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
 
             const measuredHeight = Math.ceil(header.getBoundingClientRect().height);
             if (measuredHeight > 0) {
-                document.documentElement.style.setProperty('--header-height', `${measuredHeight}px`);
+                // Keep nav sizing stable; only update body offset to prevent header growth loops on mobile resize.
+                document.documentElement.style.setProperty('--header-offset', `${measuredHeight}px`);
             }
         };
 
