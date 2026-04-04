@@ -819,6 +819,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             margin-bottom: 22px;
         }
 
+        .offices .section-kicker {
+            margin-bottom: 22px;
+        }
+
         .section-kicker i {
             color: var(--accent);
         }
