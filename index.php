@@ -2124,7 +2124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             <div class="hero-text">
                 <div class="hero-badge">
                     <i class="fas fa-bolt"></i>
-                    Digital-first campus service · Version <?php echo SITE_VERSION; ?>
+                    Version <?php echo SITE_VERSION; ?>
                 </div>
                 <h1>Streamline Your Student Clearance Process</h1>
                 <p>Experience a faster, more efficient way to complete your clearance requirements online. No more long
@@ -2197,7 +2197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <!-- Features Section -->
     <section class="features" id="features">
         <div class="section-title">
-            <div class="section-kicker"><i class="fas fa-sparkles"></i> What Improved In 1.2.0</div>
+            <div class="section-kicker"><i class="fas fa-sparkles"></i> What Improved In 1.3.0</div>
             <h2>Why Choose Our System?</h2>
             <p>Designed to make your clearance process seamless and hassle-free</p>
         </div>

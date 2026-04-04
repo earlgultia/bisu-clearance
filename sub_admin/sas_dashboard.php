@@ -1460,6 +1460,34 @@ function getOrgTypeBadge($type)
             transform: translateY(-2px);
         }
 
+        .mobile-logout-wrap {
+            display: none;
+            padding: 0 20px 20px;
+            flex-shrink: 0;
+        }
+
+        .mobile-logout-btn {
+            width: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-decoration: none;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-weight: 700;
+            background: var(--danger-soft);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            transition: 0.25s ease;
+        }
+
+        .mobile-logout-btn:hover {
+            background: var(--danger);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
         .main-container {
             display: flex;
             margin-top: var(--header-height);
@@ -1475,6 +1503,8 @@ function getOrgTypeBadge($type)
             background: var(--sidebar-bg);
             border-right: 1px solid var(--border-color);
             padding: 30px 0;
+            display: flex;
+            flex-direction: column;
             position: fixed;
             top: var(--header-height);
             height: calc(100vh - var(--header-height));
@@ -1605,6 +1635,8 @@ function getOrgTypeBadge($type)
 
         .nav-menu {
             padding: 20px;
+            flex: 1 1 auto;
+            overflow-y: auto;
         }
 
         .nav-item {
@@ -2590,6 +2622,20 @@ function getOrgTypeBadge($type)
                 --header-height: 74px;
             }
 
+            .header-logout-btn {
+                display: none;
+            }
+
+            .mobile-logout-wrap {
+                display: block;
+                margin-top: auto;
+                padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+                border-top: 1px solid var(--border-color);
+                background: linear-gradient(180deg, rgba(15, 76, 129, 0.02) 0%, var(--sidebar-bg) 55%);
+                position: sticky;
+                bottom: 0;
+            }
+
             .menu-toggle {
                 display: inline-flex;
                 flex-shrink: 0;
@@ -2653,6 +2699,17 @@ function getOrgTypeBadge($type)
                 border-radius: 16px;
             }
 
+            .table-responsive {
+                -webkit-overflow-scrolling: touch;
+            }
+
+            th,
+            td {
+                padding: 12px 10px;
+                font-size: 0.85rem;
+                white-space: nowrap;
+            }
+
             .section-header {
                 flex-direction: column;
                 align-items: flex-start;
@@ -2685,6 +2742,11 @@ function getOrgTypeBadge($type)
 
             .modal-footer {
                 flex-direction: column;
+            }
+
+            .modal-content {
+                width: calc(100% - 24px);
+                border-radius: 18px;
             }
 
             .btn {
@@ -2774,7 +2836,7 @@ function getOrgTypeBadge($type)
                         <div class="user-role">Director of Student Affairs</div>
                     </div>
                 </div>
-                <a href="../logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                <a href="../logout.php" class="logout-btn header-logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
             </div>
         </div>
     </header>
@@ -2826,6 +2888,11 @@ function getOrgTypeBadge($type)
                     <i class="fas fa-history"></i> Clearance History
                 </button>
             </nav>
+            <div class="mobile-logout-wrap">
+                <a href="../logout.php" class="mobile-logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
         </aside>
         <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
 

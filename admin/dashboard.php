@@ -2350,9 +2350,9 @@ function getRoleBadgeClass($role)
             </div>
             <div class="user-menu">
                 <div class="user-info">
-                    <div class="user-avatar">
-                        <?php if ($profile_pic && file_exists($profile_pic)): ?>
-                                <img src="<?php echo $profile_pic . '?t=' . time(); ?>" alt="Profile">
+                        <div class="user-avatar">
+                        <?php if ($profile_pic && file_exists(__DIR__ . '/../' . ltrim($profile_pic, '/\\'))): ?>
+                            <img src="../<?php echo ltrim($profile_pic, '/\\') . '?t=' . time(); ?>" alt="Profile">
                         <?php else: ?>
                                 <i class="fas fa-user-shield"></i>
                         <?php endif; ?>
@@ -2373,8 +2373,8 @@ function getRoleBadgeClass($role)
         <aside class="sidebar">
             <div class="profile-section">
                 <div class="profile-avatar" id="avatarContainer">
-                    <?php if ($profile_pic && file_exists($profile_pic)): ?>
-                            <img src="<?php echo $profile_pic . '?t=' . time(); ?>" alt="Profile" id="profileImage">
+                    <?php if ($profile_pic && file_exists(__DIR__ . '/../' . ltrim($profile_pic, '/\\'))): ?>
+                        <img src="../<?php echo ltrim($profile_pic, '/\\') . '?t=' . time(); ?>" alt="Profile" id="profileImage">
                     <?php else: ?>
                             <i class="fas fa-user-shield" id="avatarIcon" style="font-size: 3rem; line-height: 120px;"></i>
                             <img src="" alt="Profile" id="profileImage" style="display: none;">
@@ -3754,17 +3754,34 @@ function getRoleBadgeClass($role)
                     uploadProgress.classList.remove('show');
 
                     if (data.success) {
+                        const cleanPath = String(data.filepath || '')
+                            .replace(/^(\.\.\/|\.\/)+/, '')
+                            .replace(/^\/+/, '');
+                        const avatarUrl = '../' + cleanPath + '?t=' + new Date().getTime();
+
                         if (profileImage) {
-                            profileImage.src = data.filepath + '?t=' + new Date().getTime();
+                            profileImage.src = avatarUrl;
                             profileImage.style.display = 'block';
                         }
                         if (avatarIcon) {
                             avatarIcon.style.display = 'none';
                         }
 
-                        const headerAvatar = document.querySelector('.user-avatar img');
+                        let headerAvatar = document.querySelector('.user-avatar img');
+                        if (!headerAvatar) {
+                            const headerAvatarContainer = document.querySelector('.user-avatar');
+                            if (headerAvatarContainer) {
+                                const headerAvatarIcon = headerAvatarContainer.querySelector('i');
+                                if (headerAvatarIcon) {
+                                    headerAvatarIcon.remove();
+                                }
+                                headerAvatar = document.createElement('img');
+                                headerAvatar.alt = 'Profile';
+                                headerAvatarContainer.appendChild(headerAvatar);
+                            }
+                        }
                         if (headerAvatar) {
-                            headerAvatar.src = data.filepath + '?t=' + new Date().getTime();
+                            headerAvatar.src = avatarUrl;
                         }
 
                         showToast('Profile picture updated successfully!', 'success');
