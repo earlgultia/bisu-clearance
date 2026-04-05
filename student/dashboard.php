@@ -5944,6 +5944,70 @@ function getOrganizationIcon($org_type)
             background: var(--primary-light);
         }
 
+        .conversation-delete-alert-popup {
+            width: min(92vw, 420px);
+            border-radius: 16px;
+            padding: 1rem 0.95rem 0.9rem;
+        }
+
+        .conversation-delete-alert-title {
+            font-size: 1.04rem;
+            line-height: 1.24;
+            margin-bottom: 0.4rem;
+        }
+
+        .conversation-delete-alert-text {
+            font-size: 0.89rem;
+            line-height: 1.45;
+            margin: 0;
+            word-break: break-word;
+        }
+
+        .conversation-delete-alert-popup .swal2-icon {
+            margin: 0.3rem auto 0.65rem;
+            transform-origin: center;
+        }
+
+        .conversation-delete-alert-popup .swal2-actions {
+            width: 100%;
+            margin: 0.9rem 0 0;
+            gap: 0.55rem;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .conversation-delete-alert-confirm,
+        .conversation-delete-alert-cancel {
+            width: 100%;
+            min-height: 38px;
+            border-radius: 10px;
+            padding: 0.5rem 0.9rem;
+            font-size: 0.83rem;
+            font-weight: 700;
+            border: 1px solid transparent;
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .conversation-delete-alert-confirm {
+            background: var(--danger);
+            color: #fff;
+        }
+
+        .conversation-delete-alert-confirm:hover {
+            background: var(--danger-light);
+        }
+
+        .conversation-delete-alert-cancel {
+            background: var(--bg);
+            color: var(--text);
+            border-color: var(--border);
+        }
+
+        .conversation-delete-alert-cancel:hover {
+            background: var(--bg-dark);
+        }
+
         @keyframes slideIn {
             from {
                 transform: translateX(100%);
@@ -6468,6 +6532,39 @@ function getOrganizationIcon($org_type)
                 font-size: 0.8rem;
                 padding: 0.45rem 0.85rem;
             }
+
+            .conversation-delete-alert-popup {
+                width: calc(100vw - 1.4rem);
+                max-width: 340px;
+                padding: 0.86rem 0.78rem 0.76rem;
+            }
+
+            .conversation-delete-alert-popup .swal2-icon {
+                transform: scale(0.9);
+                margin-bottom: 0.42rem;
+            }
+
+            .conversation-delete-alert-title {
+                font-size: 0.95rem;
+            }
+
+            .conversation-delete-alert-text {
+                font-size: 0.82rem;
+                line-height: 1.42;
+            }
+
+            .conversation-delete-alert-popup .swal2-actions {
+                grid-template-columns: 1fr;
+                margin-top: 0.75rem;
+                gap: 0.45rem;
+            }
+
+            .conversation-delete-alert-confirm,
+            .conversation-delete-alert-cancel {
+                min-height: 36px;
+                font-size: 0.79rem;
+                padding: 0.45rem 0.8rem;
+            }
         }
 
         @media (max-width: 480px) {
@@ -6553,6 +6650,27 @@ function getOrganizationIcon($org_type)
             .graduating-alert-confirm {
                 min-height: 34px;
                 font-size: 0.78rem;
+            }
+
+            .conversation-delete-alert-popup {
+                width: calc(100vw - 1rem);
+                max-width: 312px;
+                border-radius: 14px;
+                padding: 0.8rem 0.72rem 0.7rem;
+            }
+
+            .conversation-delete-alert-title {
+                font-size: 0.9rem;
+            }
+
+            .conversation-delete-alert-text {
+                font-size: 0.79rem;
+            }
+
+            .conversation-delete-alert-confirm,
+            .conversation-delete-alert-cancel {
+                min-height: 34px;
+                font-size: 0.76rem;
             }
 
             .clearance-process-flow {
@@ -9286,6 +9404,7 @@ function getOrganizationIcon($org_type)
 
                 const label = String(friendName || 'this classmate').trim() || 'this classmate';
                 const confirmText = `Delete your entire conversation with ${label}? This cannot be undone.`;
+                const isCompactViewport = window.innerWidth <= 768;
 
                 if (window.Swal && typeof window.Swal.fire === 'function') {
                     window.Swal.fire({
@@ -9293,10 +9412,18 @@ function getOrganizationIcon($org_type)
                         title: 'Delete conversation?',
                         text: confirmText,
                         showCancelButton: true,
-                        confirmButtonText: 'Delete Conversation',
+                        confirmButtonText: isCompactViewport ? 'Delete' : 'Delete Conversation',
                         cancelButtonText: 'Cancel',
                         confirmButtonColor: '#c62828',
-                        reverseButtons: true
+                        reverseButtons: true,
+                        customClass: {
+                            popup: 'conversation-delete-alert-popup',
+                            title: 'conversation-delete-alert-title',
+                            htmlContainer: 'conversation-delete-alert-text',
+                            confirmButton: 'conversation-delete-alert-confirm',
+                            cancelButton: 'conversation-delete-alert-cancel'
+                        },
+                        buttonsStyling: false
                     }).then((result) => {
                         if (result.isConfirmed) {
                             submitConversationDelete(normalizedFriendId);
