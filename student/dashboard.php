@@ -142,7 +142,7 @@ function buildMessageSnippet($text, $maxChars = 120, $collapseWhitespace = true)
     return rtrim((string) $trimmed) . '...';
 }
 
-function buildFriendPresenceMeta($isOnlineFlag, $lastSeenAtRaw)
+function buildFriendPresenceMeta($isOnlineFlag, $lastSeenAtRaw, $elapsedSecondsRaw = null)
 {
     $isOnline = (int) $isOnlineFlag === 1;
     $statusClass = $isOnline ? 'online' : 'offline';
@@ -150,9 +150,18 @@ function buildFriendPresenceMeta($isOnlineFlag, $lastSeenAtRaw)
     $minutesSinceLogout = null;
 
     if (!$isOnline) {
-        $lastSeenTs = !empty($lastSeenAtRaw) ? strtotime((string) $lastSeenAtRaw) : false;
-        if ($lastSeenTs !== false) {
-            $elapsedSeconds = max(0, time() - $lastSeenTs);
+        $elapsedSeconds = null;
+
+        if ($elapsedSecondsRaw !== null && $elapsedSecondsRaw !== '' && is_numeric($elapsedSecondsRaw)) {
+            $elapsedSeconds = max(0, (int) floor((float) $elapsedSecondsRaw));
+        } else {
+            $lastSeenTs = !empty($lastSeenAtRaw) ? strtotime((string) $lastSeenAtRaw) : false;
+            if ($lastSeenTs !== false) {
+                $elapsedSeconds = max(0, time() - $lastSeenTs);
+            }
+        }
+
+        if ($elapsedSeconds !== null) {
             $minutesSinceLogout = (int) floor($elapsedSeconds / 60);
 
             if ($elapsedSeconds < 60) {
@@ -654,7 +663,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'message_notifications') {
             try {
                 $db->query("SELECT u.users_id,
                                    COALESCE(u.is_online, 0) AS is_online_flag,
-                                   u.last_seen_at
+                                   u.last_seen_at,
+                                   CASE
+                                       WHEN u.last_seen_at IS NULL THEN NULL
+                                       ELSE GREATEST(TIMESTAMPDIFF(SECOND, u.last_seen_at, NOW()), 0)
+                                   END AS seconds_since_last_seen
                             FROM student_friendships sf
                             INNER JOIN users u ON u.users_id = CASE
                                 WHEN sf.user_one_id = :viewer_id_case THEN sf.user_two_id
@@ -677,7 +690,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'message_notifications') {
 
                     $presence_meta = buildFriendPresenceMeta(
                         $presence_row['is_online_flag'] ?? 0,
-                        $presence_row['last_seen_at'] ?? null
+                        $presence_row['last_seen_at'] ?? null,
+                        $presence_row['seconds_since_last_seen'] ?? null
                     );
 
                     $response['friend_presence'][(string) $friend_id] = [
@@ -1923,9 +1937,14 @@ try {
         : "NULL AS profile_picture,";
     $friend_presence_column_sql = $user_presence_columns_available
         ? "COALESCE(u.is_online, 0) AS is_online_flag,
-                    u.last_seen_at,"
+                    u.last_seen_at,
+                    CASE
+                        WHEN u.last_seen_at IS NULL THEN NULL
+                        ELSE GREATEST(TIMESTAMPDIFF(SECOND, u.last_seen_at, NOW()), 0)
+                    END AS seconds_since_last_seen,"
         : "0 AS is_online_flag,
-                    NULL AS last_seen_at,";
+                    NULL AS last_seen_at,
+                    NULL AS seconds_since_last_seen,";
 
     $db->query("SELECT u.users_id,
                     u.ismis_id,
@@ -1967,7 +1986,8 @@ try {
 
         $presence_meta = buildFriendPresenceMeta(
             $friend['is_online_flag'] ?? 0,
-            $friend['last_seen_at'] ?? null
+            $friend['last_seen_at'] ?? null,
+            $friend['seconds_since_last_seen'] ?? null
         );
 
         $friend['base_display_name'] = $base_display_name;
