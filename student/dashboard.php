@@ -4892,11 +4892,11 @@ function getOrganizationIcon($org_type)
         }
 
         .messenger-bubble {
-            max-width: min(78%, 680px);
-            padding: 0.62rem 0.9rem;
+            max-width: min(62%, 500px);
+            padding: 0.5rem 0.74rem;
             border-radius: 16px;
-            font-size: 0.9rem;
-            line-height: 1.45;
+            font-size: 0.83rem;
+            line-height: 1.35;
             word-break: break-word;
             box-shadow: 0 6px 14px rgba(13, 21, 42, 0.08);
         }
@@ -4912,6 +4912,7 @@ function getOrganizationIcon($org_type)
             background: linear-gradient(145deg, #1498ff, #006fff 65%);
             color: #ffffff;
             border-bottom-right-radius: 6px;
+            max-width: min(58%, 460px);
         }
 
         .messenger-bubble-meta {
@@ -4949,7 +4950,9 @@ function getOrganizationIcon($org_type)
         }
 
         .messenger-message-text {
-            white-space: normal;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            max-width: 100%;
         }
 
         .messenger-attachment-wrap {
@@ -5271,62 +5274,111 @@ function getOrganizationIcon($org_type)
 
         .messenger-attachment-picker {
             display: grid;
-            gap: 0.28rem;
+            gap: 0.32rem;
         }
 
-        .messenger-attachment-picker input[type="file"] {
-            width: 100%;
-            font-size: 0.82rem;
-            color: #385374;
-            border: 1px dashed #b9cff5;
-            border-radius: 12px;
-            background: linear-gradient(180deg, #f7faff, #eef4ff);
-            padding: 0.45rem 0.5rem;
-            cursor: pointer;
-            transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+        .messenger-attachment-input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
         }
 
-        .messenger-attachment-picker input[type="file"]:hover {
-            border-color: #88aff6;
-            background: linear-gradient(180deg, #f2f7ff, #e8f0ff);
+        .messenger-attachment-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            min-height: 40px;
         }
 
-        .messenger-attachment-picker input[type="file"]:focus-visible {
-            outline: none;
-            border-color: #2f86ff;
-            box-shadow: 0 0 0 3px rgba(47, 134, 255, 0.2);
-        }
-
-        .messenger-attachment-picker input[type="file"]::file-selector-button {
+        .messenger-attach-trigger {
+            width: 40px;
+            height: 40px;
             border: none;
-            border-radius: 10px;
-            margin-right: 0.6rem;
-            padding: 0.44rem 0.82rem;
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 0.01em;
-            color: #fff;
-            background: linear-gradient(145deg, #1193ff, #086eff);
+            border-radius: 50%;
+            background: #e7f3ff;
+            color: #0b74ff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+            flex-shrink: 0;
         }
 
-        .messenger-attachment-picker input[type="file"]::file-selector-button:hover {
+        .messenger-attach-trigger i {
+            font-size: 1rem;
+            transform: rotate(-20deg);
+        }
+
+        .messenger-attach-trigger:hover {
+            background: #d9ebff;
             transform: translateY(-1px);
-            box-shadow: 0 8px 16px rgba(8, 110, 255, 0.3);
+            box-shadow: 0 8px 18px rgba(8, 110, 255, 0.22);
         }
 
-        .messenger-attachment-picker input[type="file"]::-webkit-file-upload-button {
-            border: none;
-            border-radius: 10px;
-            margin-right: 0.6rem;
-            padding: 0.44rem 0.82rem;
-            font-size: 0.78rem;
+        .messenger-attach-trigger:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(47, 134, 255, 0.24);
+        }
+
+        .messenger-attachment-selected {
+            min-width: 0;
+            max-width: 100%;
+            border: 1px solid #d5e6ff;
+            background: #f4f8ff;
+            color: #2f4f7b;
+            border-radius: 999px;
+            padding: 0.32rem 0.5rem;
+            display: none;
+            align-items: center;
+            gap: 0.42rem;
+            font-size: 0.74rem;
+            line-height: 1.2;
+        }
+
+        .messenger-attachment-selected.show {
+            display: inline-flex;
+        }
+
+        .messenger-attachment-selected.is-error {
+            border-color: rgba(198, 40, 40, 0.5);
+            background: #fff2f2;
+            color: #aa2c2c;
+        }
+
+        .messenger-attachment-selected i {
+            font-size: 0.72rem;
+            flex-shrink: 0;
+        }
+
+        .messenger-attachment-selected span {
+            min-width: 0;
+            max-width: 260px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
             font-weight: 700;
-            letter-spacing: 0.01em;
-            color: #fff;
-            background: linear-gradient(145deg, #1193ff, #086eff);
+        }
+
+        .messenger-attachment-clear {
+            border: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: rgba(32, 74, 138, 0.12);
+            color: inherit;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
+            flex-shrink: 0;
+            transition: background-color 0.2s ease;
+        }
+
+        .messenger-attachment-clear:hover {
+            background: rgba(32, 74, 138, 0.2);
         }
 
         .messenger-attachment-hint {
@@ -5337,14 +5389,16 @@ function getOrganizationIcon($org_type)
         .messenger-composer-actions {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-end;
             gap: 0.7rem;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
         }
 
         .messenger-empty-chat-note {
             font-size: 0.75rem;
             color: var(--text-light);
+            margin-right: auto;
+            min-width: 0;
         }
 
         .messenger-send-btn {
@@ -5530,21 +5584,33 @@ function getOrganizationIcon($org_type)
             color: #8fa5ca;
         }
 
-        .dark-mode .messenger-attachment-picker input[type="file"] {
-            color: #b7ccf2;
-            border-color: #3c5f95;
-            background: linear-gradient(180deg, #13213b, #0f1a32);
+        .dark-mode .messenger-attach-trigger {
+            background: #163056;
+            color: #a9cdff;
         }
 
-        .dark-mode .messenger-attachment-picker input[type="file"]:hover {
-            border-color: #5f84c0;
-            background: linear-gradient(180deg, #162848, #13223f);
+        .dark-mode .messenger-attach-trigger:hover {
+            background: #1b3964;
         }
 
-        .dark-mode .messenger-attachment-picker input[type="file"]::file-selector-button,
-        .dark-mode .messenger-attachment-picker input[type="file"]::-webkit-file-upload-button {
-            background: linear-gradient(145deg, #2f8bff, #1b63dc);
-            color: #fff;
+        .dark-mode .messenger-attachment-selected {
+            border-color: #385685;
+            background: #16294b;
+            color: #cfe3ff;
+        }
+
+        .dark-mode .messenger-attachment-selected.is-error {
+            border-color: rgba(239, 83, 80, 0.55);
+            background: rgba(160, 42, 42, 0.34);
+            color: #ffd9d9;
+        }
+
+        .dark-mode .messenger-attachment-clear {
+            background: rgba(152, 186, 238, 0.18);
+        }
+
+        .dark-mode .messenger-attachment-clear:hover {
+            background: rgba(152, 186, 238, 0.3);
         }
 
         /* Summary Stats */
@@ -6280,7 +6346,13 @@ function getOrganizationIcon($org_type)
             }
 
             .messenger-bubble {
-                max-width: 88%;
+                max-width: 76%;
+                font-size: 0.8rem;
+                padding: 0.46rem 0.7rem;
+            }
+
+            .messenger-bubble-row.mine .messenger-bubble {
+                max-width: 72%;
             }
 
             .messenger-message-actions {
@@ -6297,21 +6369,36 @@ function getOrganizationIcon($org_type)
             }
 
             .messenger-composer-actions {
-                flex-direction: column;
-                align-items: stretch;
+                flex-direction: row;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 0.55rem;
             }
 
-            .messenger-attachment-picker input[type="file"] {
+            .messenger-attachment-controls {
                 width: 100%;
+            }
+
+            .messenger-attachment-selected {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .messenger-attachment-selected span {
+                max-width: none;
             }
 
             .messenger-empty-chat-note {
-                order: 2;
-                text-align: center;
+                order: 0;
+                flex: 1;
+                text-align: left;
+                font-size: 0.7rem;
             }
 
             .messenger-send-btn {
-                width: 100%;
+                width: auto;
+                min-width: 40px;
+                padding: 0.52rem 0.92rem;
                 justify-content: center;
             }
 
@@ -6526,9 +6613,13 @@ function getOrganizationIcon($org_type)
             }
 
             .messenger-bubble {
-                max-width: 92%;
-                font-size: 0.86rem;
-                padding: 0.55rem 0.78rem;
+                max-width: 82%;
+                font-size: 0.78rem;
+                padding: 0.42rem 0.62rem;
+            }
+
+            .messenger-bubble-row.mine .messenger-bubble {
+                max-width: 78%;
             }
 
             .messenger-bubble-meta {
@@ -8035,9 +8126,22 @@ function getOrganizationIcon($org_type)
                                     <input
                                         type="file"
                                         id="messageAttachmentInput"
+                                        class="messenger-attachment-input"
                                         name="message_attachment"
                                         accept="image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z"
                                     >
+                                    <div class="messenger-attachment-controls">
+                                        <button type="button" class="messenger-attach-trigger" id="messageAttachmentTrigger" aria-label="Attach a file" title="Attach a file">
+                                            <i class="fas fa-paperclip"></i>
+                                        </button>
+                                        <div class="messenger-attachment-selected" id="messageAttachmentSelected" aria-live="polite">
+                                            <i class="fas fa-file"></i>
+                                            <span id="messageAttachmentName">No file selected</span>
+                                            <button type="button" class="messenger-attachment-clear" id="messageAttachmentClearBtn" aria-label="Remove selected file">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
                                     <div class="messenger-attachment-hint" id="messageAttachmentHint">Optional: attach image, audio, or file (max 15 MB).</div>
                                 </div>
                                 <div class="messenger-composer-actions">
@@ -9088,6 +9192,10 @@ function getOrganizationIcon($org_type)
             const messengerMessageInput = document.getElementById('messengerMessageInput');
             const messageAttachmentInput = document.getElementById('messageAttachmentInput');
             const messageAttachmentHint = document.getElementById('messageAttachmentHint');
+            const messageAttachmentTrigger = document.getElementById('messageAttachmentTrigger');
+            const messageAttachmentSelected = document.getElementById('messageAttachmentSelected');
+            const messageAttachmentName = document.getElementById('messageAttachmentName');
+            const messageAttachmentClearBtn = document.getElementById('messageAttachmentClearBtn');
             const messengerSendButton = document.getElementById('messengerSendButton');
             const messengerComposerForm = document.getElementById('messengerComposerForm');
             const replyToMessageInput = document.getElementById('replyToMessageId');
@@ -9104,6 +9212,7 @@ function getOrganizationIcon($org_type)
             const reactionTargets = document.querySelectorAll('.messenger-reaction-target[data-message-id]');
             const reactionToggleButtons = document.querySelectorAll('[data-toggle-reactions]');
             const reactionPickers = document.querySelectorAll('[data-reaction-picker-for]');
+            const defaultAttachmentHint = 'Optional: attach image, audio, or file (max 15 MB).';
             let isSendingMessage = false;
             let activeReactionPickerMessageId = 0;
 
@@ -9383,31 +9492,62 @@ function getOrganizationIcon($org_type)
                 messengerMessageInput?.focus();
             });
 
-            messageAttachmentInput?.addEventListener('change', () => {
-                const selectedFile = messageAttachmentInput.files && messageAttachmentInput.files[0]
+            const updateAttachmentPreview = () => {
+                const selectedFile = messageAttachmentInput?.files && messageAttachmentInput.files[0]
                     ? messageAttachmentInput.files[0]
                     : null;
 
-                if (!messageAttachmentHint) {
-                    return;
-                }
-
                 if (!selectedFile) {
-                    messageAttachmentHint.textContent = 'Optional: attach image, audio, or file (max 15 MB).';
+                    if (messageAttachmentHint) {
+                        messageAttachmentHint.textContent = defaultAttachmentHint;
+                    }
+                    if (messageAttachmentName) {
+                        messageAttachmentName.textContent = 'No file selected';
+                    }
+                    messageAttachmentSelected?.classList.remove('show', 'is-error');
                     return;
                 }
 
                 const maxAttachmentSize = 15 * 1024 * 1024;
-                if (selectedFile.size > maxAttachmentSize) {
-                    messageAttachmentHint.textContent = 'Selected file is too large. Maximum is 15 MB.';
-                    return;
-                }
-
                 const sizeLabel = selectedFile.size >= 1024 * 1024
                     ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`
                     : `${Math.max(1, Math.round(selectedFile.size / 1024))} KB`;
-                messageAttachmentHint.textContent = `Selected: ${selectedFile.name} (${sizeLabel})`;
+
+                if (messageAttachmentName) {
+                    messageAttachmentName.textContent = `${selectedFile.name} (${sizeLabel})`;
+                }
+
+                messageAttachmentSelected?.classList.add('show');
+
+                if (selectedFile.size > maxAttachmentSize) {
+                    messageAttachmentSelected?.classList.add('is-error');
+                    if (messageAttachmentHint) {
+                        messageAttachmentHint.textContent = 'Selected file is too large. Maximum is 15 MB.';
+                    }
+                    return;
+                }
+
+                messageAttachmentSelected?.classList.remove('is-error');
+                if (messageAttachmentHint) {
+                    messageAttachmentHint.textContent = 'File ready to send.';
+                }
+            };
+
+            messageAttachmentTrigger?.addEventListener('click', () => {
+                messageAttachmentInput?.click();
             });
+
+            messageAttachmentClearBtn?.addEventListener('click', () => {
+                if (!messageAttachmentInput) {
+                    return;
+                }
+
+                messageAttachmentInput.value = '';
+                updateAttachmentPreview();
+            });
+
+            messageAttachmentInput?.addEventListener('change', updateAttachmentPreview);
+            updateAttachmentPreview();
 
             messengerMessageInput?.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {

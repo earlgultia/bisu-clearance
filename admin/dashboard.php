@@ -481,29 +481,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Edit User
     if (isset($_POST['edit_user'])) {
         $active_tab = 'users';
-        $user_id = $_POST['user_id'] ?? '';
+        $user_id = (int) ($_POST['user_id'] ?? 0);
         $fname = trim($_POST['fname'] ?? '');
         $lname = trim($_POST['lname'] ?? '');
         $email = trim($_POST['email'] ?? '');
         $user_role = $_POST['user_role'] ?? '';
-        $office_id = !empty($_POST['office_id']) ? $_POST['office_id'] : null;
-        $college_id = !empty($_POST['college_id']) ? $_POST['college_id'] : null;
+        $office_id_raw = trim((string) ($_POST['office_id'] ?? ''));
+        $college_id_raw = trim((string) ($_POST['college_id'] ?? ''));
+        $office_id = ($office_id_raw === '' || $office_id_raw === '0') ? null : $office_id_raw;
+        $college_id = ($college_id_raw === '' || $college_id_raw === '0') ? null : $college_id_raw;
         $ismis_id = !empty($_POST['ismis_id']) ? trim($_POST['ismis_id']) : null;
         $address = !empty($_POST['address']) ? trim($_POST['address']) : '';
         $contact = !empty($_POST['contact']) ? trim($_POST['contact']) : '';
         $age = !empty($_POST['age']) ? trim($_POST['age']) : null;
-        $is_active = isset($_POST['is_active']) ? 1 : 0;
+        $is_active = isset($_POST['is_active']) ? (int) $_POST['is_active'] : 1;
+        $is_active = $is_active === 0 ? 0 : 1;
 
         if (empty($user_id) || empty($fname) || empty($lname) || empty($email) || empty($user_role)) {
             $error = "All required fields must be filled.";
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error = "Please enter a valid email address.";
-        } elseif ($user_role === 'sub_admin' && empty($office_id)) {
-            $error = "Office assignment is required for Sub Admin.";
-        } elseif (in_array($user_role, ['dean', 'student'], true) && empty($college_id)) {
-            $error = "College assignment is required for this role.";
         } else {
             try {
+                // Get current user assignment so we can preserve existing values
+                // when the form omits them unintentionally.
+                $db->query("SELECT office_id, college_id
+                            FROM users
+                            WHERE users_id = :user_id
+                            LIMIT 1");
+                $db->bind(':user_id', $user_id);
+                $current_user = $db->single();
+
+                if (!$current_user) {
+                    $error = "User account not found.";
+                    throw new Exception("USER_NOT_FOUND");
+                }
+
+                if ($user_role === 'sub_admin' && empty($office_id) && !empty($current_user['office_id'])) {
+                    $office_id = $current_user['office_id'];
+                }
+
+                if (in_array($user_role, ['dean', 'student'], true) && empty($college_id) && !empty($current_user['college_id'])) {
+                    $college_id = $current_user['college_id'];
+                }
+
+                if ($user_role === 'sub_admin' && empty($office_id)) {
+                    $error = "Office assignment is required for Sub Admin.";
+                    throw new Exception("MISSING_OFFICE_ASSIGNMENT");
+                }
+
+                if (in_array($user_role, ['dean', 'student'], true) && empty($college_id)) {
+                    $error = "College assignment is required for this role.";
+                    throw new Exception("MISSING_COLLEGE_ASSIGNMENT");
+                }
+
                 // Check if email already exists for another user
                 $db->query("SELECT users_id FROM users WHERE emails = :email AND users_id != :user_id");
                 $db->bind(':email', $email);
@@ -595,7 +626,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             } catch (Exception $e) {
-                if ($e->getMessage() !== "ISMIS ID exists") {
+                if (!in_array($e->getMessage(), ['ISMIS ID exists', 'USER_NOT_FOUND', 'MISSING_OFFICE_ASSIGNMENT', 'MISSING_COLLEGE_ASSIGNMENT'], true)) {
                     $error = "Database error: " . $e->getMessage();
                 }
             }
@@ -3545,13 +3576,16 @@ function getRoleBadgeClass($role)
                 document.getElementById('modal_user_role').value = userData.role;
                 document.getElementById('edit_status').value = userData.is_active;
                 toggleModalRoleFields();
-                
-                if (userData.office) {
-                    document.getElementById('edit_office').value = userData.office;
-                }
-                if (userData.college) {
-                    document.getElementById('edit_college').value = userData.college;
-                }
+
+                const officeValue = (userData.office !== undefined && userData.office !== null)
+                    ? String(userData.office)
+                    : '';
+                const collegeValue = (userData.college !== undefined && userData.college !== null)
+                    ? String(userData.college)
+                    : '';
+
+                document.getElementById('edit_office').value = officeValue === '0' ? '' : officeValue;
+                document.getElementById('edit_college').value = collegeValue === '0' ? '' : collegeValue;
             } else {
                 titleText.textContent = 'Create New User Account';
                 submitBtn.textContent = 'Create Account';

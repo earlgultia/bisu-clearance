@@ -466,8 +466,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         /* Dark Mode Toggle Button */
         .theme-toggle {
             position: fixed;
-            top: calc(10px + env(safe-area-inset-top));
-            right: calc(10px + env(safe-area-inset-right));
+            top: 12px;
+            right: 12px;
             width: 60px;
             height: 30px;
             background: var(--bg-tertiary);
@@ -1048,15 +1048,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             .form-options {
-                flex-direction: column-reverse;
-                align-items: flex-start;
-                gap: 10px;
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                width: 100%;
+            }
+
+            .forgot-link {
+                margin-left: auto;
             }
 
             .theme-toggle {
                 position: fixed;
                 top: 12px;
                 right: 12px;
+                left: auto;
+                bottom: auto;
                 transform: none;
             }
         }
