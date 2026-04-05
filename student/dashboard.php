@@ -5993,9 +5993,11 @@ function getOrganizationIcon($org_type)
         }
 
         .track-status-empty-state .track-status-apply-btn {
-            padding: 0.72rem 1.35rem;
-            min-height: 40px;
-            font-size: 0.9rem;
+            padding: 0.46rem 0.9rem;
+            min-height: 32px;
+            font-size: 0.78rem;
+            border-radius: 12px;
+            gap: 0.35rem;
         }
 
         /* File Info */
@@ -6088,9 +6090,9 @@ function getOrganizationIcon($org_type)
             }
 
             .track-status-empty-state .track-status-apply-btn {
-                padding: 0.64rem 1.12rem;
-                min-height: 38px;
-                font-size: 0.85rem;
+                padding: 0.44rem 0.84rem;
+                min-height: 31px;
+                font-size: 0.76rem;
             }
 
             .header-content {
@@ -6474,9 +6476,9 @@ function getOrganizationIcon($org_type)
             }
 
             .track-status-empty-state .track-status-apply-btn {
-                padding: 0.58rem 1rem;
-                min-height: 36px;
-                font-size: 0.82rem;
+                padding: 0.4rem 0.78rem;
+                min-height: 30px;
+                font-size: 0.74rem;
             }
 
             .header-content {
