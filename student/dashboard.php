@@ -1290,14 +1290,21 @@ if (isset($_POST['upload_proof'])) {
 
 // Handle clearance application
 if (isset($_POST['apply_clearance'])) {
-    $clearance_type = $_POST['clearance_type'] ?? '';
+    $clearance_type = trim((string) ($_POST['clearance_type'] ?? ''));
+    $normalized_clearance_type = strtolower((string) preg_replace('/[^a-z0-9]+/', '', $clearance_type));
+    $is_non_graduating_clearance = strpos($normalized_clearance_type, 'nongraduating') !== false;
+    $is_graduating_only_clearance = strpos($normalized_clearance_type, 'graduating') !== false && !$is_non_graduating_clearance;
     // Enforce fixed semester and year server-side.
     $semester = '2nd Semester';
     $apply_year = (int) date('Y');
     $school_year_selected = ($apply_year - 1) . '-' . $apply_year;
 
-    if (empty($clearance_type)) {
+    if ($clearance_type === '') {
         $error = "Please select a clearance type.";
+    } elseif ($is_graduating_only_clearance) {
+        $error = "Graduating Clearance is coming soon. Please select Non-Graduating Clearance for now.";
+    } elseif (!$is_non_graduating_clearance) {
+        $error = "Only Non-Graduating Clearance is available right now.";
     } else {
         try {
             // Check if student already has pending clearance
@@ -3700,6 +3707,92 @@ function getOrganizationIcon($org_type)
             gap: 1.5rem;
         }
 
+        .clearance-type-select {
+            font-weight: 600;
+        }
+
+        .clearance-type-helper {
+            margin-top: 0.6rem;
+            padding: 0.85rem 1rem;
+            border-radius: 12px;
+            border: 1px solid rgba(249, 168, 38, 0.32);
+            background: rgba(249, 168, 38, 0.12);
+            color: var(--text);
+            font-size: 0.88rem;
+            line-height: 1.5;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.55rem;
+        }
+
+        .clearance-type-helper i {
+            color: var(--warning);
+            margin-top: 0.1rem;
+            flex-shrink: 0;
+        }
+
+        .clearance-process-flow {
+            margin-top: 2rem;
+            background: var(--bg);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 1.35rem;
+            display: grid;
+            gap: 1rem;
+        }
+
+        .clearance-process-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0;
+            color: var(--text);
+        }
+
+        .clearance-process-title i {
+            color: var(--primary);
+        }
+
+        .clearance-step-pills {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 0.7rem;
+        }
+
+        .clearance-step-pill {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            min-height: 44px;
+            padding: 0.55rem 0.8rem;
+            text-align: center;
+        }
+
+        .clearance-step-number {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.78rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .clearance-step-label {
+            color: var(--text);
+            font-size: 0.84rem;
+            font-weight: 700;
+            line-height: 1.25;
+        }
+
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -5258,6 +5351,10 @@ function getOrganizationIcon($org_type)
                 grid-template-columns: 1fr;
             }
 
+            .clearance-step-pills {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
             .messenger-shell {
                 grid-template-columns: 300px minmax(0, 1fr);
                 min-height: 620px;
@@ -5497,6 +5594,15 @@ function getOrganizationIcon($org_type)
                 grid-template-columns: 1fr;
             }
 
+            .clearance-step-pills {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .clearance-step-pill {
+                justify-content: flex-start;
+                border-radius: 14px;
+            }
+
             .filter-bar {
                 flex-direction: column;
                 border-radius: 20px;
@@ -5675,6 +5781,20 @@ function getOrganizationIcon($org_type)
             .profile-id {
                 font-size: 0.78rem;
                 padding: 0.35rem 0.7rem;
+            }
+
+            .clearance-type-helper {
+                font-size: 0.82rem;
+                padding: 0.75rem 0.85rem;
+            }
+
+            .clearance-process-flow {
+                padding: 1rem;
+                border-radius: 14px;
+            }
+
+            .clearance-step-pills {
+                grid-template-columns: 1fr;
             }
 
             .nav-item {
@@ -6303,17 +6423,36 @@ function getOrganizationIcon($org_type)
                             <p>Fill in the details below to submit your clearance application</p>
                         </div>
 
-                        <form method="POST" action="" class="apply-form">
+                        <form method="POST" action="" class="apply-form" id="applyClearanceForm">
                             <div class="form-group">
                                 <label><i class="fas fa-tag"></i> Clearance Type</label>
-                                <select name="clearance_type" class="form-control" required>
+                                <select name="clearance_type" id="applyClearanceType" class="form-control clearance-type-select" required aria-describedby="clearanceTypeHelper">
                                     <option value="">Select clearance type</option>
-                                    <?php foreach ($clearance_types as $type): ?>
-                                        <option value="<?php echo $type['clearance_name']; ?>">
-                                            <?php echo ucfirst($type['clearance_name']); ?> Clearance
+                                    <?php
+                                    $selected_clearance_type = trim((string) ($_POST['clearance_type'] ?? ''));
+                                    foreach ($clearance_types as $type):
+                                        $type_value = (string) ($type['clearance_name'] ?? '');
+                                        $type_label = ucwords(str_replace(['_', '-'], ' ', $type_value));
+                                        $normalized_type = strtolower((string) preg_replace('/[^a-z0-9]+/', '', $type_value));
+                                        $is_non_graduating_option = strpos($normalized_type, 'nongraduating') !== false;
+                                        $is_graduating_option = strpos($normalized_type, 'graduating') !== false && !$is_non_graduating_option;
+                                        $status_suffix = $is_non_graduating_option
+                                            ? ' (Available)'
+                                            : ($is_graduating_option ? ' (Coming Soon)' : '');
+                                        $is_selected = $selected_clearance_type === $type_value && $is_non_graduating_option;
+                                        ?>
+                                        <option value="<?php echo htmlspecialchars($type_value); ?>"
+                                            data-available="<?php echo $is_non_graduating_option ? '1' : '0'; ?>"
+                                            data-coming-soon="<?php echo $is_graduating_option ? '1' : '0'; ?>"
+                                            <?php echo $is_selected ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($type_label . ' Clearance' . $status_suffix); ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
+                                <div class="clearance-type-helper" id="clearanceTypeHelper">
+                                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                                    <span><strong>Note:</strong> Non-Graduating Clearance is currently the only available option. Graduating Clearance will show as COMING SOON.</span>
+                                </div>
                             </div>
 
                             <div class="form-row">
@@ -6337,42 +6476,31 @@ function getOrganizationIcon($org_type)
                         </form>
 
                         <!-- Process Flow Info - All 5 offices -->
-                        <div style="margin-top: 2rem; background: var(--bg); border-radius: 12px; padding: 1.5rem;">
-                            <h4
-                                style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: var(--text);">
-                                <i class="fas fa-info-circle" style="color: var(--primary);"></i>
+                        <div class="clearance-process-flow">
+                            <h4 class="clearance-process-title">
+                                <i class="fas fa-info-circle"></i>
                                 Clearance Process Flow (5 Steps)
                             </h4>
-                            <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
-                                <div
-                                    style="display: flex; align-items: center; gap: 0.5rem; background: var(--white); padding: 0.5rem 1rem; border-radius: 50px;">
-                                    <span
-                                        style="width: 25px; height: 25px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">1</span>
-                                    <span style="color: var(--text);">Librarian</span>
+                            <div class="clearance-step-pills">
+                                <div class="clearance-step-pill">
+                                    <span class="clearance-step-number">1</span>
+                                    <span class="clearance-step-label">Librarian</span>
                                 </div>
-                                <div
-                                    style="display: flex; align-items: center; gap: 0.5rem; background: var(--white); padding: 0.5rem 1rem; border-radius: 50px;">
-                                    <span
-                                        style="width: 25px; height: 25px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">2</span>
-                                    <span style="color: var(--text);">Director SAS</span>
+                                <div class="clearance-step-pill">
+                                    <span class="clearance-step-number">2</span>
+                                    <span class="clearance-step-label">Director SAS</span>
                                 </div>
-                                <div
-                                    style="display: flex; align-items: center; gap: 0.5rem; background: var(--white); padding: 0.5rem 1rem; border-radius: 50px;">
-                                    <span
-                                        style="width: 25px; height: 25px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">3</span>
-                                    <span style="color: var(--text);">Dean</span>
+                                <div class="clearance-step-pill">
+                                    <span class="clearance-step-number">3</span>
+                                    <span class="clearance-step-label">Dean</span>
                                 </div>
-                                <div
-                                    style="display: flex; align-items: center; gap: 0.5rem; background: var(--white); padding: 0.5rem 1rem; border-radius: 50px;">
-                                    <span
-                                        style="width: 25px; height: 25px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">4</span>
-                                    <span style="color: var(--text);">Cashier</span>
+                                <div class="clearance-step-pill">
+                                    <span class="clearance-step-number">4</span>
+                                    <span class="clearance-step-label">Cashier</span>
                                 </div>
-                                <div
-                                    style="display: flex; align-items: center; gap: 0.5rem; background: var(--white); padding: 0.5rem 1rem; border-radius: 50px;">
-                                    <span
-                                        style="width: 25px; height: 25px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">5</span>
-                                    <span style="color: var(--text);">Registrar</span>
+                                <div class="clearance-step-pill">
+                                    <span class="clearance-step-number">5</span>
+                                    <span class="clearance-step-label">Registrar</span>
                                 </div>
                             </div>
                         </div>
@@ -7456,6 +7584,7 @@ function getOrganizationIcon($org_type)
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         // Dark Mode Toggle
         const themeToggle = document.getElementById('themeToggle');
@@ -7476,6 +7605,69 @@ function getOrganizationIcon($org_type)
         const onboardingSkipBtn = document.getElementById('onboardingSkipBtn');
         const onboardingNextBtn = document.getElementById('onboardingNextBtn');
         const onboardingStorageKey = 'student_guide_seen_<?php echo (int) $student_id; ?>';
+        const applyClearanceForm = document.getElementById('applyClearanceForm');
+        const applyClearanceType = document.getElementById('applyClearanceType');
+
+        function normalizeClearanceTypeValue(value) {
+            return String(value || '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '');
+        }
+
+        function isGraduatingOnlyClearanceValue(value) {
+            const normalizedValue = normalizeClearanceTypeValue(value);
+            if (normalizedValue.includes('nongraduating')) {
+                return false;
+            }
+
+            return normalizedValue.includes('graduating');
+        }
+
+        function showGraduatingComingSoonAlert() {
+            const title = 'COMING SOON';
+            const message = 'Graduating Clearance is not available yet. Please select Non-Graduating Clearance for now.';
+
+            if (window.Swal && typeof window.Swal.fire === 'function') {
+                window.Swal.fire({
+                    icon: 'info',
+                    title,
+                    text: message,
+                    confirmButtonText: 'Exit',
+                    confirmButtonColor: '#3a2475'
+                });
+                return;
+            }
+
+            window.alert(`${title}\n${message}`);
+        }
+
+        function enforceAvailableClearanceTypeSelection(selectElement) {
+            if (!selectElement) {
+                return true;
+            }
+
+            const selectedOption = selectElement.options[selectElement.selectedIndex] || null;
+            const selectedValue = String(selectElement.value || '');
+            const isComingSoonOption = selectedOption && selectedOption.dataset.comingSoon === '1';
+
+            if (!isComingSoonOption && !isGraduatingOnlyClearanceValue(selectedValue)) {
+                return true;
+            }
+
+            selectElement.value = '';
+            showGraduatingComingSoonAlert();
+            return false;
+        }
+
+        applyClearanceType?.addEventListener('change', () => {
+            enforceAvailableClearanceTypeSelection(applyClearanceType);
+        });
+
+        applyClearanceForm?.addEventListener('submit', (event) => {
+            if (!enforceAvailableClearanceTypeSelection(applyClearanceType)) {
+                event.preventDefault();
+            }
+        });
 
         const onboardingSteps = [
             {
