@@ -5456,7 +5456,8 @@ function getOrganizationIcon($org_type)
         .messenger-input-row .messenger-send-btn {
             position: absolute;
             right: 0.46rem;
-            bottom: 0.46rem;
+            top: 50%;
+            transform: translateY(-50%);
             width: 38px;
             min-width: 38px;
             height: 38px;
@@ -5488,6 +5489,10 @@ function getOrganizationIcon($org_type)
         .messenger-send-btn:hover {
             transform: translateY(-1px);
             box-shadow: 0 10px 22px rgba(0, 132, 255, 0.25);
+        }
+
+        .messenger-input-row .messenger-send-btn:hover {
+            transform: translateY(calc(-50% - 1px));
         }
 
         .messenger-chat-empty {
@@ -6559,7 +6564,7 @@ function getOrganizationIcon($org_type)
                 min-height: 40px;
                 padding: 0;
                 right: 0.42rem;
-                bottom: 0.42rem;
+                top: 50%;
             }
 
             .graduating-alert-popup {
@@ -6891,7 +6896,7 @@ function getOrganizationIcon($org_type)
                 height: 36px;
                 min-height: 36px;
                 right: 0.38rem;
-                bottom: 0.38rem;
+                top: 50%;
             }
 
             .messenger-chat-empty {
