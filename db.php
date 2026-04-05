@@ -1043,11 +1043,9 @@ function hasDatabaseColumn($tableName, $columnName, $cacheTtlSeconds = 21600)
         $db->query("SELECT COUNT(*) AS column_count
                     FROM information_schema.COLUMNS
                     WHERE TABLE_SCHEMA = DATABASE()
-                      AND TABLE_NAME = :table_name
-                      AND COLUMN_NAME = :column_name
+                                            AND TABLE_NAME = '{$tableName}'
+                                            AND COLUMN_NAME = '{$columnName}'
                     LIMIT 1");
-        $db->bind(':table_name', $tableName);
-        $db->bind(':column_name', $columnName);
         $columnCheckRow = $db->single();
         $exists = ((int) ($columnCheckRow['column_count'] ?? 0)) > 0;
     } catch (Exception $e) {

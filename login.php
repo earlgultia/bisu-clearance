@@ -10,6 +10,9 @@ if (session_status() === PHP_SESSION_NONE) {
 // Include database configuration
 require_once __DIR__ . '/db.php';
 
+// Shared DB instance for request-level operations in this script.
+$db = Database::getInstance();
+
 /**
  * Function to handle organization login from student_organizations table
  * with dashboard type support - FIXED to ensure dashboard_file is retrieved
@@ -282,7 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $db->bind(':users_id', (int) $userDetails['users_id']);
                         $db->execute();
                     }
-                } catch (Exception $e) {
+                } catch (Throwable $e) {
                     error_log('Login presence update error: ' . $e->getMessage());
                 }
 

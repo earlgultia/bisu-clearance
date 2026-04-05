@@ -673,10 +673,11 @@ try {
                 LEFT JOIN course cr ON u.course_id = cr.course_id
                 LEFT JOIN clearance_type ct ON c.clearance_type_id = ct.clearance_type_id
                 WHERE oc.org_id = :org_id 
-                AND oc.processed_by = :org_id
+                AND oc.processed_by = :processed_by_org_id
                 AND oc.status IN ('approved', 'rejected')
                 ORDER BY oc.processed_date DESC");
     $db->bind(':org_id', $org_id);
+    $db->bind(':processed_by_org_id', $org_id);
     $approvals_to_undo = $db->resultSet();
 
     // Get clearance history
