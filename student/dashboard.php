@@ -5285,6 +5285,11 @@ function getOrganizationIcon($org_type)
             gap: 0.6rem;
         }
 
+        .messenger-input-row {
+            position: relative;
+            display: block;
+        }
+
         .messenger-composer textarea {
             width: 100%;
             min-height: 48px;
@@ -5292,7 +5297,7 @@ function getOrganizationIcon($org_type)
             resize: vertical;
             border: 1px solid var(--border);
             border-radius: 14px;
-            padding: 0.72rem 0.9rem;
+            padding: 0.72rem 3.5rem 0.72rem 0.9rem;
             font-size: 0.92rem;
             color: var(--text);
             background: #fff;
@@ -5421,15 +5426,14 @@ function getOrganizationIcon($org_type)
         .messenger-composer-actions {
             display: flex;
             align-items: center;
-            justify-content: flex-end;
+            justify-content: flex-start;
             gap: 0.7rem;
-            flex-wrap: nowrap;
+            flex-wrap: wrap;
         }
 
         .messenger-empty-chat-note {
             font-size: 0.75rem;
             color: var(--text-light);
-            margin-right: auto;
             min-width: 0;
         }
 
@@ -5447,6 +5451,38 @@ function getOrganizationIcon($org_type)
             gap: 0.45rem;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
             flex-shrink: 0;
+        }
+
+        .messenger-input-row .messenger-send-btn {
+            position: absolute;
+            right: 0.46rem;
+            bottom: 0.46rem;
+            width: 38px;
+            min-width: 38px;
+            height: 38px;
+            min-height: 38px;
+            padding: 0;
+            border-radius: 50%;
+            justify-content: center;
+            gap: 0;
+            z-index: 2;
+        }
+
+        .messenger-input-row .messenger-send-btn i {
+            font-size: 0.9rem;
+            margin-left: 1px;
+        }
+
+        .messenger-send-inline-label {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
 
         .messenger-send-btn:hover {
@@ -5948,6 +5984,10 @@ function getOrganizationIcon($org_type)
             width: min(92vw, 420px);
             border-radius: 16px;
             padding: 1rem 0.95rem 0.9rem;
+        }
+
+        .conversation-delete-alert-container.swal2-container {
+            z-index: 1700;
         }
 
         .conversation-delete-alert-title {
@@ -6481,7 +6521,7 @@ function getOrganizationIcon($org_type)
             .messenger-composer-actions {
                 flex-direction: row;
                 align-items: center;
-                justify-content: flex-end;
+                justify-content: flex-start;
                 gap: 0.55rem;
             }
 
@@ -6512,6 +6552,16 @@ function getOrganizationIcon($org_type)
                 justify-content: center;
             }
 
+            .messenger-input-row .messenger-send-btn {
+                width: 40px;
+                min-width: 40px;
+                height: 40px;
+                min-height: 40px;
+                padding: 0;
+                right: 0.42rem;
+                bottom: 0.42rem;
+            }
+
             .graduating-alert-popup {
                 width: calc(100vw - 1.4rem);
                 max-width: 360px;
@@ -6537,6 +6587,18 @@ function getOrganizationIcon($org_type)
                 width: calc(100vw - 1.4rem);
                 max-width: 340px;
                 padding: 0.86rem 0.78rem 0.76rem;
+                margin: 0;
+                max-height: calc(100dvh - var(--mobile-header-offset, 0px) - env(safe-area-inset-top) - 1.15rem);
+                overflow-y: auto;
+            }
+
+            .conversation-delete-alert-container.swal2-container {
+                align-items: center;
+                justify-content: flex-start;
+                padding-top: calc(var(--mobile-header-offset, 0px) + env(safe-area-inset-top) + 0.45rem);
+                padding-right: 0.7rem;
+                padding-bottom: max(0.7rem, env(safe-area-inset-bottom));
+                padding-left: 0.7rem;
             }
 
             .conversation-delete-alert-popup .swal2-icon {
@@ -6657,6 +6719,14 @@ function getOrganizationIcon($org_type)
                 max-width: 312px;
                 border-radius: 14px;
                 padding: 0.8rem 0.72rem 0.7rem;
+                max-height: calc(100dvh - var(--mobile-header-offset, 0px) - env(safe-area-inset-top) - 0.95rem);
+            }
+
+            .conversation-delete-alert-container.swal2-container {
+                padding-top: calc(var(--mobile-header-offset, 0px) + env(safe-area-inset-top) + 0.35rem);
+                padding-right: 0.5rem;
+                padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
+                padding-left: 0.5rem;
             }
 
             .conversation-delete-alert-title {
@@ -6813,6 +6883,15 @@ function getOrganizationIcon($org_type)
             .messenger-composer textarea {
                 min-height: 44px;
                 font-size: 0.87rem;
+            }
+
+            .messenger-input-row .messenger-send-btn {
+                width: 36px;
+                min-width: 36px;
+                height: 36px;
+                min-height: 36px;
+                right: 0.38rem;
+                bottom: 0.38rem;
             }
 
             .messenger-chat-empty {
@@ -8286,12 +8365,18 @@ function getOrganizationIcon($org_type)
                                     </div>
                                     <button type="button" class="messenger-reply-clear" id="clearReplyBtn" aria-label="Cancel reply">&times;</button>
                                 </div>
-                                <textarea
-                                    id="messengerMessageInput"
-                                    name="message_body"
-                                    maxlength="1000"
-                                    placeholder="Type a message..."
-                                ><?php echo (isset($_POST['message_body']) && (int) ($_POST['recipient_id'] ?? 0) === (int) $selected_chat_id) ? htmlspecialchars((string) $_POST['message_body']) : ''; ?></textarea>
+                                <div class="messenger-input-row">
+                                    <textarea
+                                        id="messengerMessageInput"
+                                        name="message_body"
+                                        maxlength="1000"
+                                        placeholder="Type a message..."
+                                    ><?php echo (isset($_POST['message_body']) && (int) ($_POST['recipient_id'] ?? 0) === (int) $selected_chat_id) ? htmlspecialchars((string) $_POST['message_body']) : ''; ?></textarea>
+                                    <button id="messengerSendButton" type="submit" class="messenger-send-btn" aria-label="Send message">
+                                        <i class="fas fa-paper-plane"></i>
+                                        <span class="messenger-send-inline-label">Send</span>
+                                    </button>
+                                </div>
                                 <div class="messenger-attachment-picker">
                                     <input
                                         type="file"
@@ -8316,9 +8401,6 @@ function getOrganizationIcon($org_type)
                                 </div>
                                 <div class="messenger-composer-actions">
                                     <span class="messenger-empty-chat-note">Press Enter to send. Shift + Enter for a new line.</span>
-                                    <button id="messengerSendButton" type="submit" class="messenger-send-btn">
-                                        <i class="fas fa-paper-plane"></i> Send
-                                    </button>
                                 </div>
                             </form>
                         <?php else: ?>
@@ -9416,7 +9498,10 @@ function getOrganizationIcon($org_type)
                         cancelButtonText: 'Cancel',
                         confirmButtonColor: '#c62828',
                         reverseButtons: true,
+                        position: isCompactViewport ? 'top' : 'center',
+                        heightAuto: false,
                         customClass: {
+                            container: 'conversation-delete-alert-container',
                             popup: 'conversation-delete-alert-popup',
                             title: 'conversation-delete-alert-title',
                             htmlContainer: 'conversation-delete-alert-text',
@@ -9772,7 +9857,7 @@ function getOrganizationIcon($org_type)
                 isSendingMessage = true;
                 if (messengerSendButton) {
                     messengerSendButton.disabled = true;
-                    messengerSendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+                    messengerSendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span class="messenger-send-inline-label">Sending...</span>';
                 }
             });
 
