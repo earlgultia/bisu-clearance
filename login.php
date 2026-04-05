@@ -270,6 +270,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Regenerate session ID for security
                 session_regenerate_id(true);
 
+                // Update online presence for student messaging when schema supports it.
+                try {
+                    if (hasDatabaseColumn('users', 'is_online') && hasDatabaseColumn('users', 'last_seen_at')) {
+                        $db->query("UPDATE users
+                                    SET is_online = 1,
+                                        last_seen_at = NOW()
+                                    WHERE users_id = :users_id
+                                      AND is_active = 1
+                                    LIMIT 1");
+                        $db->bind(':users_id', (int) $userDetails['users_id']);
+                        $db->execute();
+                    }
+                } catch (Exception $e) {
+                    error_log('Login presence update error: ' . $e->getMessage());
+                }
+
                 // Log successful login to activity_logs
                 logActivity(
                     $userDetails['users_id'],

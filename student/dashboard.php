@@ -108,6 +108,8 @@ $reply_to_message_prefill_id = 0;
 $reply_preview_message = null;
 $selected_chat_friend_label = null;
 $selected_chat_friend_base_name = null;
+$user_presence_columns_available = false;
+$user_profile_picture_column_available = false;
 
 function buildMessageSnippet($text, $maxChars = 120, $collapseWhitespace = true)
 {
@@ -138,6 +140,99 @@ function buildMessageSnippet($text, $maxChars = 120, $collapseWhitespace = true)
         : substr($snippet, 0, $trimLength);
 
     return rtrim((string) $trimmed) . '...';
+}
+
+function buildFriendPresenceMeta($isOnlineFlag, $lastSeenAtRaw)
+{
+    $isOnline = (int) $isOnlineFlag === 1;
+    $statusClass = $isOnline ? 'online' : 'offline';
+    $statusText = $isOnline ? 'Active now' : 'Offline';
+    $minutesSinceLogout = null;
+
+    if (!$isOnline) {
+        $lastSeenTs = !empty($lastSeenAtRaw) ? strtotime((string) $lastSeenAtRaw) : false;
+        if ($lastSeenTs !== false) {
+            $elapsedSeconds = max(0, time() - $lastSeenTs);
+            $minutesSinceLogout = (int) floor($elapsedSeconds / 60);
+            $statusText = 'Offline · ' . $minutesSinceLogout . ' min ago';
+        }
+    }
+
+    return [
+        'is_online' => $isOnline,
+        'status_class' => $statusClass,
+        'status_text' => $statusText,
+        'minutes_since_logout' => $minutesSinceLogout
+    ];
+}
+
+function ensureUserPresenceColumns($db)
+{
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    if (!shouldRunMaintenanceTask('users_presence_columns', 21600)) {
+        return;
+    }
+
+    try {
+        if (!hasDatabaseColumn('users', 'is_online')) {
+            $db->query("ALTER TABLE users ADD COLUMN is_online TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active");
+            $db->execute();
+        }
+
+        if (!hasDatabaseColumn('users', 'last_seen_at')) {
+            $db->query("ALTER TABLE users ADD COLUMN last_seen_at DATETIME NULL AFTER is_online");
+            $db->execute();
+        }
+
+        if (hasDatabaseColumn('users', 'is_online') && hasDatabaseColumn('users', 'last_seen_at')) {
+            $db->query("SHOW INDEX FROM users WHERE Key_name = 'idx_users_presence'");
+            if (!$db->single()) {
+                $db->query("ALTER TABLE users ADD INDEX idx_users_presence (is_online, last_seen_at)");
+                $db->execute();
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Error ensuring users presence columns: " . $e->getMessage());
+    }
+}
+
+function updateUserPresenceHeartbeat($db, $userId)
+{
+    static $updated = false;
+
+    if ($updated) {
+        return;
+    }
+
+    $updated = true;
+    $userId = (int) $userId;
+    if ($userId <= 0) {
+        return;
+    }
+
+    if (!hasDatabaseColumn('users', 'is_online') || !hasDatabaseColumn('users', 'last_seen_at')) {
+        return;
+    }
+
+    try {
+        $db->query("UPDATE users
+                    SET is_online = 1,
+                        last_seen_at = NOW()
+                    WHERE users_id = :user_id
+                      AND is_active = 1
+                    LIMIT 1");
+        $db->bind(':user_id', $userId);
+        $db->execute();
+    } catch (Exception $e) {
+        error_log("User presence heartbeat update error: " . $e->getMessage());
+    }
 }
 
 function ensureStudentMessageAttachmentColumns($db)
@@ -172,6 +267,11 @@ function ensureStudentMessageAttachmentColumns($db)
         }
     }
 }
+
+ensureUserPresenceColumns($db);
+$user_presence_columns_available = hasDatabaseColumn('users', 'is_online') && hasDatabaseColumn('users', 'last_seen_at');
+$user_profile_picture_column_available = hasDatabaseColumn('users', 'profile_picture');
+updateUserPresenceHeartbeat($db, $student_id);
 
 if ($runStudentSchemaMaintenance) {
 // Ensure student messaging table exists.
@@ -396,6 +496,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'message_notifications') {
         'unread_count' => 0,
         'pending_request_count' => 0,
         'notification_count' => 0,
+        'friend_presence' => [],
         'latest_sender' => null,
         'latest_message' => null,
         'latest_sent_at' => null,
@@ -535,6 +636,48 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'message_notifications') {
             }
         } catch (Exception $e) {
             error_log("Organization comment notification metadata error: " . $e->getMessage());
+        }
+
+        if ($user_presence_columns_available) {
+            try {
+                $db->query("SELECT u.users_id,
+                                   COALESCE(u.is_online, 0) AS is_online_flag,
+                                   u.last_seen_at
+                            FROM student_friendships sf
+                            INNER JOIN users u ON u.users_id = CASE
+                                WHEN sf.user_one_id = :viewer_id_case THEN sf.user_two_id
+                                ELSE sf.user_one_id
+                            END
+                            INNER JOIN user_role ur ON ur.user_role_id = u.user_role_id
+                            WHERE (sf.user_one_id = :viewer_id_one OR sf.user_two_id = :viewer_id_two)
+                              AND sf.status = 'accepted'
+                              AND ur.user_role_name = 'student'");
+                $db->bind(':viewer_id_case', $student_id);
+                $db->bind(':viewer_id_one', $student_id);
+                $db->bind(':viewer_id_two', $student_id);
+                $friend_presence_rows = $db->resultSet() ?: [];
+
+                foreach ($friend_presence_rows as $presence_row) {
+                    $friend_id = (int) ($presence_row['users_id'] ?? 0);
+                    if ($friend_id <= 0) {
+                        continue;
+                    }
+
+                    $presence_meta = buildFriendPresenceMeta(
+                        $presence_row['is_online_flag'] ?? 0,
+                        $presence_row['last_seen_at'] ?? null
+                    );
+
+                    $response['friend_presence'][(string) $friend_id] = [
+                        'is_online' => $presence_meta['is_online'] ? 1 : 0,
+                        'status_text' => $presence_meta['status_text'],
+                        'status_class' => $presence_meta['status_class'],
+                        'minutes_since_logout' => $presence_meta['minutes_since_logout']
+                    ];
+                }
+            } catch (Exception $e) {
+                error_log("Friend presence notification metadata error: " . $e->getMessage());
+            }
         }
     }
 
@@ -850,6 +993,98 @@ if (isset($_POST['react_to_message'])) {
         } catch (Exception $e) {
             error_log("Message reaction error: " . $e->getMessage());
             $error = "Unable to react to this message right now.";
+        }
+    }
+}
+
+if (isset($_POST['delete_conversation'])) {
+    $friend_id = (int) ($_POST['friend_id'] ?? 0);
+    $active_tab = 'messages';
+
+    if ($friend_id <= 0 || $friend_id === (int) $student_id) {
+        $error = "Invalid conversation selected for deletion.";
+    } else {
+        try {
+            $user_one_id = min((int) $student_id, $friend_id);
+            $user_two_id = max((int) $student_id, $friend_id);
+
+            $db->query("SELECT sf.friendship_id
+                        FROM student_friendships sf
+                        INNER JOIN users u ON u.users_id = :friend_user_id
+                        INNER JOIN user_role ur ON ur.user_role_id = u.user_role_id
+                        WHERE sf.user_one_id = :user_one_id
+                          AND sf.user_two_id = :user_two_id
+                          AND sf.status = 'accepted'
+                          AND ur.user_role_name = 'student'
+                        LIMIT 1");
+            $db->bind(':friend_user_id', $friend_id);
+            $db->bind(':user_one_id', $user_one_id);
+            $db->bind(':user_two_id', $user_two_id);
+            $friendship_row = $db->single();
+
+            if (!$friendship_row) {
+                $error = "Conversation partner was not found.";
+            } else {
+                $db->beginTransaction();
+
+                // Keep reply chains valid in fallback schemas without FK constraints.
+                $db->query("UPDATE student_messages
+                            SET reply_to_message_id = NULL
+                            WHERE reply_to_message_id IN (
+                                SELECT conversation_message_id
+                                FROM (
+                                    SELECT message_id AS conversation_message_id
+                                    FROM student_messages
+                                    WHERE (sender_id = :viewer_reply_one AND recipient_id = :friend_reply_one)
+                                       OR (sender_id = :friend_reply_two AND recipient_id = :viewer_reply_two)
+                                ) AS conversation_message_ids
+                            )");
+                $db->bind(':viewer_reply_one', $student_id);
+                $db->bind(':friend_reply_one', $friend_id);
+                $db->bind(':friend_reply_two', $friend_id);
+                $db->bind(':viewer_reply_two', $student_id);
+                $db->execute();
+
+                // Clear reactions first so legacy schemas without FK constraints stay clean.
+                try {
+                    $db->query("DELETE smr
+                                FROM student_message_reactions smr
+                                INNER JOIN student_messages sm ON sm.message_id = smr.message_id
+                                WHERE (sm.sender_id = :viewer_react_one AND sm.recipient_id = :friend_react_one)
+                                   OR (sm.sender_id = :friend_react_two AND sm.recipient_id = :viewer_react_two)");
+                    $db->bind(':viewer_react_one', $student_id);
+                    $db->bind(':friend_react_one', $friend_id);
+                    $db->bind(':friend_react_two', $friend_id);
+                    $db->bind(':viewer_react_two', $student_id);
+                    $db->execute();
+                } catch (Exception $reaction_cleanup_error) {
+                    error_log("Conversation reaction cleanup warning: " . $reaction_cleanup_error->getMessage());
+                }
+
+                $db->query("DELETE FROM student_messages
+                            WHERE (sender_id = :viewer_delete_one AND recipient_id = :friend_delete_one)
+                               OR (sender_id = :friend_delete_two AND recipient_id = :viewer_delete_two)");
+                $db->bind(':viewer_delete_one', $student_id);
+                $db->bind(':friend_delete_one', $friend_id);
+                $db->bind(':friend_delete_two', $friend_id);
+                $db->bind(':viewer_delete_two', $student_id);
+                $db->execute();
+                $deleted_message_count = (int) $db->rowCount();
+
+                $db->commit();
+
+                $_SESSION['success_message'] = $deleted_message_count > 0
+                    ? "Conversation deleted successfully."
+                    : "Conversation is already empty.";
+                header("Location: dashboard.php?tab=messages");
+                exit();
+            }
+        } catch (Exception $e) {
+            if ($db->getConnection()->inTransaction()) {
+                $db->rollback();
+            }
+            error_log("Delete conversation error: " . $e->getMessage());
+            $error = "Unable to delete this conversation right now.";
         }
     }
 }
@@ -1671,9 +1906,20 @@ $profile_pic = $student_info['profile_picture'] ?? null;
 
 // Fetch friend list for student-to-student direct messaging.
 try {
+    $friend_profile_column_sql = $user_profile_picture_column_available
+        ? "u.profile_picture,"
+        : "NULL AS profile_picture,";
+    $friend_presence_column_sql = $user_presence_columns_available
+        ? "COALESCE(u.is_online, 0) AS is_online_flag,
+                    u.last_seen_at,"
+        : "0 AS is_online_flag,
+                    NULL AS last_seen_at,";
+
     $db->query("SELECT u.users_id,
                     u.ismis_id,
                     u.emails,
+                    {$friend_profile_column_sql}
+                    {$friend_presence_column_sql}
                     COALESCE(
                         NULLIF(TRIM(CONCAT(COALESCE(u.fname, ''), ' ', COALESCE(u.lname, ''))), ''),
                         u.emails,
@@ -1681,15 +1927,15 @@ try {
                     ) AS display_name,
                     sfn.nickname AS custom_nickname,
                     sf.created_at AS friended_at
-                                FROM student_friendships sf
-                                INNER JOIN users u ON u.users_id = CASE
-                                        WHEN sf.user_one_id = :viewer_id_case THEN sf.user_two_id
+                FROM student_friendships sf
+                INNER JOIN users u ON u.users_id = CASE
+                    WHEN sf.user_one_id = :viewer_id_case THEN sf.user_two_id
                     ELSE sf.user_one_id
                 END
                 INNER JOIN user_role ur ON ur.user_role_id = u.user_role_id AND ur.user_role_name = 'student'
                 LEFT JOIN student_friend_nicknames sfn ON sfn.owner_id = :viewer_id_nick AND sfn.friend_id = u.users_id
-                                WHERE (sf.user_one_id = :viewer_id_one OR sf.user_two_id = :viewer_id_two)
-                                    AND sf.status = 'accepted'
+                WHERE (sf.user_one_id = :viewer_id_one OR sf.user_two_id = :viewer_id_two)
+                  AND sf.status = 'accepted'
                 ORDER BY display_name ASC");
         $db->bind(':viewer_id_case', $student_id);
         $db->bind(':viewer_id_nick', $student_id);
@@ -1700,8 +1946,24 @@ try {
     foreach ($student_friends as &$friend) {
         $base_display_name = (string) ($friend['display_name'] ?? ('Student #' . (int) ($friend['users_id'] ?? 0)));
         $custom_nickname = trim((string) ($friend['custom_nickname'] ?? ''));
+        $profile_picture_path = trim((string) ($friend['profile_picture'] ?? ''));
+
+        $friend['profile_picture_url'] = '';
+        if ($profile_picture_path !== '' && strpos($profile_picture_path, '..') === false) {
+            $friend['profile_picture_url'] = '../' . ltrim($profile_picture_path, '/\\');
+        }
+
+        $presence_meta = buildFriendPresenceMeta(
+            $friend['is_online_flag'] ?? 0,
+            $friend['last_seen_at'] ?? null
+        );
+
         $friend['base_display_name'] = $base_display_name;
         $friend['chat_display_name'] = $custom_nickname !== '' ? $custom_nickname : $base_display_name;
+        $friend['presence_is_online'] = $presence_meta['is_online'] ? 1 : 0;
+        $friend['presence_status_class'] = $presence_meta['status_class'];
+        $friend['presence_status_text'] = $presence_meta['status_text'];
+        $friend['presence_minutes_since_logout'] = $presence_meta['minutes_since_logout'];
     }
     unset($friend);
 
@@ -4357,6 +4619,16 @@ function getOrganizationIcon($org_type)
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(37, 88, 163, 0.2);
+        }
+
+        .messenger-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
         }
 
         .messenger-conversation-main {
@@ -4448,9 +4720,62 @@ function getOrganizationIcon($org_type)
             font-size: 0.78rem;
             color: var(--text-light);
             max-width: 100%;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            line-height: 1.35;
+        }
+
+        .messenger-chat-status-extra {
+            min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+
+        .messenger-presence-line {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.32rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .messenger-presence-line.online {
+            color: #0a8f4f;
+        }
+
+        .messenger-presence-line.offline {
+            color: #71839f;
+        }
+
+        .messenger-presence-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+            background: #9caabf;
+        }
+
+        .messenger-avatar > .messenger-presence-dot {
+            position: absolute;
+            right: 1px;
+            bottom: 1px;
+            width: 11px;
+            height: 11px;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 4px rgba(15, 23, 42, 0.22);
+        }
+
+        .messenger-presence-dot.online {
+            background: #22c55e;
+        }
+
+        .messenger-presence-dot.offline {
+            background: #94a3b8;
         }
 
         .messenger-nickname-wrap {
@@ -4950,8 +5275,58 @@ function getOrganizationIcon($org_type)
         }
 
         .messenger-attachment-picker input[type="file"] {
+            width: 100%;
             font-size: 0.82rem;
-            color: var(--text-light);
+            color: #385374;
+            border: 1px dashed #b9cff5;
+            border-radius: 12px;
+            background: linear-gradient(180deg, #f7faff, #eef4ff);
+            padding: 0.45rem 0.5rem;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .messenger-attachment-picker input[type="file"]:hover {
+            border-color: #88aff6;
+            background: linear-gradient(180deg, #f2f7ff, #e8f0ff);
+        }
+
+        .messenger-attachment-picker input[type="file"]:focus-visible {
+            outline: none;
+            border-color: #2f86ff;
+            box-shadow: 0 0 0 3px rgba(47, 134, 255, 0.2);
+        }
+
+        .messenger-attachment-picker input[type="file"]::file-selector-button {
+            border: none;
+            border-radius: 10px;
+            margin-right: 0.6rem;
+            padding: 0.44rem 0.82rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            color: #fff;
+            background: linear-gradient(145deg, #1193ff, #086eff);
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .messenger-attachment-picker input[type="file"]::file-selector-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 16px rgba(8, 110, 255, 0.3);
+        }
+
+        .messenger-attachment-picker input[type="file"]::-webkit-file-upload-button {
+            border: none;
+            border-radius: 10px;
+            margin-right: 0.6rem;
+            padding: 0.44rem 0.82rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            color: #fff;
+            background: linear-gradient(145deg, #1193ff, #086eff);
+            cursor: pointer;
         }
 
         .messenger-attachment-hint {
@@ -5006,6 +5381,170 @@ function getOrganizationIcon($org_type)
             font-size: 2rem;
             color: #80b4ff;
             margin-bottom: 0.6rem;
+        }
+
+        .dark-mode .messenger-shell {
+            background: #101a2f;
+            border-color: #2b3d60;
+            box-shadow: 0 20px 34px rgba(0, 0, 0, 0.38);
+        }
+
+        .dark-mode .messenger-sidebar {
+            background: linear-gradient(180deg, #111d35 0%, #0f1a31 35%, #101a2f 100%);
+            border-right-color: #2b3d60;
+        }
+
+        .dark-mode .messenger-sidebar-top,
+        .dark-mode .messenger-request-wrap,
+        .dark-mode .messenger-chat-header,
+        .dark-mode .messenger-composer {
+            border-color: #2b3d60;
+        }
+
+        .dark-mode .messenger-chat-panel,
+        .dark-mode .messenger-composer {
+            background: #101a2f;
+        }
+
+        .dark-mode .messenger-chat-header {
+            background: linear-gradient(180deg, #131f39, #101a2f);
+        }
+
+        .dark-mode .messenger-conversation-item:hover {
+            background: #1a2948;
+        }
+
+        .dark-mode .messenger-conversation-item.active {
+            background: linear-gradient(145deg, rgba(74, 149, 255, 0.34), rgba(38, 93, 186, 0.24));
+            box-shadow: inset 0 0 0 1px rgba(156, 201, 255, 0.4);
+        }
+
+        .dark-mode .messenger-title p,
+        .dark-mode .messenger-request-meta,
+        .dark-mode .messenger-conversation-time,
+        .dark-mode .messenger-conversation-preview,
+        .dark-mode .messenger-bubble-meta,
+        .dark-mode .messenger-empty-chat-note,
+        .dark-mode .messenger-attachment-hint,
+        .dark-mode .messenger-chat-status-extra {
+            color: #9fb2d4;
+        }
+
+        .dark-mode .messenger-avatar {
+            background: linear-gradient(145deg, #3f6bad, #2f538e);
+            border-color: rgba(177, 205, 255, 0.28);
+        }
+
+        .dark-mode .messenger-avatar > .messenger-presence-dot {
+            border-color: #101a2f;
+            box-shadow: 0 0 0 2px rgba(14, 23, 42, 0.85);
+        }
+
+        .dark-mode .messenger-presence-line.online {
+            color: #65e194;
+        }
+
+        .dark-mode .messenger-presence-line.offline {
+            color: #aeb8c8;
+        }
+
+        .dark-mode .messenger-presence-dot.online {
+            background: #32d374;
+        }
+
+        .dark-mode .messenger-presence-dot.offline {
+            background: #7d8698;
+        }
+
+        .dark-mode .messenger-chat-thread {
+            background:
+                radial-gradient(circle at 20% 14%, rgba(44, 110, 215, 0.16), transparent 30%),
+                radial-gradient(circle at 80% 86%, rgba(101, 132, 199, 0.14), transparent 30%),
+                #0e162a;
+        }
+
+        .dark-mode .messenger-bubble-row.theirs .messenger-bubble {
+            background: #1a2744;
+            border-color: #324f81;
+            color: #e8efff;
+        }
+
+        .dark-mode .messenger-reply-quote {
+            background: rgba(4, 18, 42, 0.42);
+        }
+
+        .dark-mode .messenger-bubble-row.theirs .messenger-reply-quote {
+            background: rgba(63, 122, 218, 0.2);
+            border-left-color: rgba(141, 194, 255, 0.52);
+        }
+
+        .dark-mode .messenger-reply-btn,
+        .dark-mode .messenger-react-toggle-btn,
+        .dark-mode .messenger-mobile-back,
+        .dark-mode .messenger-request-btn,
+        .dark-mode .messenger-nickname-btn {
+            background: #1c2f52;
+            color: #cfe0ff;
+            border-color: rgba(129, 167, 230, 0.3);
+        }
+
+        .dark-mode .messenger-reply-btn:hover,
+        .dark-mode .messenger-react-toggle-btn:hover,
+        .dark-mode .messenger-mobile-back:hover,
+        .dark-mode .messenger-request-btn:hover,
+        .dark-mode .messenger-nickname-btn:hover {
+            background: #24406d;
+        }
+
+        .dark-mode .messenger-nickname-panel,
+        .dark-mode .messenger-reaction-picker {
+            background: #13213d;
+            border-color: #355789;
+            box-shadow: 0 14px 24px rgba(3, 10, 20, 0.46);
+        }
+
+        .dark-mode .messenger-reaction-btn,
+        .dark-mode .messenger-reaction-chip {
+            border-color: rgba(120, 161, 230, 0.42);
+            background: rgba(34, 54, 90, 0.75);
+            color: #d4e4ff;
+        }
+
+        .dark-mode .messenger-reaction-btn.active,
+        .dark-mode .messenger-reaction-chip.active {
+            background: rgba(58, 111, 203, 0.5);
+            border-color: rgba(145, 187, 255, 0.72);
+        }
+
+        .dark-mode .messenger-composer textarea,
+        .dark-mode .messenger-add-input,
+        .dark-mode .messenger-nickname-input {
+            background: #0f1c34;
+            border-color: #335381;
+            color: #ecf2ff;
+        }
+
+        .dark-mode .messenger-add-input::placeholder,
+        .dark-mode .messenger-nickname-input::placeholder,
+        .dark-mode .messenger-composer textarea::placeholder {
+            color: #8fa5ca;
+        }
+
+        .dark-mode .messenger-attachment-picker input[type="file"] {
+            color: #b7ccf2;
+            border-color: #3c5f95;
+            background: linear-gradient(180deg, #13213b, #0f1a32);
+        }
+
+        .dark-mode .messenger-attachment-picker input[type="file"]:hover {
+            border-color: #5f84c0;
+            background: linear-gradient(180deg, #162848, #13223f);
+        }
+
+        .dark-mode .messenger-attachment-picker input[type="file"]::file-selector-button,
+        .dark-mode .messenger-attachment-picker input[type="file"]::-webkit-file-upload-button {
+            background: linear-gradient(145deg, #2f8bff, #1b63dc);
+            color: #fff;
         }
 
         /* Summary Stats */
@@ -5731,6 +6270,10 @@ function getOrganizationIcon($org_type)
                 line-height: 1.35;
             }
 
+            .messenger-chat-status-extra {
+                white-space: normal;
+            }
+
             .messenger-nickname-form {
                 width: 100%;
                 margin-left: 0;
@@ -5955,6 +6498,10 @@ function getOrganizationIcon($org_type)
             .messenger-conversation-time,
             .messenger-chat-status {
                 font-size: 0.7rem;
+            }
+
+            .messenger-presence-line {
+                font-size: 0.66rem;
             }
 
             .messenger-conversation-time {
@@ -7164,6 +7711,9 @@ function getOrganizationIcon($org_type)
                                     $friend_id = (int) ($friend['users_id'] ?? 0);
                                     $friend_name = (string) ($friend['chat_display_name'] ?? ('Student #' . $friend_id));
                                     $friend_base_name = (string) ($friend['base_display_name'] ?? $friend_name);
+                                    $friend_profile_picture_url = (string) ($friend['profile_picture_url'] ?? '');
+                                    $friend_presence_class = (string) ($friend['presence_status_class'] ?? 'offline');
+                                    $friend_presence_text = (string) ($friend['presence_status_text'] ?? 'Offline');
                                     $name_parts = preg_split('/\s+/', trim($friend_name));
                                     $initials = '';
                                     if (!empty($name_parts[0])) {
@@ -7195,8 +7745,17 @@ function getOrganizationIcon($org_type)
                                     <a
                                         href="dashboard.php?tab=messages&chat_with=<?php echo $friend_id; ?>"
                                         class="messenger-conversation-item <?php echo $selected_chat_id === $friend_id ? 'active' : ''; ?>"
+                                        data-conversation-friend-id="<?php echo $friend_id; ?>"
+                                        data-conversation-friend-name="<?php echo htmlspecialchars($friend_name, ENT_QUOTES, 'UTF-8'); ?>"
                                     >
-                                        <span class="messenger-avatar"><?php echo htmlspecialchars($initials); ?></span>
+                                        <span class="messenger-avatar">
+                                            <?php if ($friend_profile_picture_url !== ''): ?>
+                                                <img src="<?php echo htmlspecialchars($friend_profile_picture_url); ?>" alt="<?php echo htmlspecialchars($friend_name); ?>" loading="lazy">
+                                            <?php else: ?>
+                                                <?php echo htmlspecialchars($initials); ?>
+                                            <?php endif; ?>
+                                            <span class="messenger-presence-dot <?php echo htmlspecialchars($friend_presence_class); ?>" data-friend-avatar-dot="<?php echo $friend_id; ?>"></span>
+                                        </span>
                                         <div class="messenger-conversation-main">
                                             <div class="messenger-conversation-head">
                                                 <span class="messenger-conversation-name" title="<?php echo htmlspecialchars($friend_base_name); ?>"><?php echo htmlspecialchars($friend_name); ?></span>
@@ -7205,6 +7764,10 @@ function getOrganizationIcon($org_type)
                                                 <?php endif; ?>
                                             </div>
                                             <span class="messenger-conversation-preview"><?php echo htmlspecialchars($preview_text); ?></span>
+                                            <span class="messenger-presence-line <?php echo htmlspecialchars($friend_presence_class); ?>" data-friend-presence-line="<?php echo $friend_id; ?>">
+                                                <span class="messenger-presence-dot <?php echo htmlspecialchars($friend_presence_class); ?>"></span>
+                                                <span class="messenger-presence-text" data-friend-presence-text="<?php echo $friend_id; ?>"><?php echo htmlspecialchars($friend_presence_text); ?></span>
+                                            </span>
                                         </div>
                                     </a>
                                 <?php endforeach; ?>
@@ -7218,6 +7781,9 @@ function getOrganizationIcon($org_type)
                             $chat_friend_name = (string) ($selected_chat_friend_label ?? ('Student #' . $selected_chat_id));
                             $chat_friend_base_name = (string) ($selected_chat_friend_base_name ?? $chat_friend_name);
                             $chat_friend_custom_nickname = trim((string) ($selected_chat_friend['custom_nickname'] ?? ''));
+                            $chat_friend_profile_picture_url = (string) ($selected_chat_friend['profile_picture_url'] ?? '');
+                            $chat_presence_class = (string) ($selected_chat_friend['presence_status_class'] ?? 'offline');
+                            $chat_presence_text = (string) ($selected_chat_friend['presence_status_text'] ?? 'Offline');
                             $chat_parts = preg_split('/\s+/', trim($chat_friend_name));
                             $chat_initials = '';
                             if (!empty($chat_parts[0])) {
@@ -7235,20 +7801,33 @@ function getOrganizationIcon($org_type)
                                     <i class="fas fa-arrow-left"></i>
                                 </button>
                                 <div class="messenger-chat-user">
-                                    <span class="messenger-avatar"><?php echo htmlspecialchars($chat_initials); ?></span>
+                                    <span class="messenger-avatar">
+                                        <?php if ($chat_friend_profile_picture_url !== ''): ?>
+                                            <img src="<?php echo htmlspecialchars($chat_friend_profile_picture_url); ?>" alt="<?php echo htmlspecialchars($chat_friend_name); ?>" loading="lazy">
+                                        <?php else: ?>
+                                            <?php echo htmlspecialchars($chat_initials); ?>
+                                        <?php endif; ?>
+                                        <span class="messenger-presence-dot <?php echo htmlspecialchars($chat_presence_class); ?>" data-friend-avatar-dot="<?php echo (int) $selected_chat_id; ?>"></span>
+                                    </span>
                                     <div>
                                         <div class="messenger-conversation-name"><?php echo htmlspecialchars($chat_friend_name); ?></div>
                                         <div class="messenger-chat-status">
-                                            <?php if ($chat_friend_custom_nickname !== '' && $chat_friend_base_name !== $chat_friend_name): ?>
-                                                Name: <?php echo htmlspecialchars($chat_friend_base_name); ?>
-                                                <?php if (!empty($selected_chat_friend['ismis_id'])): ?>
-                                                    · ISMIS: <?php echo htmlspecialchars($selected_chat_friend['ismis_id']); ?>
+                                            <span class="messenger-presence-line <?php echo htmlspecialchars($chat_presence_class); ?>" data-friend-presence-line="<?php echo (int) $selected_chat_id; ?>">
+                                                <span class="messenger-presence-dot <?php echo htmlspecialchars($chat_presence_class); ?>"></span>
+                                                <span class="messenger-presence-text" data-friend-presence-text="<?php echo (int) $selected_chat_id; ?>"><?php echo htmlspecialchars($chat_presence_text); ?></span>
+                                            </span>
+                                            <span class="messenger-chat-status-extra">
+                                                <?php if ($chat_friend_custom_nickname !== '' && $chat_friend_base_name !== $chat_friend_name): ?>
+                                                    Name: <?php echo htmlspecialchars($chat_friend_base_name); ?>
+                                                    <?php if (!empty($selected_chat_friend['ismis_id'])): ?>
+                                                        · ISMIS: <?php echo htmlspecialchars($selected_chat_friend['ismis_id']); ?>
+                                                    <?php endif; ?>
+                                                <?php elseif (!empty($selected_chat_friend['ismis_id'])): ?>
+                                                    ISMIS: <?php echo htmlspecialchars($selected_chat_friend['ismis_id']); ?>
+                                                <?php else: ?>
+                                                    Classmate
                                                 <?php endif; ?>
-                                            <?php elseif (!empty($selected_chat_friend['ismis_id'])): ?>
-                                                ISMIS: <?php echo htmlspecialchars($selected_chat_friend['ismis_id']); ?>
-                                            <?php else: ?>
-                                                Classmate
-                                            <?php endif; ?>
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -7478,6 +8057,11 @@ function getOrganizationIcon($org_type)
                         <?php endif; ?>
                     </section>
                 </div>
+
+                <form method="POST" action="dashboard.php?tab=messages" id="deleteConversationForm" style="display: none;">
+                    <input type="hidden" name="delete_conversation" value="1">
+                    <input type="hidden" name="friend_id" id="deleteConversationFriendId" value="0">
+                </form>
             </div>
         </main>
     </div>
@@ -8327,6 +8911,43 @@ function getOrganizationIcon($org_type)
             messageUnreadBadge.classList.toggle('is-hidden', count <= 0);
         }
 
+        function applyFriendPresenceMap(presenceMap) {
+            if (!presenceMap || typeof presenceMap !== 'object') {
+                return;
+            }
+
+            Object.entries(presenceMap).forEach(([friendIdKey, presenceValue]) => {
+                const friendId = Number(friendIdKey || 0);
+                if (friendId <= 0) {
+                    return;
+                }
+
+                const isOnline = Number(presenceValue?.is_online || 0) === 1;
+                const statusClass = isOnline ? 'online' : 'offline';
+                const fallbackText = isOnline ? 'Active now' : 'Offline';
+                const statusText = String(presenceValue?.status_text || fallbackText);
+
+                document.querySelectorAll(`[data-friend-presence-line="${friendId}"]`).forEach((line) => {
+                    line.classList.remove('online', 'offline');
+                    line.classList.add(statusClass);
+                });
+
+                document.querySelectorAll(`[data-friend-presence-line="${friendId}"] .messenger-presence-dot`).forEach((dot) => {
+                    dot.classList.remove('online', 'offline');
+                    dot.classList.add(statusClass);
+                });
+
+                document.querySelectorAll(`[data-friend-presence-text="${friendId}"]`).forEach((textNode) => {
+                    textNode.textContent = statusText;
+                });
+
+                document.querySelectorAll(`[data-friend-avatar-dot="${friendId}"]`).forEach((dot) => {
+                    dot.classList.remove('online', 'offline');
+                    dot.classList.add(statusClass);
+                });
+            });
+        }
+
         function notifyBrowser(title, bodyText) {
             if (!('Notification' in window)) {
                 return;
@@ -8376,6 +8997,7 @@ function getOrganizationIcon($org_type)
                 const pendingRequests = Number(data.pending_request_count || 0);
                 const totalNotifications = Number(data.notification_count || (unread + pendingRequests));
                 updateMessageBadge(totalNotifications);
+                applyFriendPresenceMap(data.friend_presence || {});
 
                 const hasNewUnread = unread > lastUnreadCount;
                 const isNewMessageMarker = data.latest_sent_at && data.latest_sent_at !== lastLatestSentAt;
@@ -8475,12 +9097,113 @@ function getOrganizationIcon($org_type)
             const clearReplyBtn = document.getElementById('clearReplyBtn');
             const nicknameToggleButton = document.getElementById('messengerNicknameToggleBtn');
             const nicknamePanel = document.getElementById('messengerNicknamePanel');
+            const conversationItems = document.querySelectorAll('.messenger-conversation-item[data-conversation-friend-id]');
+            const deleteConversationForm = document.getElementById('deleteConversationForm');
+            const deleteConversationFriendIdInput = document.getElementById('deleteConversationFriendId');
             const replyButtons = document.querySelectorAll('.messenger-reply-btn');
             const reactionTargets = document.querySelectorAll('.messenger-reaction-target[data-message-id]');
             const reactionToggleButtons = document.querySelectorAll('[data-toggle-reactions]');
             const reactionPickers = document.querySelectorAll('[data-reaction-picker-for]');
             let isSendingMessage = false;
             let activeReactionPickerMessageId = 0;
+
+            const submitConversationDelete = (friendId) => {
+                const normalizedFriendId = Number(friendId || 0);
+                if (normalizedFriendId <= 0 || !deleteConversationForm || !deleteConversationFriendIdInput) {
+                    return;
+                }
+
+                deleteConversationFriendIdInput.value = String(normalizedFriendId);
+                deleteConversationForm.submit();
+            };
+
+            const promptConversationDelete = (friendId, friendName) => {
+                const normalizedFriendId = Number(friendId || 0);
+                if (normalizedFriendId <= 0) {
+                    return;
+                }
+
+                const label = String(friendName || 'this classmate').trim() || 'this classmate';
+                const confirmText = `Delete your entire conversation with ${label}? This cannot be undone.`;
+
+                if (window.Swal && typeof window.Swal.fire === 'function') {
+                    window.Swal.fire({
+                        icon: 'warning',
+                        title: 'Delete conversation?',
+                        text: confirmText,
+                        showCancelButton: true,
+                        confirmButtonText: 'Delete Conversation',
+                        cancelButtonText: 'Cancel',
+                        confirmButtonColor: '#c62828',
+                        reverseButtons: true
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            submitConversationDelete(normalizedFriendId);
+                        }
+                    });
+                    return;
+                }
+
+                if (window.confirm(confirmText)) {
+                    submitConversationDelete(normalizedFriendId);
+                }
+            };
+
+            conversationItems.forEach((item) => {
+                const friendId = Number(item.dataset.conversationFriendId || 0);
+                const friendName = item.dataset.conversationFriendName || 'this classmate';
+                if (friendId <= 0) {
+                    return;
+                }
+
+                let longPressTimer = null;
+                let suppressNextTapOpen = false;
+
+                const clearLongPressTimer = () => {
+                    if (longPressTimer !== null) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+                };
+
+                item.addEventListener('contextmenu', (event) => {
+                    if (window.innerWidth <= 768) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    promptConversationDelete(friendId, friendName);
+                });
+
+                item.addEventListener('touchstart', (event) => {
+                    if (window.innerWidth > 768) {
+                        return;
+                    }
+
+                    clearLongPressTimer();
+                    longPressTimer = window.setTimeout(() => {
+                        suppressNextTapOpen = true;
+                        promptConversationDelete(friendId, friendName);
+                        if (navigator.vibrate) {
+                            navigator.vibrate(12);
+                        }
+                    }, 560);
+                }, { passive: true });
+
+                item.addEventListener('touchmove', clearLongPressTimer, { passive: true });
+                item.addEventListener('touchend', clearLongPressTimer);
+                item.addEventListener('touchcancel', clearLongPressTimer);
+
+                item.addEventListener('click', (event) => {
+                    if (!suppressNextTapOpen) {
+                        return;
+                    }
+
+                    suppressNextTapOpen = false;
+                    event.preventDefault();
+                    event.stopPropagation();
+                });
+            });
 
             const applyReplyPreview = (messageId, sender, text) => {
                 if (!replyPreview || !replyToMessageInput || !replyPreviewSender || !replyPreviewText) {

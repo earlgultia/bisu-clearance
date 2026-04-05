@@ -27,6 +27,23 @@ if ($is_confirmed_logout) {
         // Logging should never block the user from signing out.
     }
 
+    if ($user_id > 0 && $user_role !== 'organization') {
+        try {
+            if (hasDatabaseColumn('users', 'is_online') && hasDatabaseColumn('users', 'last_seen_at')) {
+                $db = Database::getInstance();
+                $db->query("UPDATE users
+                            SET is_online = 0,
+                                last_seen_at = NOW()
+                            WHERE users_id = :users_id
+                            LIMIT 1");
+                $db->bind(':users_id', (int) $user_id);
+                $db->execute();
+            }
+        } catch (Exception $e) {
+            error_log('Logout presence update error: ' . $e->getMessage());
+        }
+    }
+
     $_SESSION = [];
 
     if (ini_get('session.use_cookies')) {
