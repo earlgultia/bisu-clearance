@@ -869,6 +869,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             min-height: 44px;
             display: inline-flex;
             align-items: center;
+            gap: 7px;
         }
 
         .forgot-link:hover {
@@ -1031,13 +1032,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             .form-options {
-                flex-direction: column;
+                flex-direction: column-reverse;
                 align-items: flex-start;
-                gap: 8px;
+                gap: 10px;
             }
 
             .theme-toggle {
-                transform: scale(0.95);
+                position: fixed;
+                top: 12px;
+                right: 12px;
+                transform: none;
             }
         }
 

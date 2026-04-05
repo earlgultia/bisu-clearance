@@ -590,11 +590,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $resetLink = buildResetLink($token);
                             $mailSent = sendResetEmail($account['email'], $account['name'], $resetLink);
 
+                            // Allow immediate password update after a valid email request.
+                            $isResetMode = true;
+                            $tokenValid = true;
+                            $currentToken = normalizeToken($token);
+                            $message = 'Account verified. You can set your new password below.';
+
                             if (shouldExposeResetLinksForTesting()) {
                                 $generatedResetLink = $resetLink;
                                 $message = $mailSent
-                                    ? 'Email send was triggered in ' . $environmentMeta['label'] . ' environment. For local testing, use the generated reset link below.'
-                                    : 'Mail is unavailable in this environment (' . $environmentMeta['label'] . '). Use the generated reset link below.';
+                                    ? 'Account verified. Email send was triggered in ' . $environmentMeta['label'] . ' environment. You can set a new password below or use the generated reset link.'
+                                    : 'Account verified. Mail is unavailable in this environment (' . $environmentMeta['label'] . '). Set your new password below or use the generated reset link.';
                             }
                         } else {
                             $error = 'Unable to start password reset right now. Please try again.';
@@ -1027,7 +1033,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required>
                 </div>
 
-                <p class="helper">Enter the email tied to your BISU clearance account and we will send a reset link.</p>
+                <p class="helper">Enter the email tied to your BISU clearance account and you can set a new password right away without entering your old password.</p>
 
                 <button type="submit" class="btn">Send Reset Link</button>
             </form>
