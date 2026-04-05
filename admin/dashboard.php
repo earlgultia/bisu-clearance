@@ -3229,7 +3229,7 @@ function getRoleBadgeClass($role)
                         <div class="form-group full-width" id="passwordField">
                             <label><i class="fas fa-lock"></i> Password <span class="required">*</span></label>
                             <div class="password-wrapper">
-                                <input type="password" name="password" id="userPassword" placeholder="Enter password (min. 8 chars)" <?php echo !isset($_GET['edit']) ? 'required' : ''; ?>>
+                                <input type="password" name="password" id="userPassword" placeholder="Enter password (min. 8 chars)">
                                 <i class="fas fa-eye password-toggle" onclick="togglePassword('userPassword', this)"></i>
                             </div>
                         </div>
@@ -3556,12 +3556,24 @@ function getRoleBadgeClass($role)
             const submitBtn = document.getElementById('modalSubmitBtn');
             const passwordField = document.getElementById('passwordField');
             const statusField = document.getElementById('modal_status_field');
+            const passwordInput = document.getElementById('userPassword');
+            const passwordToggle = passwordField ? passwordField.querySelector('.password-toggle') : null;
             
             if (mode === 'edit' && userData) {
                 titleText.textContent = 'Edit User Account';
                 submitBtn.textContent = 'Update Account';
                 submitBtn.name = 'edit_user';
                 passwordField.style.display = 'none';
+                if (passwordInput) {
+                    passwordInput.required = false;
+                    passwordInput.disabled = true;
+                    passwordInput.value = '';
+                    passwordInput.type = 'password';
+                }
+                if (passwordToggle) {
+                    passwordToggle.classList.remove('fa-eye-slash');
+                    passwordToggle.classList.add('fa-eye');
+                }
                 statusField.classList.add('show');
                 
                 // Fill form with user data
@@ -3591,6 +3603,16 @@ function getRoleBadgeClass($role)
                 submitBtn.textContent = 'Create Account';
                 submitBtn.name = 'add_user';
                 passwordField.style.display = 'block';
+                if (passwordInput) {
+                    passwordInput.disabled = false;
+                    passwordInput.required = true;
+                    passwordInput.value = '';
+                    passwordInput.type = 'password';
+                }
+                if (passwordToggle) {
+                    passwordToggle.classList.remove('fa-eye-slash');
+                    passwordToggle.classList.add('fa-eye');
+                }
                 statusField.classList.remove('show');
                 
                 // Reset form
@@ -3606,6 +3628,18 @@ function getRoleBadgeClass($role)
             // Reset form
             document.getElementById('userForm').reset();
             document.getElementById('edit_user_id').value = '';
+            const passwordInput = document.getElementById('userPassword');
+            const passwordToggle = document.querySelector('#passwordField .password-toggle');
+            if (passwordInput) {
+                passwordInput.disabled = false;
+                passwordInput.required = true;
+                passwordInput.value = '';
+                passwordInput.type = 'password';
+            }
+            if (passwordToggle) {
+                passwordToggle.classList.remove('fa-eye-slash');
+                passwordToggle.classList.add('fa-eye');
+            }
             // Hide conditional fields
             document.getElementById('modal_office_field').classList.remove('show');
             document.getElementById('modal_college_field').classList.remove('show');
@@ -3660,7 +3694,11 @@ function getRoleBadgeClass($role)
             modals.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (event.target == modal) {
-                    modal.style.display = 'none';
+                    if (modalId === 'userModal') {
+                        closeUserModal();
+                    } else {
+                        modal.style.display = 'none';
+                    }
                 }
             });
         }
