@@ -35,11 +35,18 @@ if ($_SESSION['user_role'] !== 'student') {
 
 // Get database instance
 $db = Database::getInstance();
-$runStudentSchemaMaintenance = shouldRunMaintenanceTask('student_dashboard_schema_migrations', 21600);
+$enableRuntimeSchemaMaintenance = $isDevelopmentEnvironment;
+$runStudentSchemaMaintenance = $enableRuntimeSchemaMaintenance
+    && shouldRunMaintenanceTask('student_dashboard_schema_migrations', 21600);
 
 function ensureOrganizationProofColumns($db)
 {
     static $checked = false;
+    global $enableRuntimeSchemaMaintenance;
+
+    if (!$enableRuntimeSchemaMaintenance) {
+        return;
+    }
 
     if ($checked) {
         return;
@@ -169,6 +176,11 @@ function buildFriendPresenceMeta($isOnlineFlag, $lastSeenAtRaw)
 function ensureUserPresenceColumns($db)
 {
     static $checked = false;
+    global $enableRuntimeSchemaMaintenance;
+
+    if (!$enableRuntimeSchemaMaintenance) {
+        return;
+    }
 
     if ($checked) {
         return;
@@ -238,6 +250,11 @@ function updateUserPresenceHeartbeat($db, $userId)
 function ensureStudentMessageAttachmentColumns($db)
 {
     static $checked = false;
+    global $enableRuntimeSchemaMaintenance;
+
+    if (!$enableRuntimeSchemaMaintenance) {
+        return;
+    }
 
     if ($checked) {
         return;

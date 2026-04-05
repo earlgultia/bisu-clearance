@@ -24,10 +24,17 @@ if ($_SESSION['user_role'] !== 'organization') {
 
 // Get database instance
 $db = Database::getInstance();
+$isDevelopmentEnvironment = file_exists(__DIR__ . '/../.env');
+$enableRuntimeSchemaMaintenance = $isDevelopmentEnvironment;
 
 function ensureOrganizationProofColumns($db)
 {
     static $checked = false;
+    global $enableRuntimeSchemaMaintenance;
+
+    if (!$enableRuntimeSchemaMaintenance) {
+        return;
+    }
 
     if ($checked) {
         return;
