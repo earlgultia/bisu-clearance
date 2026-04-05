@@ -182,10 +182,6 @@ function getDashboardUrl($user)
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     $role = $_SESSION['user_role'] ?? '';
 
-    if (session_status() === PHP_SESSION_ACTIVE) {
-        session_write_close();
-    }
-
     if ($role === 'super_admin') {
         header("Location: admin/dashboard.php");
     } elseif ($role === 'sub_admin') {
@@ -300,10 +296,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Redirect based on role
                 $role = $userDetails['user_role_name'];
 
-                if (session_status() === PHP_SESSION_ACTIVE) {
-                    session_write_close();
-                }
-
                 if ($role === 'super_admin') {
                     header("Location: admin/dashboard.php");
                 } elseif ($role === 'sub_admin') {
@@ -370,10 +362,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Log organization login (optional - organizations don't have activity_logs table)
                 error_log("Organization login successful: {$org['org_name']} ({$org['org_email']}) - Dashboard: {$dashboardUrl}");
-
-                if (session_status() === PHP_SESSION_ACTIVE) {
-                    session_write_close();
-                }
 
                 // Redirect to organization-specific dashboard
                 header("Location: " . $dashboardUrl);

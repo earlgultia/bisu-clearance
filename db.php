@@ -79,10 +79,7 @@ class Database
             PDO::ATTR_PERSISTENT => false,
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            // MariaDB + native prepares can fail on some valid queries used in this app
-            // (e.g., repeated named params and certain metadata/DDL statements). Emulation
-            // avoids first-load login/dashboard failures caused by those prepare errors.
-            PDO::ATTR_EMULATE_PREPARES => true,
+            PDO::ATTR_EMULATE_PREPARES => false,
             PDO::ATTR_STRINGIFY_FETCHES => false,
             PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
             PDO::MYSQL_ATTR_FOUND_ROWS => true
