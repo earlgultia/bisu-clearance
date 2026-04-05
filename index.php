@@ -408,14 +408,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             color: var(--primary);
             font-size: 1.02rem;
             font-weight: 700;
-            line-height: 1.1;
+            line-height: 1.2;
+            margin-bottom: 2px;
             transition: color 0.3s ease;
         }
 
         .logo-text p {
             color: var(--text-secondary);
             font-size: 0.72rem;
-            line-height: 1.1;
+            line-height: 1.3;
             transition: color 0.3s ease;
         }
 
@@ -608,15 +609,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             color: var(--text-secondary);
             animation: fadeIn 1s ease 0.5s both;
             max-width: 54ch;
+            line-height: 1.8;
         }
 
         .hero-version {
-            margin-top: -12px;
+            margin-top: 8px;
             margin-bottom: 26px;
             color: var(--text-secondary);
             font-size: 0.9rem;
             font-weight: 600;
             letter-spacing: 0.03em;
+            line-height: 1.5;
         }
 
         .hero-buttons {
@@ -946,7 +949,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         .section-title p {
             color: var(--text-secondary);
             max-width: 700px;
-            margin: 0 auto;
+            margin: 14px auto 0;
+            line-height: 1.75;
             animation: fadeIn 1s ease 0.2s both;
         }
 
@@ -1957,9 +1961,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             }
 
             .hero-version {
-                margin-top: -10px;
+                margin-top: 10px;
                 margin-bottom: 22px;
                 text-align: center;
+                line-height: 1.5;
             }
 
             .hero {

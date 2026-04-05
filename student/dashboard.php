@@ -5269,6 +5269,44 @@ function getOrganizationIcon($org_type)
             background: var(--info);
         }
 
+        .graduating-alert-popup {
+            width: min(92vw, 420px);
+            border-radius: 16px;
+            padding: 1rem 0.95rem 0.9rem;
+        }
+
+        .graduating-alert-popup .swal2-icon {
+            margin: 0.35rem auto 0.65rem;
+        }
+
+        .graduating-alert-title {
+            font-size: 1.08rem;
+            line-height: 1.25;
+            margin-bottom: 0.45rem;
+        }
+
+        .graduating-alert-text {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .graduating-alert-confirm {
+            min-height: 38px;
+            border: none;
+            border-radius: 10px;
+            padding: 0.52rem 0.95rem;
+            background: var(--primary);
+            color: #fff;
+            font-size: 0.84rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .graduating-alert-confirm:hover {
+            background: var(--primary-light);
+        }
+
         @keyframes slideIn {
             from {
                 transform: translateX(100%);
@@ -5733,6 +5771,27 @@ function getOrganizationIcon($org_type)
                 width: 100%;
                 justify-content: center;
             }
+
+            .graduating-alert-popup {
+                width: calc(100vw - 1.4rem);
+                max-width: 360px;
+                padding: 0.85rem 0.78rem 0.75rem;
+            }
+
+            .graduating-alert-title {
+                font-size: 0.98rem;
+            }
+
+            .graduating-alert-text {
+                font-size: 0.84rem;
+                line-height: 1.42;
+            }
+
+            .graduating-alert-confirm {
+                min-height: 36px;
+                font-size: 0.8rem;
+                padding: 0.45rem 0.85rem;
+            }
         }
 
         @media (max-width: 480px) {
@@ -5786,6 +5845,32 @@ function getOrganizationIcon($org_type)
             .clearance-type-helper {
                 font-size: 0.82rem;
                 padding: 0.75rem 0.85rem;
+            }
+
+            .graduating-alert-popup {
+                width: calc(100vw - 1rem);
+                max-width: 320px;
+                border-radius: 14px;
+                padding: 0.8rem 0.72rem 0.7rem;
+            }
+
+            .graduating-alert-popup .swal2-icon {
+                transform: scale(0.86);
+                margin-top: 0.15rem;
+                margin-bottom: 0.35rem;
+            }
+
+            .graduating-alert-title {
+                font-size: 0.92rem;
+            }
+
+            .graduating-alert-text {
+                font-size: 0.8rem;
+            }
+
+            .graduating-alert-confirm {
+                min-height: 34px;
+                font-size: 0.78rem;
             }
 
             .clearance-process-flow {
@@ -7633,7 +7718,13 @@ function getOrganizationIcon($org_type)
                     title,
                     text: message,
                     confirmButtonText: 'Exit',
-                    confirmButtonColor: '#3a2475'
+                    customClass: {
+                        popup: 'graduating-alert-popup',
+                        title: 'graduating-alert-title',
+                        htmlContainer: 'graduating-alert-text',
+                        confirmButton: 'graduating-alert-confirm'
+                    },
+                    buttonsStyling: false
                 });
                 return;
             }
