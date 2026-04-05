@@ -154,7 +154,19 @@ function buildFriendPresenceMeta($isOnlineFlag, $lastSeenAtRaw)
         if ($lastSeenTs !== false) {
             $elapsedSeconds = max(0, time() - $lastSeenTs);
             $minutesSinceLogout = (int) floor($elapsedSeconds / 60);
-            $statusText = 'Offline · ' . $minutesSinceLogout . ' min ago';
+
+            if ($elapsedSeconds < 60) {
+                $statusText = 'Offline · just now';
+            } elseif ($elapsedSeconds < 3600) {
+                $minutes = max(1, (int) floor($elapsedSeconds / 60));
+                $statusText = 'Offline · ' . $minutes . ' ' . ($minutes === 1 ? 'minute' : 'minutes') . ' ago';
+            } elseif ($elapsedSeconds < 86400) {
+                $hours = max(1, (int) floor($elapsedSeconds / 3600));
+                $statusText = 'Offline · ' . $hours . ' ' . ($hours === 1 ? 'hour' : 'hours') . ' ago';
+            } else {
+                $days = max(1, (int) floor($elapsedSeconds / 86400));
+                $statusText = 'Offline · ' . $days . ' ' . ($days === 1 ? 'day' : 'days') . ' ago';
+            }
         }
     }
 
@@ -5960,6 +5972,12 @@ function getOrganizationIcon($org_type)
             margin-bottom: 2rem;
         }
 
+        .track-status-empty-state .track-status-apply-btn {
+            padding: 0.72rem 1.35rem;
+            min-height: 40px;
+            font-size: 0.9rem;
+        }
+
         /* File Info */
         .file-info {
             display: flex;
@@ -6047,6 +6065,12 @@ function getOrganizationIcon($org_type)
                 top: 0;
                 padding: calc(0.8rem + env(safe-area-inset-top)) 1rem 0.8rem;
                 z-index: 1400;
+            }
+
+            .track-status-empty-state .track-status-apply-btn {
+                padding: 0.64rem 1.12rem;
+                min-height: 38px;
+                font-size: 0.85rem;
             }
 
             .header-content {
@@ -6427,6 +6451,12 @@ function getOrganizationIcon($org_type)
         @media (max-width: 480px) {
             .header {
                 padding-top: calc(0.65rem + env(safe-area-inset-top));
+            }
+
+            .track-status-empty-state .track-status-apply-btn {
+                padding: 0.58rem 1rem;
+                min-height: 36px;
+                font-size: 0.82rem;
             }
 
             .header-content {
@@ -7256,11 +7286,11 @@ function getOrganizationIcon($org_type)
                     </div>
 
                     <?php if (empty($grouped_clearances)): ?>
-                        <div class="empty-state">
+                        <div class="empty-state track-status-empty-state">
                             <i class="fas fa-inbox"></i>
                             <h3>No Clearance Applications Found</h3>
                             <p>Apply for clearance to see your status here.</p>
-                            <button class="btn btn-primary" onclick="switchTab('apply')"
+                            <button class="btn btn-primary track-status-apply-btn" onclick="switchTab('apply')"
                                 style="background: var(--primary); color: white;">
                                 <i class="fas fa-file-signature"></i> Apply Now
                             </button>
