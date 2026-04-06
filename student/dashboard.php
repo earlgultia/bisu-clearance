@@ -110,6 +110,7 @@ $selected_chat_friend_label = null;
 $selected_chat_friend_base_name = null;
 $user_presence_columns_available = false;
 $user_profile_picture_column_available = false;
+$message_time_display_offset_seconds = 0;
 
 function buildMessageSnippet($text, $maxChars = 120, $collapseWhitespace = true)
 {
@@ -140,6 +141,62 @@ function buildMessageSnippet($text, $maxChars = 120, $collapseWhitespace = true)
         : substr($snippet, 0, $trimLength);
 
     return rtrim((string) $trimmed) . '...';
+}
+
+function getMessageTimeDisplayOffsetSeconds($db)
+{
+    static $offset_seconds = null;
+
+    if ($offset_seconds !== null) {
+        return $offset_seconds;
+    }
+
+    $offset_seconds = 0;
+
+    try {
+        $db->query("SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW()) AS db_offset_seconds");
+        $row = $db->single();
+        $db_offset_seconds = (int) ($row['db_offset_seconds'] ?? 0);
+
+        $app_timezone_name = date_default_timezone_get();
+        if (!is_string($app_timezone_name) || $app_timezone_name === '') {
+            $app_timezone_name = 'Asia/Manila';
+        }
+
+        $app_now = new DateTimeImmutable('now', new DateTimeZone($app_timezone_name));
+        $app_offset_seconds = (int) $app_now->getOffset();
+
+        $calculated_offset = $app_offset_seconds - $db_offset_seconds;
+
+        // Ignore tiny drifts and only correct meaningful timezone deltas.
+        if (abs($calculated_offset) >= 60) {
+            $offset_seconds = $calculated_offset;
+        }
+    } catch (Exception $e) {
+        error_log("Message time offset detection error: " . $e->getMessage());
+    }
+
+    return $offset_seconds;
+}
+
+function formatMessageTimeForDisplay($rawDateTime, $format = 'M d, h:i A', $offsetSeconds = 0)
+{
+    $raw_value = trim((string) $rawDateTime);
+    if ($raw_value === '') {
+        return '';
+    }
+
+    $timestamp = strtotime($raw_value);
+    if ($timestamp === false) {
+        return '';
+    }
+
+    $offsetSeconds = (int) $offsetSeconds;
+    if ($offsetSeconds !== 0) {
+        $timestamp += $offsetSeconds;
+    }
+
+    return date($format, $timestamp);
 }
 
 function buildFriendPresenceMeta($isOnlineFlag, $lastSeenAtRaw, $elapsedSecondsRaw = null)
@@ -292,6 +349,7 @@ function ensureStudentMessageAttachmentColumns($db)
 ensureUserPresenceColumns($db);
 $user_presence_columns_available = hasDatabaseColumn('users', 'is_online') && hasDatabaseColumn('users', 'last_seen_at');
 $user_profile_picture_column_available = hasDatabaseColumn('users', 'profile_picture');
+$message_time_display_offset_seconds = getMessageTimeDisplayOffsetSeconds($db);
 updateUserPresenceHeartbeat($db, $student_id);
 
 if ($runStudentSchemaMaintenance) {
@@ -4917,6 +4975,7 @@ function getOrganizationIcon($org_type)
             display: grid;
             justify-items: start;
             gap: 0.18rem;
+            min-width: 0;
         }
 
         .messenger-bubble-row.mine {
@@ -4924,12 +4983,16 @@ function getOrganizationIcon($org_type)
         }
 
         .messenger-bubble {
-            max-width: min(62%, 500px);
+            display: inline-block;
+            width: fit-content;
+            max-width: min(54%, 420px);
+            min-width: 0;
             padding: 0.5rem 0.74rem;
             border-radius: 16px;
             font-size: 0.83rem;
             line-height: 1.35;
             word-break: break-word;
+            overflow-wrap: anywhere;
             box-shadow: 0 6px 14px rgba(13, 21, 42, 0.08);
         }
 
@@ -4944,7 +5007,7 @@ function getOrganizationIcon($org_type)
             background: linear-gradient(145deg, #1498ff, #006fff 65%);
             color: #ffffff;
             border-bottom-right-radius: 6px;
-            max-width: min(58%, 460px);
+            max-width: min(50%, 390px);
         }
 
         .messenger-bubble-meta {
@@ -6541,13 +6604,13 @@ function getOrganizationIcon($org_type)
             }
 
             .messenger-bubble {
-                max-width: 76%;
+                max-width: 80%;
                 font-size: 0.8rem;
                 padding: 0.46rem 0.7rem;
             }
 
             .messenger-bubble-row.mine .messenger-bubble {
-                max-width: 72%;
+                max-width: 76%;
             }
 
             .messenger-message-actions {
@@ -6920,13 +6983,13 @@ function getOrganizationIcon($org_type)
             }
 
             .messenger-bubble {
-                max-width: 82%;
+                max-width: 86%;
                 font-size: 0.78rem;
                 padding: 0.42rem 0.62rem;
             }
 
             .messenger-bubble-row.mine .messenger-bubble {
-                max-width: 78%;
+                max-width: 82%;
             }
 
             .messenger-bubble-meta {
@@ -8180,7 +8243,11 @@ function getOrganizationIcon($org_type)
                                     }
 
                                     if (!empty($preview_entry['latest_at'])) {
-                                        $preview_time = date('M d', strtotime((string) $preview_entry['latest_at']));
+                                        $preview_time = formatMessageTimeForDisplay(
+                                            (string) $preview_entry['latest_at'],
+                                            'M d',
+                                            $message_time_display_offset_seconds
+                                        );
                                     }
                                     ?>
                                     <a
@@ -8372,7 +8439,14 @@ function getOrganizationIcon($org_type)
                                                 <?php endif; ?>
                                             </div>
                                             <div class="messenger-bubble-meta">
-                                                <?php echo date('M d, h:i A', strtotime((string) ($msg['sent_at'] ?? 'now'))); ?>
+                                                <?php
+                                                $message_sent_display_time = formatMessageTimeForDisplay(
+                                                    (string) ($msg['sent_at'] ?? ''),
+                                                    'M d, h:i A',
+                                                    $message_time_display_offset_seconds
+                                                );
+                                                echo htmlspecialchars($message_sent_display_time !== '' ? $message_sent_display_time : date('M d, h:i A'));
+                                                ?>
                                                 <?php if ($is_mine): ?>
                                                     <?php echo !empty($msg['read_at']) ? ' · Seen' : ' · Delivered'; ?>
                                                 <?php endif; ?>
