@@ -4972,18 +4972,20 @@ function getOrganizationIcon($org_type)
         }
 
         .messenger-bubble-row {
-            display: grid;
-            justify-items: start;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
             gap: 0.18rem;
             min-width: 0;
         }
 
         .messenger-bubble-row.mine {
-            justify-items: end;
+            align-items: flex-end;
         }
 
         .messenger-bubble {
             display: inline-block;
+            width: auto;
             width: fit-content;
             max-width: min(54%, 420px);
             min-width: 0;
