@@ -44,6 +44,22 @@ $form_data = [
     'course_id' => ''
 ];
 
+function normalizeNameCase($value)
+{
+    $normalized = trim((string) $value);
+    if ($normalized === '') {
+        return '';
+    }
+
+    $normalized = preg_replace('/\s+/', ' ', $normalized);
+
+    if (function_exists('mb_convert_case') && function_exists('mb_strtolower')) {
+        return mb_convert_case(mb_strtolower($normalized, 'UTF-8'), MB_CASE_TITLE, 'UTF-8');
+    }
+
+    return ucwords(strtolower($normalized));
+}
+
 // Fetch colleges for dropdown
 $colleges = [];
 try {
@@ -58,8 +74,8 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Get and sanitize form data
     $form_data = [
-        'fname' => trim($_POST['fname'] ?? ''),
-        'lname' => trim($_POST['lname'] ?? ''),
+        'fname' => normalizeNameCase($_POST['fname'] ?? ''),
+        'lname' => normalizeNameCase($_POST['lname'] ?? ''),
         'email' => trim($_POST['email'] ?? ''),
         'ismis_id' => trim($_POST['ismis_id'] ?? ''),
         'contact' => trim($_POST['contact'] ?? ''),
@@ -1024,12 +1040,12 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                     <div class="form-group">
                         <label><i class="fas fa-user"></i> First Name *</label>
                         <input type="text" name="fname" id="fname" value="<?php echo htmlspecialchars($form_data['fname']); ?>" 
-                               placeholder="Enter first name" required>
+                               placeholder="Enter first name" autocapitalize="words" autocomplete="given-name" required>
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-user"></i> Last Name *</label>
                         <input type="text" name="lname" id="lname" value="<?php echo htmlspecialchars($form_data['lname']); ?>" 
-                               placeholder="Enter last name" required>
+                               placeholder="Enter last name" autocapitalize="words" autocomplete="family-name" required>
                     </div>
                 </div>
 
@@ -1245,6 +1261,24 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             }
         }
 
+        function toProperCase(value) {
+            return value
+                .toLowerCase()
+                .replace(/\s+/g, ' ')
+                .trim()
+                .replace(/(^|[\s\-'])[a-z]/g, match => match.toUpperCase());
+        }
+
+        function normalizePersonalNameInput(inputId) {
+            const input = document.getElementById(inputId);
+            if (!input) {
+                return '';
+            }
+
+            input.value = toProperCase(input.value);
+            return input.value;
+        }
+
         // Check email domain
         function checkEmailDomain() {
             const email = document.getElementById('email').value;
@@ -1332,8 +1366,8 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
         // Form validation
         function validateForm() {
-            const fname = document.getElementById('fname').value.trim();
-            const lname = document.getElementById('lname').value.trim();
+            const fname = normalizePersonalNameInput('fname');
+            const lname = normalizePersonalNameInput('lname');
             const email = document.getElementById('email').value.trim();
             const ismis = document.getElementById('ismis_id').value.trim();
             const contact = document.getElementById('contact').value.trim();
@@ -1406,6 +1440,15 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
         // Auto-format ISMIS ID to only allow digits
         document.getElementById('ismis_id').addEventListener('input', function(e) {
             this.value = this.value.replace(/[^0-9]/g, '').substring(0, 6);
+        });
+
+        // Normalize personal name fields when user leaves the input.
+        document.getElementById('fname').addEventListener('blur', function() {
+            normalizePersonalNameInput('fname');
+        });
+
+        document.getElementById('lname').addEventListener('blur', function() {
+            normalizePersonalNameInput('lname');
         });
 
         // Real-time email validation
