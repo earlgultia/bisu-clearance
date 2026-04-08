@@ -2181,7 +2181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                     </div>
                     <div class="hero-mini-card">
                         <strong><?php echo SITE_VERSION; ?></strong>
-                        <span>new and improved messaging UI</span>
+                        <span>install the clearance as an app</span>
                     </div>
                 </div>
             </div>
@@ -2226,7 +2226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         <div class="section-title">
             <div class="section-kicker"><i class="fas fa-sparkles"></i> What's New In <?php echo SITE_VERSION; ?></div>
             <h2>Why Choose Our System?</h2>
-            <p><?php echo SITE_VERSION; ?> includes a new and improved messaging UI for clearer, faster communication.</p>
+            <p><?php echo SITE_VERSION; ?> lets you install BISU Clearance as an app for faster, one-tap access on your device.</p>
         </div>
         <div class="features-grid">
             <div class="feature-card">
