@@ -3382,6 +3382,13 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
             }
         }
     </style>
+    <link rel="manifest" href="/clearance/manifest.webmanifest">
+    <meta name="theme-color" content="#412886">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="BISU Clearance">
+    <link rel="apple-touch-icon" href="/clearance/assets/img/logo.png">
+    <script defer src="/clearance/assets/js/pwa-register.js"></script>
 </head>
 
 <body>

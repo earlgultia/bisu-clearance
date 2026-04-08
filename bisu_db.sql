@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 30, 2026 at 10:31 AM
+-- Generation Time: Apr 08, 2026 at 03:57 AM
 -- Server version: 10.4.32-MariaDB
--- PHP Version: 8.0.30
+-- PHP Version: 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -844,7 +844,68 @@ INSERT INTO `activity_logs` (`log_id`, `users_id`, `action`, `description`, `ip_
 (803, 15, 'LOGOUT', 'User logged out: Earl Gultia', '127.0.0.1', '2026-03-30 06:49:47'),
 (804, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '127.0.0.1', '2026-03-30 06:52:07'),
 (805, 15, 'LOGOUT', 'User logged out: Earl Gultia', '127.0.0.1', '2026-03-30 06:53:29'),
-(806, 27, 'CANCEL_CLEARANCE', 'Cancelled clearance application for 2nd Semester 2025-2026', '127.0.0.1', '2026-03-30 06:54:48');
+(806, 27, 'CANCEL_CLEARANCE', 'Cancelled clearance application for 2nd Semester 2025-2026', '127.0.0.1', '2026-03-30 06:54:48'),
+(807, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-02 02:06:52'),
+(808, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-02 04:53:49'),
+(809, 15, 'SEND_MESSAGE', 'Sent message to student ID: 24', '::1', '2026-04-02 05:38:28'),
+(810, 15, 'SEND_MESSAGE', 'Sent message to student ID: 14', '::1', '2026-04-02 05:38:35'),
+(811, 15, 'SEND_MESSAGE', 'Sent message to student ID: 14', '::1', '2026-04-02 05:44:28'),
+(812, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-02 05:50:32'),
+(813, 14, 'LOGIN', 'User logged in successfully: Kristelle Joyce Lobo', '::1', '2026-04-02 05:50:44'),
+(814, 14, 'SEND_MESSAGE', 'Sent message to student ID: 15', '::1', '2026-04-02 05:51:08'),
+(815, 14, 'LOGOUT', 'User logged out: Kristelle Joyce Lobo', '::1', '2026-04-02 05:51:15'),
+(816, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-02 05:51:32'),
+(817, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-02 06:01:37'),
+(818, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-02 06:16:37'),
+(819, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-02 06:19:25'),
+(820, 6, 'LOGIN', 'User logged in successfully: Elsa Cadorna', '::1', '2026-04-02 06:19:33'),
+(821, 6, 'LOGOUT', 'User logged out: Elsa Cadorna', '::1', '2026-04-02 06:20:39'),
+(822, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-02 06:20:49'),
+(823, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-02 06:37:38'),
+(824, 6, 'LOGIN', 'User logged in successfully: Elsa Cadorna', '::1', '2026-04-02 06:37:51'),
+(825, 6, 'LOGOUT', 'User logged out: Elsa Cadorna', '::1', '2026-04-02 06:38:28'),
+(826, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-02 06:38:39'),
+(827, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-02 06:45:25'),
+(828, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-02 06:57:26'),
+(829, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-02 06:58:47'),
+(830, 14, 'LOGOUT', 'User logged out: Compass', '::1', '2026-04-02 07:00:06'),
+(831, 14, 'LOGOUT', 'User logged out: Compass', '::1', '2026-04-02 07:06:24'),
+(832, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-04 09:46:56'),
+(833, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-04 09:47:10'),
+(834, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-05 02:45:38'),
+(835, 15, 'APPLY_CLEARANCE', 'Applied for clearance: non_graduating - 2nd Semester 2025-2026', '::1', '2026-04-05 02:53:35'),
+(836, 15, 'CANCEL_CLEARANCE', 'Cancelled clearance application for 2nd Semester 2025-2026', '::1', '2026-04-05 02:53:47'),
+(837, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 02:54:23'),
+(838, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-05 02:58:15'),
+(839, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 02:58:38'),
+(840, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-05 14:52:53'),
+(841, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 14:53:18'),
+(842, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-05 15:16:23'),
+(843, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 15:17:41'),
+(844, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 15:36:41'),
+(845, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 15:36:51'),
+(846, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 15:37:01'),
+(847, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 16:04:39'),
+(848, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 16:05:04'),
+(849, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 16:33:39'),
+(850, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 16:41:13'),
+(851, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 17:19:18'),
+(852, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 17:21:16'),
+(853, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 17:23:12'),
+(854, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-05 17:25:38'),
+(855, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 17:25:41'),
+(856, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-05 17:25:46'),
+(857, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 17:25:50'),
+(858, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-05 17:28:30'),
+(859, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 17:28:42'),
+(860, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-05 17:39:40'),
+(861, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 17:40:07'),
+(862, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '127.0.0.1', '2026-04-05 17:58:37'),
+(863, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 17:58:56'),
+(864, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-05 18:47:52'),
+(865, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-05 18:51:02'),
+(866, 15, 'LOGIN', 'User logged in successfully: Earl Gultia', '::1', '2026-04-06 02:21:49'),
+(867, 15, 'LOGOUT', 'User logged out: Earl Gultia', '::1', '2026-04-06 02:22:19');
 
 -- --------------------------------------------------------
 
@@ -887,11 +948,6 @@ CREATE TABLE `clearance` (
 --
 
 INSERT INTO `clearance` (`clearance_id`, `clearance_name`, `users_id`, `clearance_type_id`, `semester`, `school_year`, `office_order`, `office_id`, `status`, `remarks`, `lacking_comment`, `lacking_comment_at`, `lacking_comment_by`, `proof_file`, `proof_remarks`, `proof_uploaded_at`, `proof_uploaded_by`, `student_proof_file`, `student_proof_remarks`, `student_proof_uploaded_at`, `processed_by`, `processed_date`, `created_at`, `updated_at`, `organization_status`, `is_completed`, `completed_date`) VALUES
-(94, 'Clearance for Earl Gultia - 2026-03-30', 15, 2, '2nd Semester', '2025-2026', 1, 1, 'approved', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 11, '2026-03-30 01:17:07', '2026-03-30 01:15:50', '2026-03-30 01:17:07', NULL, 0, NULL),
-(95, 'Clearance for Earl Gultia - 2026-03-30', 15, 2, '2nd Semester', '2025-2026', 2, 2, 'approved', ' | SAS Approved: ', 'Wakay attend2x', '2026-03-30 09:23:57', 12, NULL, NULL, NULL, NULL, 'uploads/proofs/student/proof_student_15_95_1774833886.jpg', 'Here\'s the proof', '2026-03-30 09:24:46', 6, '2026-03-30 02:12:15', '2026-03-30 01:15:50', '2026-03-30 02:12:15', NULL, 0, NULL),
-(96, 'Clearance for Earl Gultia - 2026-03-30', 15, 2, '2nd Semester', '2025-2026', 3, 3, 'approved', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 12, '2026-03-30 02:13:02', '2026-03-30 01:15:50', '2026-03-30 02:13:02', NULL, 0, NULL),
-(97, 'Clearance for Earl Gultia - 2026-03-30', 15, 2, '2nd Semester', '2025-2026', 4, 4, 'approved', ' | Cashier: ', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 13, '2026-03-30 02:13:36', '2026-03-30 01:15:50', '2026-03-30 02:13:36', NULL, 0, NULL),
-(98, 'Clearance for Earl Gultia - 2026-03-30', 15, 2, '2nd Semester', '2025-2026', 5, 6, 'approved', NULL, 'Wakay Tuli', '2026-03-30 09:43:22', 13, NULL, NULL, NULL, NULL, 'uploads/proofs/student/proof_student_15_98_1774836890.jpg', '', '2026-03-30 10:14:50', 10, '2026-03-30 02:15:15', '2026-03-30 01:15:50', '2026-03-30 02:15:15', NULL, 0, NULL),
 (99, 'Clearance for Angel Tutor - 2026-03-30', 21, 2, '2nd Semester', '2025-2026', 1, 1, 'pending', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-03-30 02:28:54', '2026-03-30 02:28:54', NULL, 0, NULL),
 (100, 'Clearance for Angel Tutor - 2026-03-30', 21, 2, '2nd Semester', '2025-2026', 2, 2, 'pending', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-03-30 02:28:54', '2026-03-30 02:28:54', NULL, 0, NULL),
 (101, 'Clearance for Angel Tutor - 2026-03-30', 21, 2, '2nd Semester', '2025-2026', 3, 3, 'pending', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-03-30 02:28:54', '2026-03-30 02:28:54', NULL, 0, NULL),
@@ -1160,10 +1216,6 @@ CREATE TABLE `organization_clearance` (
 --
 
 INSERT INTO `organization_clearance` (`org_clearance_id`, `clearance_id`, `org_id`, `office_id`, `status`, `remarks`, `student_proof_file`, `student_proof_remarks`, `student_proof_uploaded_at`, `processed_by`, `processed_date`, `created_at`, `updated_at`) VALUES
-(69, 95, 12, 7, 'approved', ' | Town Org: ', NULL, NULL, NULL, 12, '2026-03-30 09:27:47', '2026-03-30 01:15:50', '2026-03-30 01:27:47'),
-(70, 95, 14, 8, 'approved', ' | College Org: ', NULL, NULL, NULL, 14, '2026-03-30 10:11:26', '2026-03-30 01:15:50', '2026-03-30 02:11:26'),
-(71, 95, 15, 9, 'approved', ' | SSG: ', NULL, NULL, NULL, 15, '2026-03-30 10:11:46', '2026-03-30 01:15:50', '2026-03-30 02:11:46'),
-(72, 95, 13, 6, 'approved', ' | Clinic: ', NULL, NULL, NULL, 13, '2026-03-30 10:10:58', '2026-03-30 01:15:50', '2026-03-30 02:10:58'),
 (73, 100, 12, 7, 'pending', NULL, NULL, NULL, NULL, NULL, NULL, '2026-03-30 02:28:54', '2026-03-30 02:28:54'),
 (74, 100, 14, 8, 'pending', NULL, NULL, NULL, NULL, NULL, NULL, '2026-03-30 02:28:54', '2026-03-30 02:28:54'),
 (75, 100, 15, 9, 'pending', NULL, NULL, NULL, NULL, NULL, NULL, '2026-03-30 02:28:54', '2026-03-30 02:28:54'),
@@ -1245,7 +1297,36 @@ CREATE TABLE `password_resets` (
 --
 
 INSERT INTO `password_resets` (`reset_id`, `account_email`, `user_type`, `user_id`, `token_hash`, `expires_at`, `used_at`, `created_at`) VALUES
-(1, 'earl.gultia@bisu.edu.ph', 'user', 15, '7d90268badec185005756bb12befd4a701934f0c593321c566bdc5569e18fb42', '2026-03-22 13:26:11', '2026-03-22 12:26:46', '2026-03-22 12:26:11');
+(10, 'earl.gultia@bisu.edu.ph', 'user', 15, '8b1d65d96b5d3ddaf508552e98a330b87aa6f349be53e3831f85d4c9ae4ca87d', '2026-04-06 02:28:12', NULL, '2026-04-05 21:28:12');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `password_reset_attempts`
+--
+
+CREATE TABLE `password_reset_attempts` (
+  `attempt_id` bigint(20) NOT NULL,
+  `identifier_hash` char(64) NOT NULL,
+  `ip_address` varchar(45) NOT NULL,
+  `action_type` enum('request','reset') NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `password_reset_attempts`
+--
+
+INSERT INTO `password_reset_attempts` (`attempt_id`, `identifier_hash`, `ip_address`, `action_type`, `created_at`) VALUES
+(1, '1a8cc94db60fc4009ef34288e41079fcae2797af3c8388d657b53e7f62746e66', '::1', 'request', '2026-04-02 10:50:10'),
+(2, '1a8cc94db60fc4009ef34288e41079fcae2797af3c8388d657b53e7f62746e66', '::1', 'request', '2026-04-02 10:53:43'),
+(3, '1a8cc94db60fc4009ef34288e41079fcae2797af3c8388d657b53e7f62746e66', '::1', 'request', '2026-04-02 10:54:00'),
+(4, '1a8cc94db60fc4009ef34288e41079fcae2797af3c8388d657b53e7f62746e66', '::1', 'request', '2026-04-02 10:55:35'),
+(5, '1a8cc94db60fc4009ef34288e41079fcae2797af3c8388d657b53e7f62746e66', '::1', 'request', '2026-04-02 10:56:16'),
+(6, '1a8cc94db60fc4009ef34288e41079fcae2797af3c8388d657b53e7f62746e66', '::1', 'request', '2026-04-05 18:33:57'),
+(7, '1a8cc94db60fc4009ef34288e41079fcae2797af3c8388d657b53e7f62746e66', '::1', 'request', '2026-04-05 18:42:47'),
+(8, '1a8cc94db60fc4009ef34288e41079fcae2797af3c8388d657b53e7f62746e66', '::1', 'request', '2026-04-05 21:28:09'),
+(9, '1a8cc94db60fc4009ef34288e41079fcae2797af3c8388d657b53e7f62746e66', '::1', 'request', '2026-04-05 21:28:12');
 
 -- --------------------------------------------------------
 
@@ -1287,6 +1368,29 @@ INSERT INTO `student_friendships` (`friendship_id`, `user_one_id`, `user_two_id`
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `student_friend_nicknames`
+--
+
+CREATE TABLE `student_friend_nicknames` (
+  `nickname_id` int(11) NOT NULL,
+  `owner_id` int(11) NOT NULL,
+  `friend_id` int(11) NOT NULL,
+  `nickname` varchar(60) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `student_friend_nicknames`
+--
+
+INSERT INTO `student_friend_nicknames` (`nickname_id`, `owner_id`, `friend_id`, `nickname`, `created_at`, `updated_at`) VALUES
+(1, 15, 14, 'MyBabyLoves', '2026-04-02 09:39:09', '2026-04-02 09:39:09'),
+(2, 15, 24, 'Badii Venus', '2026-04-02 09:39:21', '2026-04-02 09:39:21');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `student_messages`
 --
 
@@ -1295,26 +1399,59 @@ CREATE TABLE `student_messages` (
   `sender_id` int(11) NOT NULL,
   `recipient_id` int(11) NOT NULL,
   `message_body` text NOT NULL,
+  `reply_to_message_id` int(11) DEFAULT NULL,
   `sent_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `read_at` datetime DEFAULT NULL
+  `read_at` datetime DEFAULT NULL,
+  `attachment_file` varchar(255) DEFAULT NULL,
+  `attachment_name` varchar(255) DEFAULT NULL,
+  `attachment_type` varchar(30) DEFAULT NULL,
+  `attachment_size` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `student_messages`
 --
 
-INSERT INTO `student_messages` (`message_id`, `sender_id`, `recipient_id`, `message_body`, `sent_at`, `read_at`) VALUES
-(1, 15, 14, 'Hi', '2026-03-22 13:47:31', '2026-03-22 13:52:53'),
-(4, 15, 14, 'hi', '2026-03-22 13:50:20', '2026-03-22 13:52:53'),
-(5, 14, 15, 'hello', '2026-03-22 13:53:09', '2026-03-22 13:53:52'),
-(6, 15, 14, 'Try sad message arhi if madawat ba nimo', '2026-03-30 12:06:40', '2026-03-30 12:14:01'),
-(7, 14, 15, 'Oh', '2026-03-30 12:14:34', '2026-03-30 12:15:10'),
-(8, 15, 14, 'Wow🤣', '2026-03-30 12:15:24', '2026-03-30 12:17:28'),
-(9, 15, 14, 'Hi gwapa😍🤣', '2026-03-30 12:53:41', '2026-03-30 13:13:27'),
-(10, 24, 15, 'Hi', '2026-03-30 14:09:41', '2026-03-30 14:09:45'),
-(11, 24, 26, 'Hi indayin hahaha', '2026-03-30 14:12:57', '2026-03-30 14:14:33'),
-(12, 26, 24, 'hello ate HAHHAHAHA', '2026-03-30 14:15:48', '2026-03-30 14:16:02'),
-(13, 24, 26, 'Ahhahaha', '2026-03-30 14:16:16', '2026-03-30 14:16:26');
+INSERT INTO `student_messages` (`message_id`, `sender_id`, `recipient_id`, `message_body`, `reply_to_message_id`, `sent_at`, `read_at`, `attachment_file`, `attachment_name`, `attachment_type`, `attachment_size`) VALUES
+(1, 15, 14, 'Hi', NULL, '2026-03-22 13:47:31', '2026-03-22 13:52:53', NULL, NULL, NULL, NULL),
+(4, 15, 14, 'hi', NULL, '2026-03-22 13:50:20', '2026-03-22 13:52:53', NULL, NULL, NULL, NULL),
+(5, 14, 15, 'hello', NULL, '2026-03-22 13:53:09', '2026-03-22 13:53:52', NULL, NULL, NULL, NULL),
+(6, 15, 14, 'Try sad message arhi if madawat ba nimo', NULL, '2026-03-30 12:06:40', '2026-03-30 12:14:01', NULL, NULL, NULL, NULL),
+(7, 14, 15, 'Oh', NULL, '2026-03-30 12:14:34', '2026-03-30 12:15:10', NULL, NULL, NULL, NULL),
+(8, 15, 14, 'Wow🤣', NULL, '2026-03-30 12:15:24', '2026-03-30 12:17:28', NULL, NULL, NULL, NULL),
+(9, 15, 14, 'Hi gwapa😍🤣', NULL, '2026-03-30 12:53:41', '2026-03-30 13:13:27', NULL, NULL, NULL, NULL),
+(10, 24, 15, 'Hi', NULL, '2026-03-30 14:09:41', '2026-03-30 14:09:45', NULL, NULL, NULL, NULL),
+(11, 24, 26, 'Hi indayin hahaha', NULL, '2026-03-30 14:12:57', '2026-03-30 14:14:33', NULL, NULL, NULL, NULL),
+(12, 26, 24, 'hello ate HAHHAHAHA', NULL, '2026-03-30 14:15:48', '2026-03-30 14:16:02', NULL, NULL, NULL, NULL),
+(13, 24, 26, 'Ahhahaha', NULL, '2026-03-30 14:16:16', '2026-03-30 14:16:26', NULL, NULL, NULL, NULL),
+(14, 15, 24, 'nimals', NULL, '2026-04-02 09:38:27', NULL, NULL, NULL, NULL, NULL),
+(15, 15, 14, 'hi', NULL, '2026-04-02 09:38:35', '2026-04-02 09:50:50', NULL, NULL, NULL, NULL),
+(16, 15, 14, '', NULL, '2026-04-02 09:44:28', '2026-04-02 09:50:50', 'uploads/messages/student/msg_15_14_1775108668_2366.jpg', 'IMG_20250620_080645.jpg', 'image', 3423089),
+(17, 14, 15, 'Gwapaha naho', NULL, '2026-04-02 09:51:08', '2026-04-02 09:51:48', NULL, NULL, NULL, NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `student_message_reactions`
+--
+
+CREATE TABLE `student_message_reactions` (
+  `reaction_id` int(11) NOT NULL,
+  `message_id` int(11) NOT NULL,
+  `reactor_id` int(11) NOT NULL,
+  `reaction_emoji` varchar(16) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `student_message_reactions`
+--
+
+INSERT INTO `student_message_reactions` (`reaction_id`, `message_id`, `reactor_id`, `reaction_emoji`, `created_at`, `updated_at`) VALUES
+(1, 5, 15, '❤️', '2026-04-02 08:36:54', '2026-04-02 08:36:54'),
+(2, 16, 14, '❤️', '2026-04-02 09:50:57', '2026-04-02 09:50:57'),
+(3, 17, 15, '❤️', '2026-04-02 09:51:53', '2026-04-02 09:51:53');
 
 -- --------------------------------------------------------
 
@@ -1348,7 +1485,7 @@ CREATE TABLE `student_organizations` (
 INSERT INTO `student_organizations` (`org_id`, `org_name`, `org_type`, `college_id`, `org_email`, `org_password`, `status`, `created_by`, `created_at`, `updated_at`, `office_id`, `last_login`, `login_count`, `description`, `dashboard_type`, `settings`) VALUES
 (12, 'Town Organization', 'town', NULL, 'town.org@bisu.edu.ph', '$2y$12$CENE5F3fp8ELCoDqcIV6w.pKxco/Kd2pWX2AUEKo.xRoMAYS2a.pK', 'active', 6, '2026-03-15 14:57:31', '2026-03-30 06:29:09', 7, '2026-03-30 14:29:09', 20, NULL, 'town', NULL),
 (13, 'Clinic', 'clinic', NULL, 'clinic@bisu.edu.ph', '$2y$12$18k./ADY1G3V6Ggd3iPeR.ExfeIk7DGYydlX/cdH8Hk2MhlSC1OOi', 'active', 6, '2026-03-15 14:58:29', '2026-03-30 06:27:39', 6, '2026-03-30 14:27:39', 24, NULL, 'clinic', NULL),
-(14, 'Compass', 'college', 1, 'compass@bisu.edu.ph', '$2y$12$fOUgR5..LASzwvSI4jLkUuyBffSBnuap.i5TJ/CCd/5f1DgvkUdaq', 'active', 6, '2026-03-15 21:43:45', '2026-03-30 06:28:17', 8, '2026-03-30 14:28:17', 22, NULL, 'college', NULL),
+(14, 'Compass', 'college', 1, 'compass@bisu.edu.ph', '$2y$12$fOUgR5..LASzwvSI4jLkUuyBffSBnuap.i5TJ/CCd/5f1DgvkUdaq', 'active', 6, '2026-03-15 21:43:45', '2026-04-02 07:06:18', 8, '2026-04-02 11:06:18', 24, NULL, 'college', NULL),
 (15, 'SSG', 'ssg', NULL, 'ssg.candijay@bisu.edu.ph', '$2y$12$XK.N5Pd7pUSN7Ya1DjnIQOMuoJl0rTWEmA5HRi87p8kPKzFaPBIXy', 'active', 6, '2026-03-16 02:45:23', '2026-03-30 06:28:52', 9, '2026-03-30 14:28:52', 12, NULL, 'ssg', NULL);
 
 --
@@ -1466,6 +1603,8 @@ CREATE TABLE `users` (
   `office_id` int(11) DEFAULT NULL,
   `assignment` varchar(50) DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
+  `is_online` tinyint(1) NOT NULL DEFAULT 0,
+  `last_seen_at` datetime DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -1474,25 +1613,25 @@ CREATE TABLE `users` (
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`users_id`, `fname`, `lname`, `address`, `age`, `contacts`, `password`, `emails`, `profile_picture`, `ismis_id`, `user_role_id`, `college_id`, `course_id`, `year_level`, `office_id`, `assignment`, `is_active`, `created_at`, `updated_at`) VALUES
-(3, 'Super', 'Admin', 'BISU Main Campus', 35, '09123456789', '$2y$10$Zxlwd.fQickCLuyFROTBYO.o9Xttlj1FJm4FbY.CULg3HcYMZki3G', 'superadmin@bisu.edu', 'uploads/avatars/avatar_3_1772237984.jfif', 'SA-2024-001', 1, NULL, NULL, NULL, NULL, NULL, 1, '2026-02-15 15:21:11', '2026-02-28 00:19:44'),
-(6, 'Elsa', 'Cadorna', 'BISU Candijay Campus', 45, '09123456788', '$2y$12$.pw10wTAaQG8tJt0l.xmq.zvuAevSDuyf9bNl1DRSiFlD8HceeFcK', 'sas.director@bisu.edu.ph', 'uploads/avatars/avatar_6_69c9d2ee4b3d4458856387.jpg', 'SAS-001', 2, NULL, NULL, NULL, 2, NULL, 1, '2026-02-16 04:32:51', '2026-03-30 01:33:34'),
-(8, 'MIS', 'Candijay', 'BISU Candijay Campus', 40, '09123456787', '$2y$12$a2O0MD4KbzeFCdWXgpW7B.pHV.U8HgVkuXW8F8nxYKfa.uDdSXg0.', 'mis.candijay@bisu.edu.ph', NULL, 'MIS-001', 2, NULL, NULL, NULL, 5, NULL, 1, '2026-02-16 05:51:00', '2026-02-16 05:51:00'),
-(10, 'Registrar', 'Candijay', 'Cogtong Candijay, Bohol', 38, '09123456786', '$2y$12$GFW.BqiO7huZ6vQr9dM1AuGv5nCXgcOn.hryUz3ORA5t9MjqCZqbW', 'registrar.candijay@bisu.edu.ph', NULL, 'REG-001', 2, NULL, NULL, NULL, 6, NULL, 1, '2026-02-28 03:56:00', '2026-02-28 03:56:00'),
-(11, 'Librarian', 'Candijay', 'Cogtong, Candijay, Bohol', NULL, '', '$2y$12$lKpdJy.Qki9yMBk7MlSBae7TjpO7Pq6vA1drkpSa.ThpHYa/96XM2', 'librarian.candijay@bisu.edu.ph', 'uploads/avatars/avatar_11_69b9fbb98c55b445900489.jpg', NULL, 2, NULL, NULL, NULL, 1, NULL, 1, '2026-03-08 14:44:53', '2026-03-18 01:11:21'),
-(12, 'Dean', 'Candijay', 'Cogtong, Candijay, Bohol', NULL, '', '$2y$12$jpVrY6elPoHRC4933cko6.hSIP8kuc4W11S34xxrVkIzgJQJAgKQu', 'dean.candijay@bisu.edu.ph', NULL, NULL, 2, NULL, NULL, NULL, 3, NULL, 1, '2026-03-08 15:17:56', '2026-03-08 15:17:56'),
-(13, 'Cashier', 'Candijay', 'Cogtong, Candijay, Bohol', NULL, '', '$2y$12$LtXX026YRelUqwM4XwmnuOf0aLWN.LwYuVQLqXk1WS4N6XgazSZXG', 'cashier.candijay@bisu.edu.ph', 'uploads/avatars/avatar_13_69ba21b4783e7104912562.jpg', NULL, 2, NULL, NULL, NULL, 4, NULL, 1, '2026-03-08 16:17:52', '2026-03-18 03:53:24'),
-(14, 'Kristelle', 'Joyce Lobo', 'Purok 2, Cansuhay, Duero, Bohol', 24, '09518967986', '$2y$12$kiCiBBfd9P3bnpv8OinWOeuJSL1qCDkjDU47Q6FKLBSt50HwhNGya', 'kristellejoyce.lobo@bisu.edu.ph', 'uploads/avatars/avatar_14_69c9fe4ec3cf0039241484.jpg', '937432', 4, 1, 8, '1st Year', NULL, NULL, 1, '2026-03-15 14:18:47', '2026-03-30 05:12:56'),
-(15, 'Earl', 'Gultia', 'Purok 3, Alejawan Lutao, Duero, Bohol', 25, '09944462851', '$2y$10$RYMEGIdrM32gMJ3u34CxRO8RafYGDq27/F.ag3LpTYEGbTryqjWvy', 'earl.gultia@bisu.edu.ph', 'uploads/avatars/avatar_15_69ba6208d5d61700281809.jpg', '325681', 4, 1, 1, '1st Year', NULL, NULL, 1, '2026-03-15 15:35:52', '2026-03-22 04:26:46'),
-(18, 'Jessica', 'Mapute', 'Mabago, Catungawan Sur, Guindulman Bohol', 22, '09927236148', '$2y$12$bmUTOBCyenxdDCO6l0N4juCAd5Du9/UMrBwPgzuPzrNyAsjo6hpWK', 'jessica.mapute@bisu.edu.ph', 'uploads/avatars/avatar_18_69bcbf60139cb519878668.jpg', '483633', 4, 1, 1, NULL, NULL, NULL, 1, '2026-03-20 03:28:50', '2026-03-20 03:30:40'),
-(20, 'Jaye Melle', 'Dela Peña', 'Calanggaman, Ubay, Bohol', 22, '09932775588', '$2y$12$CWQOS3nMnH43WaRXNATW1OiFr0eDaJL9quK/ceMHXce207PFtswDe', 'jayemelle.delapena@bisu.edu.ph', NULL, '992456', 4, 1, 1, NULL, NULL, NULL, 1, '2026-03-25 05:57:05', '2026-03-25 05:57:05'),
-(21, 'Angel', 'Tutor', 'Bulawan Mabini Bohol', 21, '099786512578', '$2y$12$bhNuzUPTv1eunHyXbsyNiuzPDHzwWS6FRm.tnV8o0ftwm45fWuToO', 'angel.tutor@bisu.edu.ph', 'uploads/avatars/avatar_21_69c9e0833b706873949132.jpg', '244087', 4, 1, 1, NULL, NULL, NULL, 1, '2026-03-30 02:27:54', '2026-03-30 02:31:31'),
-(22, 'Myla', 'Peleño', 'Canawa, Candijay, Bohol', 21, '09934208188', '$2y$12$6MjMYDbdbFlh9WhIi3ipHOdYJdm19/m4s1YHbvdqxn/tvgzL20U5e', 'myla.peleno@bisu.edu.ph', 'uploads/avatars/avatar_22_69ca07316f522022879335.jpg', '313202', 4, 1, 8, NULL, NULL, NULL, 1, '2026-03-30 05:08:13', '2026-03-30 05:16:33'),
-(23, 'KC', 'ALICARTE', 'Purok 1 Biabas, Ubay, Bohol', 20, '09656089278', '$2y$12$mhAVIi7ffAGz.ink9Gdxg.cMrrI6ptANx/tzUZhlKfVAZkRJ06e2e', 'kc.alicarte@bisu.edu.ph', 'uploads/avatars/avatar_23_69ca1212e0afb925386399.png', '599206', 4, 1, 1, NULL, NULL, NULL, 1, '2026-03-30 06:01:39', '2026-03-30 06:02:58'),
-(24, 'Venus', 'Gabriel', 'Purok 6 Lundag, Anda, Bohol', 23, '09948556819', '$2y$12$Wc8bUGHEFLut43RJpj/XTOTpki8pw2N2XUaBCZP2JeiuDHoN6Od7K', 'venus.pelin@bisu.edu.ph', 'uploads/avatars/avatar_24_69ca130a6b653669795690.jpg', '134820', 4, 1, 1, NULL, NULL, NULL, 1, '2026-03-30 06:04:51', '2026-03-30 06:07:06'),
-(25, 'Mary Ann', 'Butong', 'Purok 6 Tubod , Candijay,Bohol', 21, '09933994899', '$2y$12$hCCA9N3NoRkhtpxKkY4uMemaY4DAGQ.DDIsiliTQj073FvkvDhfnK', 'maryann.butong@bisu.edu.ph', NULL, '961758', 4, 4, 29, NULL, NULL, NULL, 1, '2026-03-30 06:05:34', '2026-03-30 06:05:34'),
-(26, 'ROSELLE', 'MERENILLO', 'BIABAS GUINDULMAN BOHOL', 19, '09910354251', '$2y$12$IGe8t8sGsKDOAarOJCElRefY.zMy7Fqf89WjTRxAdumC9tAY.og4.', 'roselle.merenillo@bisu.edu.ph', NULL, '686475', 4, 4, 29, NULL, NULL, NULL, 1, '2026-03-30 06:07:28', '2026-03-30 06:07:28'),
-(27, 'Jhoel Kenneth', 'Gulle', 'Cogtong, Candijay, Bohol', 29, '0993 123 1234', '$2y$12$G0AMt2sUzaYEMDTImGIDC.jHDtXiZQvKGOEFlSBQSpUsw/JMD/3c6', 'jhoelkenneth.gulle@bisu.edu.ph', NULL, '069701', 4, 1, 1, NULL, NULL, NULL, 1, '2026-03-30 06:46:50', '2026-03-30 06:46:50');
+INSERT INTO `users` (`users_id`, `fname`, `lname`, `address`, `age`, `contacts`, `password`, `emails`, `profile_picture`, `ismis_id`, `user_role_id`, `college_id`, `course_id`, `year_level`, `office_id`, `assignment`, `is_active`, `is_online`, `last_seen_at`, `created_at`, `updated_at`) VALUES
+(3, 'Super', 'Admin', 'BISU Main Campus', 35, '09123456789', '$2y$10$Zxlwd.fQickCLuyFROTBYO.o9Xttlj1FJm4FbY.CULg3HcYMZki3G', 'superadmin@bisu.edu', 'uploads/avatars/avatar_3_1772237984.jfif', 'SA-2024-001', 1, NULL, NULL, NULL, NULL, NULL, 1, 0, NULL, '2026-02-15 15:21:11', '2026-02-28 00:19:44'),
+(6, 'Elsa', 'Cadorna', 'BISU Candijay Campus', 45, '09123456788', '$2y$12$.pw10wTAaQG8tJt0l.xmq.zvuAevSDuyf9bNl1DRSiFlD8HceeFcK', 'sas.director@bisu.edu.ph', 'uploads/avatars/avatar_6_69c9d2ee4b3d4458856387.jpg', 'SAS-001', 2, NULL, NULL, NULL, 2, NULL, 1, 0, NULL, '2026-02-16 04:32:51', '2026-03-30 01:33:34'),
+(8, 'MIS', 'Candijay', 'BISU Candijay Campus', 40, '09123456787', '$2y$12$a2O0MD4KbzeFCdWXgpW7B.pHV.U8HgVkuXW8F8nxYKfa.uDdSXg0.', 'mis.candijay@bisu.edu.ph', NULL, 'MIS-001', 2, NULL, NULL, NULL, 5, NULL, 1, 0, NULL, '2026-02-16 05:51:00', '2026-02-16 05:51:00'),
+(10, 'Registrar', 'Candijay', 'Cogtong Candijay, Bohol', 38, '09123456786', '$2y$12$GFW.BqiO7huZ6vQr9dM1AuGv5nCXgcOn.hryUz3ORA5t9MjqCZqbW', 'registrar.candijay@bisu.edu.ph', NULL, 'REG-001', 2, NULL, NULL, NULL, 6, NULL, 1, 0, NULL, '2026-02-28 03:56:00', '2026-02-28 03:56:00'),
+(11, 'Librarian', 'Candijay', 'Cogtong, Candijay, Bohol', NULL, '', '$2y$12$lKpdJy.Qki9yMBk7MlSBae7TjpO7Pq6vA1drkpSa.ThpHYa/96XM2', 'librarian.candijay@bisu.edu.ph', 'uploads/avatars/avatar_11_69b9fbb98c55b445900489.jpg', NULL, 2, NULL, NULL, NULL, 1, NULL, 1, 0, NULL, '2026-03-08 14:44:53', '2026-03-18 01:11:21'),
+(12, 'Dean', 'Candijay', 'Cogtong, Candijay, Bohol', NULL, '', '$2y$12$jpVrY6elPoHRC4933cko6.hSIP8kuc4W11S34xxrVkIzgJQJAgKQu', 'dean.candijay@bisu.edu.ph', NULL, NULL, 2, NULL, NULL, NULL, 3, NULL, 1, 0, NULL, '2026-03-08 15:17:56', '2026-03-08 15:17:56'),
+(13, 'Cashier', 'Candijay', 'Cogtong, Candijay, Bohol', NULL, '', '$2y$12$LtXX026YRelUqwM4XwmnuOf0aLWN.LwYuVQLqXk1WS4N6XgazSZXG', 'cashier.candijay@bisu.edu.ph', 'uploads/avatars/avatar_13_69ba21b4783e7104912562.jpg', NULL, 2, NULL, NULL, NULL, 4, NULL, 1, 0, NULL, '2026-03-08 16:17:52', '2026-03-18 03:53:24'),
+(14, 'Kristelle', 'Joyce Lobo', 'Purok 2, Cansuhay, Duero, Bohol', 24, '09518967986', '$2y$12$kiCiBBfd9P3bnpv8OinWOeuJSL1qCDkjDU47Q6FKLBSt50HwhNGya', 'kristellejoyce.lobo@bisu.edu.ph', 'uploads/avatars/avatar_14_69c9fe4ec3cf0039241484.jpg', '937432', 4, 1, 8, '1st Year', NULL, NULL, 1, 0, NULL, '2026-03-15 14:18:47', '2026-03-30 05:12:56'),
+(15, 'Earl', 'Gultia', 'Purok 3, Alejawan Lutao, Duero, Bohol', 25, '09944462851', '$2y$10$RYMEGIdrM32gMJ3u34CxRO8RafYGDq27/F.ag3LpTYEGbTryqjWvy', 'earl.gultia@bisu.edu.ph', 'uploads/avatars/avatar_15_69ba6208d5d61700281809.jpg', '325681', 4, 1, 1, '1st Year', NULL, NULL, 1, 0, '2026-04-06 06:22:20', '2026-03-15 15:35:52', '2026-04-06 02:22:20'),
+(18, 'Jessica', 'Mapute', 'Mabago, Catungawan Sur, Guindulman Bohol', 22, '09927236148', '$2y$12$bmUTOBCyenxdDCO6l0N4juCAd5Du9/UMrBwPgzuPzrNyAsjo6hpWK', 'jessica.mapute@bisu.edu.ph', 'uploads/avatars/avatar_18_69bcbf60139cb519878668.jpg', '483633', 4, 1, 1, NULL, NULL, NULL, 1, 0, NULL, '2026-03-20 03:28:50', '2026-03-20 03:30:40'),
+(20, 'Jaye Melle', 'Dela Peña', 'Calanggaman, Ubay, Bohol', 22, '09932775588', '$2y$12$CWQOS3nMnH43WaRXNATW1OiFr0eDaJL9quK/ceMHXce207PFtswDe', 'jayemelle.delapena@bisu.edu.ph', NULL, '992456', 4, 1, 1, NULL, NULL, NULL, 1, 0, NULL, '2026-03-25 05:57:05', '2026-03-25 05:57:05'),
+(21, 'Angel', 'Tutor', 'Bulawan Mabini Bohol', 21, '099786512578', '$2y$12$bhNuzUPTv1eunHyXbsyNiuzPDHzwWS6FRm.tnV8o0ftwm45fWuToO', 'angel.tutor@bisu.edu.ph', 'uploads/avatars/avatar_21_69c9e0833b706873949132.jpg', '244087', 4, 1, 1, NULL, NULL, NULL, 1, 0, NULL, '2026-03-30 02:27:54', '2026-03-30 02:31:31'),
+(22, 'Myla', 'Peleño', 'Canawa, Candijay, Bohol', 21, '09934208188', '$2y$12$6MjMYDbdbFlh9WhIi3ipHOdYJdm19/m4s1YHbvdqxn/tvgzL20U5e', 'myla.peleno@bisu.edu.ph', 'uploads/avatars/avatar_22_69ca07316f522022879335.jpg', '313202', 4, 1, 8, NULL, NULL, NULL, 1, 0, NULL, '2026-03-30 05:08:13', '2026-03-30 05:16:33'),
+(23, 'KC', 'ALICARTE', 'Purok 1 Biabas, Ubay, Bohol', 20, '09656089278', '$2y$12$mhAVIi7ffAGz.ink9Gdxg.cMrrI6ptANx/tzUZhlKfVAZkRJ06e2e', 'kc.alicarte@bisu.edu.ph', 'uploads/avatars/avatar_23_69ca1212e0afb925386399.png', '599206', 4, 1, 1, NULL, NULL, NULL, 1, 0, NULL, '2026-03-30 06:01:39', '2026-03-30 06:02:58'),
+(24, 'Venus', 'Gabriel', 'Purok 6 Lundag, Anda, Bohol', 23, '09948556819', '$2y$12$Wc8bUGHEFLut43RJpj/XTOTpki8pw2N2XUaBCZP2JeiuDHoN6Od7K', 'venus.pelin@bisu.edu.ph', 'uploads/avatars/avatar_24_69ca130a6b653669795690.jpg', '134820', 4, 1, 1, NULL, NULL, NULL, 1, 0, NULL, '2026-03-30 06:04:51', '2026-03-30 06:07:06'),
+(25, 'Mary Ann', 'Butong', 'Purok 6 Tubod , Candijay,Bohol', 21, '09933994899', '$2y$12$hCCA9N3NoRkhtpxKkY4uMemaY4DAGQ.DDIsiliTQj073FvkvDhfnK', 'maryann.butong@bisu.edu.ph', NULL, '961758', 4, 4, 29, NULL, NULL, NULL, 1, 0, NULL, '2026-03-30 06:05:34', '2026-03-30 06:05:34'),
+(26, 'ROSELLE', 'MERENILLO', 'BIABAS GUINDULMAN BOHOL', 19, '09910354251', '$2y$12$IGe8t8sGsKDOAarOJCElRefY.zMy7Fqf89WjTRxAdumC9tAY.og4.', 'roselle.merenillo@bisu.edu.ph', NULL, '686475', 4, 4, 29, NULL, NULL, NULL, 1, 0, NULL, '2026-03-30 06:07:28', '2026-03-30 06:07:28'),
+(27, 'Jhoel Kenneth', 'Gulle', 'Cogtong, Candijay, Bohol', 29, '0993 123 1234', '$2y$12$G0AMt2sUzaYEMDTImGIDC.jHDtXiZQvKGOEFlSBQSpUsw/JMD/3c6', 'jhoelkenneth.gulle@bisu.edu.ph', NULL, '069701', 4, 1, 1, NULL, NULL, NULL, 1, 0, NULL, '2026-03-30 06:46:50', '2026-03-30 06:46:50');
 
 -- --------------------------------------------------------
 
@@ -1717,6 +1856,15 @@ ALTER TABLE `password_resets`
   ADD KEY `idx_expires_at` (`expires_at`);
 
 --
+-- Indexes for table `password_reset_attempts`
+--
+ALTER TABLE `password_reset_attempts`
+  ADD PRIMARY KEY (`attempt_id`),
+  ADD KEY `idx_identifier_action_created` (`identifier_hash`,`action_type`,`created_at`),
+  ADD KEY `idx_ip_action_created` (`ip_address`,`action_type`,`created_at`),
+  ADD KEY `idx_created_at` (`created_at`);
+
+--
 -- Indexes for table `sessions`
 --
 ALTER TABLE `sessions`
@@ -1730,7 +1878,17 @@ ALTER TABLE `student_friendships`
   ADD PRIMARY KEY (`friendship_id`),
   ADD UNIQUE KEY `uniq_friend_pair` (`user_one_id`,`user_two_id`),
   ADD KEY `idx_user_one` (`user_one_id`),
-  ADD KEY `idx_user_two` (`user_two_id`);
+  ADD KEY `idx_user_two` (`user_two_id`),
+  ADD KEY `idx_status_requested` (`status`,`requested_by`);
+
+--
+-- Indexes for table `student_friend_nicknames`
+--
+ALTER TABLE `student_friend_nicknames`
+  ADD PRIMARY KEY (`nickname_id`),
+  ADD UNIQUE KEY `uniq_owner_friend` (`owner_id`,`friend_id`),
+  ADD KEY `idx_owner` (`owner_id`),
+  ADD KEY `idx_friend` (`friend_id`);
 
 --
 -- Indexes for table `student_messages`
@@ -1739,7 +1897,18 @@ ALTER TABLE `student_messages`
   ADD PRIMARY KEY (`message_id`),
   ADD KEY `idx_recipient_read` (`recipient_id`,`read_at`),
   ADD KEY `idx_participants` (`sender_id`,`recipient_id`),
-  ADD KEY `idx_sent_at` (`sent_at`);
+  ADD KEY `idx_sent_at` (`sent_at`),
+  ADD KEY `idx_reply_to_message` (`reply_to_message_id`),
+  ADD KEY `idx_recipient_read_sent` (`recipient_id`,`read_at`,`sent_at`);
+
+--
+-- Indexes for table `student_message_reactions`
+--
+ALTER TABLE `student_message_reactions`
+  ADD PRIMARY KEY (`reaction_id`),
+  ADD UNIQUE KEY `uniq_message_reactor` (`message_id`,`reactor_id`),
+  ADD KEY `idx_message_reaction` (`message_id`),
+  ADD KEY `idx_reactor` (`reactor_id`);
 
 --
 -- Indexes for table `student_organizations`
@@ -1784,7 +1953,8 @@ ALTER TABLE `users`
   ADD KEY `idx_role` (`user_role_id`),
   ADD KEY `idx_office` (`office_id`),
   ADD KEY `idx_college_id` (`college_id`),
-  ADD KEY `idx_year_level` (`year_level`);
+  ADD KEY `idx_year_level` (`year_level`),
+  ADD KEY `idx_users_presence` (`is_online`,`last_seen_at`);
 
 --
 -- Indexes for table `user_role`
@@ -1801,13 +1971,13 @@ ALTER TABLE `user_role`
 -- AUTO_INCREMENT for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=807;
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=868;
 
 --
 -- AUTO_INCREMENT for table `clearance`
 --
 ALTER TABLE `clearance`
-  MODIFY `clearance_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=124;
+  MODIFY `clearance_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=129;
 
 --
 -- AUTO_INCREMENT for table `clearance_flow_template`
@@ -1855,7 +2025,7 @@ ALTER TABLE `offices`
 -- AUTO_INCREMENT for table `organization_clearance`
 --
 ALTER TABLE `organization_clearance`
-  MODIFY `org_clearance_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=93;
+  MODIFY `org_clearance_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=97;
 
 --
 -- AUTO_INCREMENT for table `organization_dashboard_views`
@@ -1873,7 +2043,13 @@ ALTER TABLE `organization_settings`
 -- AUTO_INCREMENT for table `password_resets`
 --
 ALTER TABLE `password_resets`
-  MODIFY `reset_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `reset_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+
+--
+-- AUTO_INCREMENT for table `password_reset_attempts`
+--
+ALTER TABLE `password_reset_attempts`
+  MODIFY `attempt_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `student_friendships`
@@ -1882,10 +2058,22 @@ ALTER TABLE `student_friendships`
   MODIFY `friendship_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
+-- AUTO_INCREMENT for table `student_friend_nicknames`
+--
+ALTER TABLE `student_friend_nicknames`
+  MODIFY `nickname_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
 -- AUTO_INCREMENT for table `student_messages`
 --
 ALTER TABLE `student_messages`
-  MODIFY `message_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `message_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+
+--
+-- AUTO_INCREMENT for table `student_message_reactions`
+--
+ALTER TABLE `student_message_reactions`
+  MODIFY `reaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `student_organizations`
@@ -1989,11 +2177,25 @@ ALTER TABLE `student_friendships`
   ADD CONSTRAINT `fk_friend_user_two` FOREIGN KEY (`user_two_id`) REFERENCES `users` (`users_id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `student_friend_nicknames`
+--
+ALTER TABLE `student_friend_nicknames`
+  ADD CONSTRAINT `fk_friend_nickname_friend` FOREIGN KEY (`friend_id`) REFERENCES `users` (`users_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_friend_nickname_owner` FOREIGN KEY (`owner_id`) REFERENCES `users` (`users_id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `student_messages`
 --
 ALTER TABLE `student_messages`
   ADD CONSTRAINT `fk_student_messages_recipient` FOREIGN KEY (`recipient_id`) REFERENCES `users` (`users_id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_student_messages_sender` FOREIGN KEY (`sender_id`) REFERENCES `users` (`users_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `student_message_reactions`
+--
+ALTER TABLE `student_message_reactions`
+  ADD CONSTRAINT `fk_message_reactions_message` FOREIGN KEY (`message_id`) REFERENCES `student_messages` (`message_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_message_reactions_reactor` FOREIGN KEY (`reactor_id`) REFERENCES `users` (`users_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `student_organizations`

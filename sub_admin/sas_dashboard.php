@@ -2800,6 +2800,13 @@ function getOrgTypeBadge($type)
             }
         }
     </style>
+    <link rel="manifest" href="/clearance/manifest.webmanifest">
+    <meta name="theme-color" content="#412886">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="BISU Clearance">
+    <link rel="apple-touch-icon" href="/clearance/assets/img/logo.png">
+    <script defer src="/clearance/assets/js/pwa-register.js"></script>
 </head>
 <body>
     <div class="theme-toggle" id="themeToggle">
@@ -2964,7 +2971,7 @@ function getOrgTypeBadge($type)
                         <i class="fas fa-info-circle" style="font-size: 2rem; color: var(--info);"></i>
                         <div>
                             <h3 style="color: var(--info); margin-bottom: 5px;">Clearance Flow</h3>
-                            <p style="color: var(--text-secondary);">Complete clearance flow: <strong>Librarian →
+                                <p style="color: var(--text-secondary);">Complete clearance flow: <strong>Librarian →
                                     Organizations (under SAS) → SAS Director → Dean → Cashier → Registrar</strong></p>
                             <p style="color: var(--text-secondary); margin-top: 5px;">You can only approve clearances
                                 AFTER all organizations under SAS have approved.</p>

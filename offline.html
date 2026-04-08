@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#412886">
+    <title>Offline - BISU Online Clearance</title>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --muted: #64748b;
+            --brand: #412886;
+            --brand-soft: #ede9fe;
+            --border: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at top right, #f5f3ff, var(--bg) 58%);
+            color: var(--text);
+            display: grid;
+            place-items: center;
+            padding: 20px;
+        }
+
+        .offline-card {
+            width: min(560px, 100%);
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 28px;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--brand-soft);
+            color: var(--brand);
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            margin: 0 0 10px;
+            font-size: 1.8rem;
+        }
+
+        p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .actions {
+            margin-top: 22px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 10px;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            background: var(--brand);
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background: #fff;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        @media (max-width: 600px) {
+            .offline-card {
+                padding: 22px;
+            }
+
+            h1 {
+                font-size: 1.45rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="offline-card">
+        <div class="pill">You are offline</div>
+        <h1>Connection lost</h1>
+        <p>
+            BISU Online Clearance cannot reach the server right now. You can retry after reconnecting,
+            or return to the home page once your internet is back.
+        </p>
+        <div class="actions">
+            <button class="btn btn-primary" type="button" onclick="window.location.reload()">Try Again</button>
+            <a class="btn btn-secondary" href="/clearance/index.php">Go to Home</a>
+        </div>
+    </main>
+</body>
+</html>
