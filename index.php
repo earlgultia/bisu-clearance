@@ -463,6 +463,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             width: 100%;
         }
 
+        /* Sticky Update Banner */
+        .update-banner {
+            position: sticky;
+            top: var(--header-offset);
+            z-index: 998;
+            background: linear-gradient(135deg, color-mix(in srgb, var(--primary-soft) 72%, #fff 28%) 0%, color-mix(in srgb, var(--bg-secondary) 88%, #fff 12%) 100%);
+            border-bottom: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border-color) 80%);
+            backdrop-filter: blur(6px);
+        }
+
+        .update-banner.is-hidden {
+            display: none;
+        }
+
+        .update-banner-inner {
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 10px max(14px, 3.5%);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .update-banner-text {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            color: var(--text-primary);
+            font-size: 0.92rem;
+            line-height: 1.5;
+            min-width: 0;
+        }
+
+        .update-banner-text p {
+            margin: 0;
+            color: var(--text-secondary);
+            overflow-wrap: anywhere;
+        }
+
+        .update-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 6px 11px;
+            font-size: 0.74rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--primary);
+            background: color-mix(in srgb, var(--primary-soft) 88%, #fff 12%);
+            border: 1px solid color-mix(in srgb, var(--primary) 16%, transparent);
+            white-space: nowrap;
+        }
+
+        .update-banner-link {
+            color: var(--primary);
+            font-weight: 700;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .update-banner-link:hover {
+            text-decoration: underline;
+        }
+
+        .update-banner-close {
+            margin-left: auto;
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--primary);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.3s;
+            flex-shrink: 0;
+        }
+
+        .update-banner-close:hover {
+            transform: translateY(-1px);
+            border-color: var(--primary);
+        }
+
+        .dark-mode .update-banner {
+            background: linear-gradient(135deg, rgba(23, 36, 66, 0.95) 0%, rgba(18, 31, 54, 0.92) 100%);
+            border-bottom-color: #32496f;
+        }
+
+        .dark-mode .update-pill {
+            background: rgba(155, 135, 245, 0.2);
+            color: #e8deff;
+            border-color: rgba(155, 135, 245, 0.4);
+        }
+
         /* Sign Up and Login Buttons */
         .signup-btn {
             background: transparent;
@@ -843,6 +942,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         .hero-chip i {
             color: var(--accent);
             margin-right: 6px;
+        }
+
+        /* Patch Notes */
+        .patch-notes {
+            background: var(--bg-secondary);
+            padding: 46px 5%;
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .patch-note-card {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, color-mix(in srgb, var(--card-bg) 92%, #fff 8%) 0%, var(--card-bg) 100%);
+            border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border-color) 82%);
+            border-radius: 22px;
+            padding: 28px;
+            box-shadow: var(--card-shadow);
+            display: grid;
+            grid-template-columns: minmax(220px, 0.65fr) 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .patch-note-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 7px 12px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+            color: var(--primary);
+            background: var(--primary-soft);
+            margin-bottom: 10px;
+        }
+
+        .patch-note-title {
+            color: var(--primary);
+            font-size: clamp(1.55rem, 2vw, 2rem);
+            margin-bottom: 8px;
+        }
+
+        .patch-note-subtitle {
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        .patch-note-list {
+            list-style: none;
+            display: grid;
+            gap: 12px;
+        }
+
+        .patch-note-list li {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            background: color-mix(in srgb, var(--bg-secondary) 62%, #fff 38%);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 12px 14px;
+            color: var(--text-primary);
+            line-height: 1.65;
+        }
+
+        .patch-note-list i {
+            margin-top: 3px;
+            color: var(--accent);
         }
 
         /* Stats Section */
@@ -1719,6 +1889,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             .hero-mini-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
+
+            .patch-note-card {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 920px) {
@@ -1832,6 +2006,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             .contact-info,
             .contact-form {
                 padding: 30px 24px;
+            }
+
+            .update-banner-inner {
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .update-banner-text {
+                font-size: 0.88rem;
             }
         }
 
@@ -2003,6 +2186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             }
 
             .stats-section,
+            .patch-notes,
             .features,
             .offices,
             .how-it-works,
@@ -2010,6 +2194,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             .contact,
             .map-section {
                 padding: 64px 18px;
+            }
+
+            .patch-note-card {
+                padding: 22px;
+            }
+
+            .patch-note-list li {
+                padding: 11px 12px;
             }
 
             .section-title {
@@ -2057,6 +2249,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                 padding: 12px 14px;
                 margin: 14px auto;
                 font-size: 0.92rem;
+            }
+
+            .update-banner-inner {
+                padding: 9px 18px;
+            }
+
+            .update-banner-text {
+                gap: 8px;
+            }
+
+            .update-banner-close {
+                width: 32px;
+                height: 32px;
             }
         }
 
@@ -2127,6 +2332,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             </div>
         </nav>
     </header>
+
+    <section class="update-banner" id="updateBanner" data-version="<?php echo SITE_VERSION; ?>" aria-label="Latest update notice">
+        <div class="update-banner-inner">
+            <div class="update-banner-text">
+                <span class="update-pill"><i class="fas fa-bolt"></i> New in <?php echo SITE_VERSION; ?></span>
+                <p>You can now install BISU Clearance as an app for faster, one-tap access.</p>
+                <a href="#patch-notes" class="update-banner-link">See patch notes</a>
+            </div>
+            <button class="update-banner-close" id="updateBannerClose" aria-label="Dismiss update notice">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </section>
 
     <!-- Display Success Messages -->
     <?php if (isset($_SESSION['newsletter_success'])): ?>
@@ -2199,6 +2417,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         </div>
     </section>
 
+    <!-- Patch Notes Section -->
+    <section class="patch-notes" id="patch-notes">
+        <div class="patch-note-card">
+            <div class="patch-note-header">
+                <span class="patch-note-badge"><i class="fas fa-bullhorn"></i> Patch Notes</span>
+                <h2 class="patch-note-title"><?php echo SITE_VERSION; ?></h2>
+                <p class="patch-note-subtitle">New update highlights are now in one place.</p>
+            </div>
+            <ul class="patch-note-list">
+                <li>
+                    <i class="fas fa-download"></i>
+                    You can now install BISU Clearance as an app for faster launch directly from your home screen.
+                </li>
+                <li>
+                    <i class="fas fa-mobile-alt"></i>
+                    The app-style experience gives quick access with a cleaner, dedicated interface on mobile and desktop.
+                </li>
+            </ul>
+        </div>
+    </section>
+
     <!-- Statistics Section -->
     <section class="stats-section">
         <div class="stats-container">
@@ -2224,9 +2463,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <!-- Features Section -->
     <section class="features" id="features">
         <div class="section-title">
-            <div class="section-kicker"><i class="fas fa-sparkles"></i> What's New In <?php echo SITE_VERSION; ?></div>
+            <div class="section-kicker"><i class="fas fa-sparkles"></i> Core Benefits</div>
             <h2>Why Choose Our System?</h2>
-            <p><?php echo SITE_VERSION; ?> lets you install BISU Clearance as an app for faster, one-tap access on your device.</p>
+            <p>Designed to keep your clearance process fast, secure, and easy to track from any device.</p>
         </div>
         <div class="features-grid">
             <div class="feature-card">
@@ -2494,6 +2733,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         const navToggle = document.getElementById('navToggle');
         const navLinks = document.getElementById('navLinks');
         const navBackdrop = document.getElementById('navBackdrop');
+        const updateBanner = document.getElementById('updateBanner');
+        const updateBannerClose = document.getElementById('updateBannerClose');
+
+        if (updateBanner && updateBannerClose) {
+            const bannerVersion = updateBanner.dataset.version || 'latest';
+            const dismissKey = `update-banner-dismissed-${bannerVersion}`;
+
+            if (localStorage.getItem(dismissKey) === '1') {
+                updateBanner.classList.add('is-hidden');
+            }
+
+            updateBannerClose.addEventListener('click', () => {
+                updateBanner.classList.add('is-hidden');
+                localStorage.setItem(dismissKey, '1');
+            });
+        }
 
         const closeMobileNav = () => {
             navLinks?.classList.remove('open');
