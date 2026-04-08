@@ -526,13 +526,13 @@ $role_label_html = htmlspecialchars($role_label, ENT_QUOTES, 'UTF-8');
     <meta http-equiv="refresh" content="2;url=login.php">
     <?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="manifest" href="/clearance/manifest.webmanifest">
+    <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#412886">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BISU Clearance">
-    <link rel="apple-touch-icon" href="/clearance/assets/img/logo.png">
-    <script defer src="/clearance/assets/js/pwa-register.js"></script>
+    <link rel="apple-touch-icon" href="/assets/img/logo.png">
+    <script defer src="/assets/js/pwa-register.js"></script>
 </head>
 <body>
     <div class="logout-shell" id="logoutShell">

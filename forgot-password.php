@@ -125,12 +125,12 @@ function buildResetLink($token)
     $isHttps = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
     $scheme = $isHttps ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '/clearance/forgot-password.php');
+    $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '/forgot-password.php');
     $scriptDir = str_replace('\\', '/', $scriptDir);
     $scriptDir = rtrim($scriptDir, '/');
 
     if ($scriptDir === '' || $scriptDir === '.') {
-        $scriptDir = '/clearance';
+        $scriptDir = '';
     }
 
     return $scheme . '://' . $host . $scriptDir . '/forgot-password.php?token=' . urlencode($token);
@@ -940,13 +940,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     </style>
-    <link rel="manifest" href="/clearance/manifest.webmanifest">
+    <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#412886">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BISU Clearance">
-    <link rel="apple-touch-icon" href="/clearance/assets/img/logo.png">
-    <script defer src="/clearance/assets/js/pwa-register.js"></script>
+    <link rel="apple-touch-icon" href="/assets/img/logo.png">
+    <script defer src="/assets/js/pwa-register.js"></script>
 </head>
 <body>
     <div class="card">

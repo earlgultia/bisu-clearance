@@ -2,21 +2,21 @@
   "name": "BISU Online Clearance System",
   "short_name": "BISU Clearance",
   "description": "Student online clearance workflow for Bohol Island State University.",
-  "start_url": "/clearance/index.php",
-  "scope": "/clearance/",
+  "start_url": "/index.php",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#412886",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/clearance/assets/img/pwa-icon.svg",
+      "src": "/assets/img/pwa-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "/clearance/assets/img/logo.png",
+      "src": "/assets/img/logo.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
