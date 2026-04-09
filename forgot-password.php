@@ -582,9 +582,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     recordResetAttempt($email, $clientIp, 'request');
 
                     $account = findAccountByEmail($email);
-                    $message = 'If this email exists in our system, a password reset link will be sent shortly.';
-
-                    if ($account) {
+                    if (!$account) {
+                        $error = 'Account does not exist in the system.';
+                    } else {
                         $token = createResetToken($account);
                         if ($token !== null) {
                             $resetLink = buildResetLink($token);
