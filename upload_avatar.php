@@ -14,6 +14,88 @@ function jsonResponse(array $payload, int $statusCode = 200): void
     exit();
 }
 
+function optimizeAvatarImage(string $filePath, string $mimeType, int $maxDimension = 512): void
+{
+    // Resize and recompress common photo formats to keep avatar payloads small.
+    if (!in_array($mimeType, ['image/jpeg', 'image/png'], true)) {
+        return;
+    }
+
+    $imageSize = @getimagesize($filePath);
+    if (!$imageSize || empty($imageSize[0]) || empty($imageSize[1])) {
+        return;
+    }
+
+    $sourceWidth = (int) $imageSize[0];
+    $sourceHeight = (int) $imageSize[1];
+
+    $createFunction = $mimeType === 'image/jpeg' ? 'imagecreatefromjpeg' : 'imagecreatefrompng';
+    if (!function_exists($createFunction)) {
+        return;
+    }
+
+    $sourceImage = @$createFunction($filePath);
+    if (!$sourceImage) {
+        return;
+    }
+
+    $targetWidth = $sourceWidth;
+    $targetHeight = $sourceHeight;
+
+    if ($sourceWidth > $maxDimension || $sourceHeight > $maxDimension) {
+        $scale = min($maxDimension / $sourceWidth, $maxDimension / $sourceHeight);
+        $targetWidth = max(1, (int) floor($sourceWidth * $scale));
+        $targetHeight = max(1, (int) floor($sourceHeight * $scale));
+    }
+
+    $outputImage = $sourceImage;
+    $needsResize = $targetWidth !== $sourceWidth || $targetHeight !== $sourceHeight;
+
+    if ($needsResize) {
+        $resizedImage = imagecreatetruecolor($targetWidth, $targetHeight);
+        if (!$resizedImage) {
+            imagedestroy($sourceImage);
+            return;
+        }
+
+        if ($mimeType === 'image/png') {
+            imagealphablending($resizedImage, false);
+            imagesavealpha($resizedImage, true);
+            $transparent = imagecolorallocatealpha($resizedImage, 0, 0, 0, 127);
+            imagefilledrectangle($resizedImage, 0, 0, $targetWidth, $targetHeight, $transparent);
+        }
+
+        imagecopyresampled(
+            $resizedImage,
+            $sourceImage,
+            0,
+            0,
+            0,
+            0,
+            $targetWidth,
+            $targetHeight,
+            $sourceWidth,
+            $sourceHeight
+        );
+
+        $outputImage = $resizedImage;
+    }
+
+    if ($mimeType === 'image/jpeg' && function_exists('imagejpeg')) {
+        imagejpeg($outputImage, $filePath, 82);
+    }
+
+    if ($mimeType === 'image/png' && function_exists('imagepng')) {
+        imagepng($outputImage, $filePath, 6);
+    }
+
+    if ($outputImage !== $sourceImage) {
+        imagedestroy($outputImage);
+    }
+
+    imagedestroy($sourceImage);
+}
+
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || empty($_SESSION['user_id'])) {
     jsonResponse([
         'success' => false,
@@ -87,6 +169,8 @@ if (!move_uploaded_file($file['tmp_name'], $destination)) {
         'message' => 'Unable to save the uploaded file.'
     ], 500);
 }
+
+optimizeAvatarImage($destination, $imageInfo['mime']);
 
 $db = Database::getInstance();
 $oldProfilePicture = null;

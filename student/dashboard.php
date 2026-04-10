@@ -7227,9 +7227,9 @@ function getOrganizationIcon($org_type)
                 <div class="user-info" onclick="switchTab('dashboard')">
                     <div class="user-avatar">
                         <?php if (!empty($profile_pic) && file_exists('../' . $profile_pic)): ?>
-                            <img src="../<?php echo $profile_pic . '?t=' . time(); ?>" alt="Profile">
+                            <img src="../<?php echo $profile_pic; ?>" alt="Profile">
                         <?php else: ?>
-                            <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($student_name); ?>&background=412886&color=fff&size=100"
+                            <img src="../assets/img/default-avatar.svg"
                                 alt="Profile">
                         <?php endif; ?>
                     </div>
@@ -7252,9 +7252,9 @@ function getOrganizationIcon($org_type)
             <div class="profile-section">
                 <div class="profile-avatar" id="avatarContainer">
                     <?php if (!empty($profile_pic) && file_exists('../' . $profile_pic)): ?>
-                        <img src="../<?php echo $profile_pic . '?t=' . time(); ?>" alt="Profile" id="profileImage">
+                        <img src="../<?php echo $profile_pic; ?>" alt="Profile" id="profileImage">
                     <?php else: ?>
-                        <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($student_name); ?>&background=412886&color=fff&size=150"
+                        <img src="../assets/img/default-avatar.svg"
                             alt="Profile" id="profileImage">
                     <?php endif; ?>
                     <div class="avatar-overlay" id="avatarOverlay">

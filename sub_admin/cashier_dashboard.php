@@ -3411,7 +3411,7 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
                 <div class="user-info">
                     <div class="user-avatar">
                         <?php if (!empty($profile_pic) && file_exists('../' . $profile_pic)): ?>
-                                <img src="../<?php echo $profile_pic . '?t=' . time(); ?>" alt="Profile" id="headerProfileImage">
+                                <img src="../<?php echo $profile_pic; ?>" alt="Profile" id="headerProfileImage">
                                 <i class="fas fa-user-tie" id="headerAvatarIcon" style="display: none;"></i>
                         <?php else: ?>
                                 <i class="fas fa-user-tie" id="headerAvatarIcon"></i>
@@ -3433,7 +3433,7 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
             <div class="profile-section">
                 <div class="profile-avatar" id="avatarContainer">
                     <?php if (!empty($profile_pic) && file_exists('../' . $profile_pic)): ?>
-                            <img src="../<?php echo $profile_pic . '?t=' . time(); ?>" alt="Profile" id="profileImage">
+                            <img src="../<?php echo $profile_pic; ?>" alt="Profile" id="profileImage">
                     <?php else: ?>
                             <i class="fas fa-user-tie" id="avatarIcon" style="font-size: 3rem; line-height: 100px;"></i>
                             <img src="" alt="Profile" id="profileImage" style="display: none;">

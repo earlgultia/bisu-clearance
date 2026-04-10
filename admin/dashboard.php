@@ -2390,7 +2390,7 @@ function getRoleBadgeClass($role)
                 <div class="user-info">
                         <div class="user-avatar">
                         <?php if ($profile_pic && file_exists(__DIR__ . '/../' . ltrim($profile_pic, '/\\'))): ?>
-                            <img src="../<?php echo ltrim($profile_pic, '/\\') . '?t=' . time(); ?>" alt="Profile">
+                            <img src="../<?php echo ltrim($profile_pic, '/\\'); ?>" alt="Profile">
                         <?php else: ?>
                                 <i class="fas fa-user-shield"></i>
                         <?php endif; ?>
@@ -2412,7 +2412,7 @@ function getRoleBadgeClass($role)
             <div class="profile-section">
                 <div class="profile-avatar" id="avatarContainer">
                     <?php if ($profile_pic && file_exists(__DIR__ . '/../' . ltrim($profile_pic, '/\\'))): ?>
-                        <img src="../<?php echo ltrim($profile_pic, '/\\') . '?t=' . time(); ?>" alt="Profile" id="profileImage">
+                        <img src="../<?php echo ltrim($profile_pic, '/\\'); ?>" alt="Profile" id="profileImage">
                     <?php else: ?>
                             <i class="fas fa-user-shield" id="avatarIcon" style="font-size: 3rem; line-height: 120px;"></i>
                             <img src="" alt="Profile" id="profileImage" style="display: none;">

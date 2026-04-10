@@ -2732,7 +2732,7 @@ function getYearLevelBadge($year_level)
                 <div class="user-info">
                     <div class="user-avatar">
                         <?php if (!empty($profile_pic) && file_exists('../' . $profile_pic)): ?>
-                                <img src="../<?php echo $profile_pic . '?t=' . time(); ?>" alt="Profile">
+                                <img src="../<?php echo $profile_pic; ?>" alt="Profile">
                         <?php else: ?>
                                 <i class="fas fa-university"></i>
                         <?php endif; ?>
