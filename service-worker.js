@@ -1,4 +1,4 @@
-const CACHE_VERSION = "bisu-clearance-v2";
+const CACHE_VERSION = "bisu-clearance-v3";
 const CORE_CACHE = `${CACHE_VERSION}-core`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -21,7 +21,8 @@ const coreAssets = [
   `${appRoot}assets/img/pwa-icon-maskable-192.png`,
   `${appRoot}assets/img/pwa-icon-maskable-512.png`,
   `${appRoot}assets/img/pwa-icon.svg`,
-  `${appRoot}assets/img/logo.png`
+  `${appRoot}assets/img/logo.png`,
+  `${appRoot}assets/img/bisu-candijay-campus-offline-map.svg`
 ].map((path) => new URL(path, self.location.origin).toString());
 
 self.addEventListener("install", (event) => {

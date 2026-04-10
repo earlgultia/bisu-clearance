@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">Offline map of BISU Candijay Campus</title>
+  <desc id="desc">Static map illustration with a marker for Bohol Island State University Candijay Campus at coordinates 9.8348681, 124.5299864.</desc>
+
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eff6ff"/>
+      <stop offset="100%" stop-color="#dbeafe"/>
+    </linearGradient>
+    <linearGradient id="waterGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#bfdbfe"/>
+      <stop offset="100%" stop-color="#93c5fd"/>
+    </linearGradient>
+    <linearGradient id="landGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#dcfce7"/>
+      <stop offset="100%" stop-color="#bbf7d0"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="720" fill="url(#bgGrad)"/>
+  <rect x="0" y="0" width="1280" height="720" fill="url(#waterGrad)" opacity="0.25"/>
+
+  <path d="M86 110 C 240 32, 446 36, 585 136 C 713 227, 774 372, 688 497 C 607 614, 433 665, 277 631 C 103 595, 20 442, 34 293 C 42 214, 52 157, 86 110 Z"
+        fill="url(#landGrad)" opacity="0.95" stroke="#86efac" stroke-width="3"/>
+
+  <path d="M130 310 L 590 290" stroke="#94a3b8" stroke-width="11" stroke-linecap="round"/>
+  <path d="M172 380 L 618 360" stroke="#a1a1aa" stroke-width="9" stroke-linecap="round"/>
+  <path d="M260 220 L 300 560" stroke="#a1a1aa" stroke-width="8" stroke-linecap="round"/>
+  <path d="M390 170 L 430 580" stroke="#cbd5e1" stroke-width="6" stroke-linecap="round"/>
+
+  <g opacity="0.62" stroke="#cbd5e1" stroke-width="1">
+    <path d="M96 150 H 610"/>
+    <path d="M96 230 H 610"/>
+    <path d="M96 310 H 610"/>
+    <path d="M96 390 H 610"/>
+    <path d="M96 470 H 610"/>
+    <path d="M96 550 H 610"/>
+    <path d="M150 100 V 620"/>
+    <path d="M250 100 V 620"/>
+    <path d="M350 100 V 620"/>
+    <path d="M450 100 V 620"/>
+    <path d="M550 100 V 620"/>
+  </g>
+
+  <g transform="translate(392 330)" filter="url(#shadow)">
+    <path d="M0 -84 C -42 -84 -76 -50 -76 -8 C -76 37 -38 79 0 118 C 38 79 76 37 76 -8 C 76 -50 42 -84 0 -84 Z"
+          fill="#dc2626"/>
+    <circle cx="0" cy="-10" r="27" fill="#ffffff"/>
+    <circle cx="0" cy="-10" r="12" fill="#dc2626"/>
+  </g>
+
+  <g transform="translate(650 148)">
+    <rect x="0" y="0" width="560" height="424" rx="26" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" filter="url(#shadow)"/>
+
+    <text x="34" y="58" fill="#0f172a" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700">
+      BISU Candijay Campus
+    </text>
+    <text x="34" y="96" fill="#334155" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="600">
+      Bohol Island State University
+    </text>
+
+    <rect x="34" y="126" width="492" height="88" rx="14" fill="#ecfeff" stroke="#99f6e4"/>
+    <text x="52" y="164" fill="#0f766e" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">
+      Coordinates
+    </text>
+    <text x="52" y="194" fill="#115e59" font-family="Consolas, Menlo, monospace" font-size="22" font-weight="700">
+      9.8348681, 124.5299864
+    </text>
+
+    <rect x="34" y="234" width="492" height="130" rx="14" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="52" y="270" fill="#0f172a" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">
+      Campus Address
+    </text>
+    <text x="52" y="305" fill="#334155" font-family="Segoe UI, Arial, sans-serif" font-size="21">
+      Tagbilaran East Road, Poblacion,
+    </text>
+    <text x="52" y="336" fill="#334155" font-family="Segoe UI, Arial, sans-serif" font-size="21">
+      Candijay, Bohol, Philippines
+    </text>
+
+    <text x="34" y="402" fill="#64748b" font-family="Segoe UI, Arial, sans-serif" font-size="18">
+      Offline map fallback: reconnect to load interactive Google Maps.
+    </text>
+  </g>
+
+  <text x="36" y="684" fill="#334155" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="600">
+    Marker pin points to BISU Candijay Campus exact location.
+  </text>
+</svg>

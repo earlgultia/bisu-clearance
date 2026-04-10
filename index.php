@@ -1640,6 +1640,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             display: block;
         }
 
+        .map-placeholder.is-offline iframe {
+            display: none;
+        }
+
+        .offline-map-card {
+            display: none;
+            width: 100%;
+            height: 100%;
+            position: relative;
+            z-index: 1;
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+        }
+
+        .map-placeholder.is-offline .offline-map-card {
+            display: block;
+        }
+
+        .offline-map-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .offline-map-meta {
+            position: absolute;
+            left: 18px;
+            bottom: 18px;
+            max-width: min(90%, 500px);
+            background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px 14px;
+            box-shadow: var(--card-shadow);
+            backdrop-filter: blur(6px);
+        }
+
+        .offline-map-meta h3 {
+            margin: 0 0 4px;
+            font-size: 1rem;
+            color: var(--primary);
+        }
+
+        .offline-map-meta p {
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+
         .map-placeholder::before {
             content: '';
             position: absolute;
@@ -2396,6 +2446,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                 width: 32px;
                 height: 32px;
             }
+
+            .offline-map-meta {
+                left: 12px;
+                right: 12px;
+                bottom: 12px;
+                max-width: none;
+            }
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -2790,14 +2847,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <!-- Map Section -->
     <section class="map-section">
         <div class="map-container">
-            <div class="map-placeholder">
+            <div class="map-placeholder" id="campusMapContainer">
                 <iframe
+                    id="campusMapFrame"
                     title="Map to BISU Candijay Campus"
                     loading="lazy"
                     allowfullscreen
                     referrerpolicy="no-referrer-when-downgrade"
                     src="https://www.google.com/maps?q=9.8348681%2C124.5299864&z=18&output=embed">
                 </iframe>
+                <div class="offline-map-card" id="offlineCampusMap" hidden>
+                    <img src="assets/img/bisu-candijay-campus-offline-map.svg" alt="Offline map of BISU Candijay Campus with exact pin location">
+                    <div class="offline-map-meta">
+                        <h3>BISU Candijay Campus</h3>
+                        <p>Offline map mode. Coordinates: 9.8348681, 124.5299864.</p>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -2873,6 +2938,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         const updateBanner = document.getElementById('updateBanner');
         const updateBannerClose = document.getElementById('updateBannerClose');
         const developerInfoTrigger = document.getElementById('developerInfoTrigger');
+        const campusMapContainer = document.getElementById('campusMapContainer');
+        const campusMapFrame = document.getElementById('campusMapFrame');
+        const offlineCampusMap = document.getElementById('offlineCampusMap');
 
         if (updateBanner && updateBannerClose) {
             const bannerVersion = updateBanner.dataset.version || 'latest';
@@ -2988,6 +3056,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                 closeMobileNav();
             }
         });
+
+        const syncCampusMapConnectivity = (isOnline) => {
+            if (!campusMapContainer || !campusMapFrame || !offlineCampusMap) {
+                return;
+            }
+
+            if (isOnline) {
+                campusMapContainer.classList.remove('is-offline');
+                offlineCampusMap.hidden = true;
+                campusMapFrame.removeAttribute('aria-hidden');
+            } else {
+                campusMapContainer.classList.add('is-offline');
+                offlineCampusMap.hidden = false;
+                campusMapFrame.setAttribute('aria-hidden', 'true');
+            }
+        };
+
+        syncCampusMapConnectivity(navigator.onLine);
+        window.addEventListener('online', () => syncCampusMapConnectivity(true));
+        window.addEventListener('offline', () => syncCampusMapConnectivity(false));
 
         // Smooth scrolling for anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
