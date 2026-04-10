@@ -2792,11 +2792,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         <div class="map-container">
             <div class="map-placeholder">
                 <iframe
-                    title="Map to Candijay Cogtong"
+                    title="Map to BISU Candijay Campus"
                     loading="lazy"
                     allowfullscreen
                     referrerpolicy="no-referrer-when-downgrade"
-                    src="https://www.google.com/maps?q=Candijay%2C%20Cogtong%2C%20Bohol&output=embed">
+                    src="https://www.google.com/maps?q=9.8348681%2C124.5299864&z=18&output=embed">
                 </iframe>
             </div>
         </div>
