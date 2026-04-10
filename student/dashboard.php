@@ -2508,15 +2508,19 @@ try {
     $organization_clearance_data = $db->resultSet() ?: [];
 
     foreach ($organization_clearance_data as &$org_item) {
+        $org_display_name = (strtolower((string) ($org_item['org_type'] ?? '')) === 'college')
+            ? 'College Org'
+            : ($org_item['org_name'] ?? 'Organization');
+
         $org_item['item_type'] = 'organization';
-        $org_item['display_name'] = $org_item['org_name'] ?? 'Organization';
-        $org_item['target_name'] = $org_item['org_name'] ?? 'Organization';
+        $org_item['display_name'] = $org_display_name;
+        $org_item['target_name'] = $org_display_name;
         $org_item['target_type'] = 'organization';
         $org_item['lacking_comment'] = extractOrganizationLackingComment($org_item['remarks'] ?? '');
         $org_item['clean_remarks'] = cleanOrganizationRemarks($org_item['remarks'] ?? '');
         $org_item['formatted_date'] = !empty($org_item['created_at']) ? date('F d, Y', strtotime($org_item['created_at'])) : 'N/A';
         $org_item['formatted_processed_date'] = !empty($org_item['processed_date']) ? date('F d, Y h:i A', strtotime($org_item['processed_date'])) : '';
-        $org_item['processed_by_name'] = $org_item['org_name'] ?? 'Organization';
+        $org_item['processed_by_name'] = $org_display_name;
     }
     unset($org_item);
 } catch (Exception $e) {
@@ -7808,7 +7812,7 @@ function getOrganizationIcon($org_type)
                                                     </div>
                                                     <div class="office-details">
                                                         <div class="office-name">
-                                                            <?php echo htmlspecialchars($orgApp['org_name'] ?? 'Organization'); ?>
+                                                            <?php echo htmlspecialchars($orgApp['display_name'] ?? $orgApp['org_name'] ?? 'Organization'); ?>
                                                         </div>
                                                         <div class="office-status <?php echo $orgApp['status']; ?>">
                                                             <?php echo ucfirst($orgApp['status']); ?>
@@ -7821,7 +7825,7 @@ function getOrganizationIcon($org_type)
 
                                                             <?php if (empty($orgApp['student_proof_file'])): ?>
                                                                 <button class="upload-btn"
-                                                                    onclick="event.stopPropagation(); openUploadModal(<?php echo (int) $orgApp['clearance_id']; ?>, '<?php echo htmlspecialchars($orgApp['org_name'] ?? 'Organization', ENT_QUOTES); ?>', 'organization', <?php echo (int) $orgApp['org_clearance_id']; ?>)">
+                                                                    onclick="event.stopPropagation(); openUploadModal(<?php echo (int) $orgApp['clearance_id']; ?>, '<?php echo htmlspecialchars($orgApp['display_name'] ?? $orgApp['org_name'] ?? 'Organization', ENT_QUOTES); ?>', 'organization', <?php echo (int) $orgApp['org_clearance_id']; ?>)">
                                                                     <i class="fas fa-upload"></i> Upload Proof
                                                                 </button>
                                                             <?php else: ?>
@@ -7888,7 +7892,7 @@ function getOrganizationIcon($org_type)
                                     foreach ($group['organization_applications'] ?? [] as $orgApp) {
                                         if (!empty($orgApp['lacking_comment'])) {
                                             $organization_lacking_items[] = [
-                                                'organization' => $orgApp['org_name'] ?? 'Organization',
+                                                'organization' => $orgApp['display_name'] ?? $orgApp['org_name'] ?? 'Organization',
                                                 'comment' => $orgApp['lacking_comment']
                                             ];
                                         }
@@ -8126,7 +8130,7 @@ function getOrganizationIcon($org_type)
                                                     </div>
                                                     <div class="office-details">
                                                         <div class="office-name">
-                                                            <?php echo htmlspecialchars($orgApp['org_name'] ?? 'Organization'); ?>
+                                                            <?php echo htmlspecialchars($orgApp['display_name'] ?? $orgApp['org_name'] ?? 'Organization'); ?>
                                                         </div>
                                                         <div class="office-status <?php echo $orgApp['status']; ?>">
                                                             <?php echo ucfirst($orgApp['status']); ?>
@@ -9252,7 +9256,7 @@ function getOrganizationIcon($org_type)
             const modal = document.getElementById('detailsModal');
             const modalBody = document.getElementById('detailsModalBody');
             const isOrganization = item.item_type === 'organization';
-            const displayName = isOrganization ? (item.org_name || item.display_name || 'Organization') : (item.office_name ? item.office_name.replace('_', ' ') : 'N/A');
+            const displayName = isOrganization ? (item.display_name || item.org_name || 'Organization') : (item.office_name ? item.office_name.replace('_', ' ') : 'N/A');
             const targetLabel = isOrganization ? 'Organization' : 'Office';
             const safeDisplayNameForHandler = String(displayName || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 

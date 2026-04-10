@@ -2819,7 +2819,7 @@ function getYearLevelBadge($year_level)
             <!-- Dashboard Tab -->
             <div id="dashboard" class="tab-content <?php echo $active_tab == 'dashboard' ? 'active' : ''; ?>">
                 <div class="welcome-banner">
-                    <h1>Welcome, <?php echo htmlspecialchars(explode(' ', $org_name)[0]); ?>! 👋</h1>
+                    <h1>Welcome to College Organizations! 👋</h1>
                     <p>Manage college organization clearances and track student academic organization records.</p>
                     <div class="org-info">
                         <i class="fas fa-info-circle"></i> <?php echo $college_name ?: 'College Organizations'; ?> - <?php echo date('F j, Y'); ?>
