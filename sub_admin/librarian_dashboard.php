@@ -7,6 +7,13 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Prevent showing stale authenticated pages from cache after logout or back navigation.
+if (!headers_sent()) {
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+}
+
 // Include database configuration with correct path
 require_once __DIR__ . '/../db.php';
 
@@ -5156,6 +5163,11 @@ function getActivityIcon($action)
             }
         }
 
+        const dashboardLogoutLinks = Array.from(document.querySelectorAll('a[href*="logout.php"]'));
+        const dashboardBackGuardKey = '__librarianDashboardBackGuard';
+        let allowDashboardBackExit = false;
+        let lastBackGuardNoticeAt = 0;
+
         // Tab switching
         function switchTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => {
@@ -5167,7 +5179,12 @@ function getActivityIcon($action)
                 item.classList.remove('active');
             });
 
-            event.target.closest('.nav-item').classList.add('active');
+            const activeNav = (typeof event !== 'undefined' && event && event.target && typeof event.target.closest === 'function')
+                ? event.target.closest('.nav-item')
+                : document.querySelector(`.nav-item[onclick*="switchTab('${tabName}')"], .nav-item[onclick*="switchTab(\"${tabName}\")"]`);
+            if (activeNav) {
+                activeNav.classList.add('active');
+            }
 
             const url = new URL(window.location);
             url.searchParams.set('tab', tabName);
@@ -5177,6 +5194,73 @@ function getActivityIcon($action)
                 closeMobileSidebar();
             }
         }
+
+        function setDashboardExitAllowed(value) {
+            allowDashboardBackExit = value === true;
+        }
+
+        function notifyBackGuard() {
+            const now = Date.now();
+            if (now - lastBackGuardNoticeAt < 1800) {
+                return;
+            }
+
+            lastBackGuardNoticeAt = now;
+            if (typeof showToast === 'function') {
+                showToast('Use Logout to leave your account safely.', 'info');
+            }
+        }
+
+        function initializeDashboardBackGuard() {
+            if (!window.history || typeof window.history.pushState !== 'function' || typeof window.history.replaceState !== 'function') {
+                return;
+            }
+
+            const existingState = (window.history.state && typeof window.history.state === 'object')
+                ? window.history.state
+                : {};
+
+            if (!existingState[dashboardBackGuardKey]) {
+                const rootState = Object.assign({}, existingState, {
+                    [dashboardBackGuardKey]: 'root'
+                });
+                window.history.replaceState(rootState, '', window.location.href);
+            }
+
+            window.history.pushState({
+                [dashboardBackGuardKey]: 'lock',
+                at: Date.now()
+            }, '', window.location.href);
+
+            window.addEventListener('popstate', () => {
+                if (allowDashboardBackExit) {
+                    return;
+                }
+
+                const currentUrl = new URL(window.location.href);
+                const currentTab = currentUrl.searchParams.get('tab') || 'dashboard';
+                const hasDashboardTab = !!document.getElementById('dashboard');
+
+                if (hasDashboardTab && currentTab !== 'dashboard') {
+                    switchTab('dashboard');
+                } else {
+                    window.history.pushState({
+                        [dashboardBackGuardKey]: 'lock',
+                        at: Date.now()
+                    }, '', window.location.href);
+                }
+
+                notifyBackGuard();
+            });
+        }
+
+        dashboardLogoutLinks.forEach((link) => {
+            link.addEventListener('click', () => {
+                setDashboardExitAllowed(true);
+            });
+        });
+
+        initializeDashboardBackGuard();
 
         if (menuToggle && sidebar) {
             menuToggle.addEventListener('click', () => {

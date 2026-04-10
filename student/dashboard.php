@@ -7,6 +7,13 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Prevent showing stale authenticated pages from cache after logout or back navigation.
+if (!headers_sent()) {
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+}
+
 // Enable verbose errors only in development.
 $isDevelopmentEnvironment = file_exists(__DIR__ . '/../.env');
 if ($isDevelopmentEnvironment) {
@@ -8931,6 +8938,10 @@ function getOrganizationIcon($org_type)
         const onboardingStorageKey = 'student_guide_seen_<?php echo (int) $student_id; ?>';
         const applyClearanceForm = document.getElementById('applyClearanceForm');
         const applyClearanceType = document.getElementById('applyClearanceType');
+        const dashboardLogoutLinks = Array.from(document.querySelectorAll('a[href*="logout.php"]'));
+        const dashboardBackGuardKey = '__studentDashboardBackGuard';
+        let allowDashboardBackExit = false;
+        let lastBackGuardToastAt = 0;
 
         function normalizeClearanceTypeValue(value) {
             return String(value || '')
@@ -9099,6 +9110,64 @@ function getOrganizationIcon($org_type)
 
             closeMobileNav();
         }
+
+        function setDashboardExitAllowed(value) {
+            allowDashboardBackExit = value === true;
+        }
+
+        function initializeDashboardBackGuard() {
+            if (!window.history || typeof window.history.pushState !== 'function') {
+                return;
+            }
+
+            const existingState = (window.history.state && typeof window.history.state === 'object')
+                ? window.history.state
+                : {};
+
+            if (!existingState[dashboardBackGuardKey]) {
+                const rootState = Object.assign({}, existingState, {
+                    [dashboardBackGuardKey]: 'root'
+                });
+                window.history.replaceState(rootState, '', window.location.href);
+            }
+
+            window.history.pushState({
+                [dashboardBackGuardKey]: 'lock',
+                at: Date.now()
+            }, '', window.location.href);
+
+            window.addEventListener('popstate', () => {
+                if (allowDashboardBackExit) {
+                    return;
+                }
+
+                const currentUrl = new URL(window.location.href);
+                const currentTab = currentUrl.searchParams.get('tab') || 'dashboard';
+
+                if (currentTab !== 'dashboard') {
+                    switchTab('dashboard');
+                } else {
+                    window.history.pushState({
+                        [dashboardBackGuardKey]: 'lock',
+                        at: Date.now()
+                    }, '', window.location.href);
+                }
+
+                const now = Date.now();
+                if (now - lastBackGuardToastAt > 1800) {
+                    lastBackGuardToastAt = now;
+                    showToast('Use Logout to leave your account safely.', 'info');
+                }
+            });
+        }
+
+        dashboardLogoutLinks.forEach((link) => {
+            link.addEventListener('click', () => {
+                setDashboardExitAllowed(true);
+            });
+        });
+
+        initializeDashboardBackGuard();
 
         function setMobileNavToggleState(isOpen) {
             if (!mobileNavToggle) {
