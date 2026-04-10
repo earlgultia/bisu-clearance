@@ -355,6 +355,10 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             -webkit-text-size-adjust: 100%;
         }
 
+        body.modal-open {
+            overflow: hidden;
+        }
+
         /* Dark Mode Toggle Button */
         .theme-toggle {
             position: fixed;
@@ -417,6 +421,8 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
             gap: 20px;
             align-items: start;
+            max-width: 920px;
+            margin: 0 auto;
         }
 
         .register-aside {
@@ -427,6 +433,123 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             backdrop-filter: blur(10px);
             color: #fff;
             box-shadow: 0 14px 30px rgba(16, 23, 42, 0.16);
+        }
+
+        .before-register-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px 16px;
+            background: rgba(15, 23, 42, 0.58);
+            backdrop-filter: blur(5px);
+            z-index: 1300;
+        }
+
+        .before-register-modal.show {
+            display: flex;
+        }
+
+        .before-register-dialog {
+            width: min(100%, 560px);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 22px;
+            box-shadow: 0 24px 44px var(--shadow-color);
+            padding: 24px;
+            color: var(--text-primary);
+            position: relative;
+            animation: slideUp 0.28s ease;
+        }
+
+        .before-register-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .before-register-close:hover {
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .before-register-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin-bottom: 14px;
+        }
+
+        .before-register-title {
+            font-family: var(--font-display);
+            font-size: clamp(1.35rem, 2.4vw, 1.7rem);
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+
+        .before-register-description {
+            color: var(--text-secondary);
+            line-height: 1.65;
+            margin-bottom: 14px;
+        }
+
+        .before-register-list {
+            list-style: none;
+            display: grid;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .before-register-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            color: var(--text-primary);
+            line-height: 1.5;
+            font-size: 0.92rem;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background: var(--hint-bg);
+        }
+
+        .before-register-list i {
+            margin-top: 2px;
+            color: #16a34a;
+        }
+
+        .before-register-action {
+            width: 100%;
+            min-height: 46px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .before-register-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px var(--primary-glow);
         }
 
         .register-aside h3 {
@@ -505,6 +628,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             animation: slideUp 0.5s ease;
             border: 1px solid var(--border-color);
             transition: all 0.3s ease;
+            grid-column: 1 / -1;
         }
 
         @keyframes slideUp {
@@ -953,6 +1077,15 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                 padding-top: max(18px, env(safe-area-inset-top));
             }
 
+            .before-register-dialog {
+                padding: 20px 16px;
+                border-radius: 16px;
+            }
+
+            .before-register-list li {
+                font-size: 0.88rem;
+            }
+
             .register-card {
                 border-radius: 16px;
             }
@@ -1000,6 +1133,24 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
         <div class="toggle-ball"></div>
     </div>
 
+    <div class="before-register-modal" id="beforeRegisterModal" role="dialog" aria-modal="true" aria-labelledby="beforeRegisterTitle" aria-describedby="beforeRegisterDescription">
+        <div class="before-register-dialog">
+            <button type="button" class="before-register-close" id="closeBeforeRegister" aria-label="Close notification">
+                <i class="fas fa-times"></i>
+            </button>
+            <span class="before-register-badge"><i class="fas fa-circle-info"></i> Before You Register</span>
+            <h2 class="before-register-title" id="beforeRegisterTitle">Before You Register</h2>
+            <p class="before-register-description" id="beforeRegisterDescription">Use your official BISU credentials and complete details to avoid account approval issues.</p>
+            <ul class="before-register-list">
+                <li><i class="fas fa-circle-check"></i><span>Use an active BISU email ending with @bisu.edu.ph</span></li>
+                <li><i class="fas fa-circle-check"></i><span>Prepare your 6-digit ISMIS ID before submitting</span></li>
+                <li><i class="fas fa-circle-check"></i><span>Choose the correct college and course for accurate records</span></li>
+                <li><i class="fas fa-circle-check"></i><span>Create a strong password to protect your account</span></li>
+            </ul>
+            <button type="button" class="before-register-action" id="continueRegistrationBtn">I Understand, Continue</button>
+        </div>
+    </div>
+
     <div class="register-container">
         <div class="brand">
             <div class="brand-badge"><i class="fas fa-shield-alt"></i> Secure Student Onboarding</div>
@@ -1008,17 +1159,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
         </div>
 
         <div class="register-shell">
-        <aside class="register-aside">
-            <h3>Before You Register</h3>
-            <p>Use your official BISU credentials and complete details to avoid account approval issues.</p>
-            <ul class="aside-list">
-                <li><i class="fas fa-circle-check"></i><span>Use an active BISU email ending with @bisu.edu.ph</span></li>
-                <li><i class="fas fa-circle-check"></i><span>Prepare your 6-digit ISMIS ID before submitting</span></li>
-                <li><i class="fas fa-circle-check"></i><span>Choose the correct college and course for accurate records</span></li>
-                <li><i class="fas fa-circle-check"></i><span>Create a strong password to protect your account</span></li>
-            </ul>
-        </aside>
-
         <div class="register-card">
             <?php if ($error): ?>
                 <div class="alert alert-error">
@@ -1183,6 +1323,39 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
     </div>
 
     <script>
+        const beforeRegisterModal = document.getElementById('beforeRegisterModal');
+        const closeBeforeRegister = document.getElementById('closeBeforeRegister');
+        const continueRegistrationBtn = document.getElementById('continueRegistrationBtn');
+        const shouldShowBeforeRegisterModal = <?php echo $success ? 'false' : 'true'; ?>;
+        let lastFocusedElement = null;
+
+        function openBeforeRegisterModal() {
+            if (!beforeRegisterModal) {
+                return;
+            }
+
+            lastFocusedElement = document.activeElement;
+            beforeRegisterModal.classList.add('show');
+            document.body.classList.add('modal-open');
+
+            setTimeout(() => {
+                continueRegistrationBtn?.focus();
+            }, 30);
+        }
+
+        function closeBeforeRegisterModal() {
+            if (!beforeRegisterModal) {
+                return;
+            }
+
+            beforeRegisterModal.classList.remove('show');
+            document.body.classList.remove('modal-open');
+
+            if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+                lastFocusedElement.focus();
+            }
+        }
+
         // Function to load courses based on selected college
         function loadCourses() {
             const collegeId = document.getElementById('college_id').value;
@@ -1230,11 +1403,30 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             <?php if (!empty($form_data['college_id'])): ?>
                 loadCourses();
             <?php endif; ?>
+
+            if (shouldShowBeforeRegisterModal) {
+                openBeforeRegisterModal();
+            }
             
             // Check for saved theme preference
             const savedTheme = localStorage.getItem('theme');
             if (savedTheme === 'dark') {
                 document.body.classList.add('dark-mode');
+            }
+        });
+
+        closeBeforeRegister?.addEventListener('click', closeBeforeRegisterModal);
+        continueRegistrationBtn?.addEventListener('click', closeBeforeRegisterModal);
+
+        beforeRegisterModal?.addEventListener('click', function(event) {
+            if (event.target === beforeRegisterModal) {
+                closeBeforeRegisterModal();
+            }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && beforeRegisterModal?.classList.contains('show')) {
+                closeBeforeRegisterModal();
             }
         });
 
