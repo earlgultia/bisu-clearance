@@ -4420,6 +4420,95 @@ function getOrganizationIcon($org_type)
             gap: 0.5rem;
         }
 
+        .history-summary {
+            cursor: pointer;
+            border-radius: 14px;
+            padding: 0.9rem 1rem;
+            margin: -0.8rem -0.8rem 0;
+            transition: background-color 0.2s ease;
+        }
+
+        .history-summary:hover {
+            background: var(--bg);
+        }
+
+        .history-summary-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-left: auto;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .history-toggle-btn {
+            min-height: 40px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--white);
+            color: var(--text);
+            font-weight: 700;
+            font-size: 0.82rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.45rem 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .history-toggle-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .history-toggle-icon {
+            transition: transform 0.2s ease;
+        }
+
+        .timeline-item.history-open .history-toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .timeline-item.history-open .history-summary {
+            background: color-mix(in srgb, var(--primary) 10%, var(--bg));
+        }
+
+        .history-details-panel {
+            margin-top: 1rem;
+        }
+
+        .history-details-panel[hidden] {
+            display: none !important;
+        }
+
+        .dark-mode .history-summary:hover {
+            background: rgba(139, 111, 216, 0.12);
+        }
+
+        .dark-mode .timeline-item.history-open .history-summary {
+            background: rgba(139, 111, 216, 0.16);
+        }
+
+        .dark-mode .history-toggle-btn {
+            background: var(--bg-dark);
+            color: var(--text);
+            border-color: var(--border);
+        }
+
+        @media (max-width: 768px) {
+            .history-summary {
+                margin: -0.5rem -0.5rem 0;
+                padding: 0.75rem;
+            }
+
+            .history-summary-actions {
+                width: 100%;
+                margin-left: 0;
+                justify-content: space-between;
+            }
+        }
+
         /* Filter Bar */
         .filter-bar {
             display: flex;
@@ -7981,9 +8070,8 @@ function getOrganizationIcon($org_type)
                     <!-- Filter Bar -->
                     <div class="filter-bar">
                         <select class="filter-select" id="historyStatusFilter">
-                            <option value="">All Status</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Rejected</option>
+                            <option value="">All Completed</option>
+                            <option value="approved">Completed</option>
                         </select>
                         <select class="filter-select" id="historyYearFilter">
                             <option value="">All Years</option>
@@ -8010,141 +8098,122 @@ function getOrganizationIcon($org_type)
                         </button>
                     </div>
 
+                    <p style="margin: -0.6rem 0 1.2rem; color: var(--text-light); font-size: 0.9rem;">
+                        Completed clearances appear here. Click a record to view the full details of that previous clearance.
+                    </p>
+
                     <?php
                     $completed_clearances = array_filter($grouped_clearances, function ($group) {
-                        return in_array($group['status'], ['approved', 'rejected']);
+                        $is_approved = (($group['status'] ?? '') === 'approved');
+                        $offices_completed = (int) ($group['approved_offices'] ?? 0) === (int) ($group['total_offices'] ?? 0);
+                        $organizations_completed = (int) ($group['approved_organizations'] ?? 0) === (int) ($group['total_organizations'] ?? 0);
+
+                        return $is_approved && $offices_completed && $organizations_completed;
                     });
                     ?>
 
                     <?php if (empty($completed_clearances)): ?>
                         <div class="empty-state">
                             <i class="fas fa-history"></i>
-                            <h3>No Clearance History Found</h3>
-                            <p>Your completed clearances will appear here.</p>
+                            <h3>No Completed Clearance Yet</h3>
+                            <p>Once you finish all clearance requirements, the record will appear here.</p>
                         </div>
                     <?php else: ?>
                         <div class="clearance-timeline" id="historyTimeline">
                             <?php foreach ($completed_clearances as $key => $group): ?>
+                                <?php
+                                $history_detail_id = 'historyDetails_' . md5($key . '_' . ($group['applied_date'] ?? ''));
+                                $last_processed = end($group['applications']);
+                                ?>
                                 <div class="timeline-item" data-status="<?php echo $group['status']; ?>"
                                     data-year="<?php echo substr($group['school_year'], 0, 4); ?>">
 
                                     <!-- Timeline Header -->
-                                    <div class="timeline-header">
+                                    <div class="timeline-header history-summary"
+                                        role="button"
+                                        tabindex="0"
+                                        onclick="toggleHistoryDetails('<?php echo $history_detail_id; ?>')"
+                                        onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleHistoryDetails('<?php echo $history_detail_id; ?>'); }">
                                         <div class="timeline-title">
                                             <i class="fas fa-calendar-check" style="color: var(--primary);"></i>
                                             <h3>
                                                 <?php echo $key; ?>
                                             </h3>
                                             <span class="timeline-badge badge-<?php echo $group['status']; ?>">
-                                                <?php echo ucfirst($group['status']); ?>
+                                                Completed
                                             </span>
                                             <span style="color: var(--text-light); font-size: 0.9rem;">
                                                 (
                                                 <?php echo $group['clearance_type']; ?>)
                                             </span>
                                         </div>
-                                        <div class="timeline-date">
-                                            <i class="fas fa-clock"></i>
-                                            <?php
-                                            $last_processed = end($group['applications']);
-                                            echo !empty($last_processed['processed_date']) ? 'Completed: ' . date('M d, Y', strtotime($last_processed['processed_date'])) : 'N/A';
-                                            ?>
+                                        <div class="history-summary-actions">
+                                            <div class="timeline-date">
+                                                <i class="fas fa-clock"></i>
+                                                <?php echo !empty($last_processed['processed_date']) ? 'Completed: ' . date('M d, Y', strtotime($last_processed['processed_date'])) : 'N/A'; ?>
+                                            </div>
+                                            <button type="button"
+                                                class="history-toggle-btn"
+                                                aria-controls="<?php echo $history_detail_id; ?>"
+                                                aria-expanded="false"
+                                                onclick="event.stopPropagation(); toggleHistoryDetails('<?php echo $history_detail_id; ?>');">
+                                                <span class="history-toggle-label">View Details</span>
+                                                <i class="fas fa-chevron-down history-toggle-icon"></i>
+                                            </button>
                                         </div>
                                     </div>
 
-                                    <!-- Stats Summary -->
-                                    <div
-                                        style="display: flex; gap: 2rem; margin-bottom: 1.5rem; padding: 1rem; background: var(--bg); border-radius: 12px; flex-wrap: wrap;">
-                                        <div>
-                                            <div style="color: var(--text-light); font-size: 0.9rem;">Total Offices</div>
-                                            <div style="color: var(--text); font-size: 1.5rem; font-weight: 700;">5</div>
-                                        </div>
-                                        <div>
-                                            <div style="color: var(--text-light); font-size: 0.9rem;">Approved</div>
-                                            <div style="color: var(--success); font-size: 1.5rem; font-weight: 700;">
-                                                <?php echo $group['approved_offices']; ?>
-                                            </div>
-                                        </div>
-                                        <?php if ($group['rejected_offices'] > 0): ?>
+                                    <div id="<?php echo $history_detail_id; ?>" class="history-details-panel" hidden>
+                                        <!-- Stats Summary -->
+                                        <div
+                                            style="display: flex; gap: 2rem; margin-bottom: 1.5rem; padding: 1rem; background: var(--bg); border-radius: 12px; flex-wrap: wrap;">
                                             <div>
-                                                <div style="color: var(--text-light); font-size: 0.9rem;">Rejected</div>
-                                                <div style="color: var(--danger); font-size: 1.5rem; font-weight: 700;">
-                                                    <?php echo $group['rejected_offices']; ?>
-                                                </div>
+                                                <div style="color: var(--text-light); font-size: 0.9rem;">Total Offices</div>
+                                                <div style="color: var(--text); font-size: 1.5rem; font-weight: 700;">5</div>
                                             </div>
-                                        <?php endif; ?>
-                                        <?php if (($group['total_organizations'] ?? 0) > 0): ?>
                                             <div>
-                                                <div style="color: var(--text-light); font-size: 0.9rem;">Organizations</div>
-                                                <div style="color: var(--primary); font-size: 1.5rem; font-weight: 700;">
-                                                    <?php echo $group['approved_organizations']; ?>/<?php echo $group['total_organizations']; ?>
+                                                <div style="color: var(--text-light); font-size: 0.9rem;">Approved</div>
+                                                <div style="color: var(--success); font-size: 1.5rem; font-weight: 700;">
+                                                    <?php echo $group['approved_offices']; ?>
                                                 </div>
                                             </div>
-                                        <?php endif; ?>
-                                    </div>
-
-                                    <!-- Office Cards -->
-                                    <h4 style="margin: 1rem 0; color: var(--text);">Office Details</h4>
-                                    <div class="offices-grid">
-                                        <?php foreach ($group['applications'] as $app): ?>
-                                            <div class="office-card" onclick='viewDetails(<?php echo json_encode($app); ?>)'>
-                                                <div class="office-icon <?php echo $app['status']; ?>">
-                                                    <i class="fas fa-<?php echo getOfficeIcon($app['office_name']); ?>"></i>
-                                                </div>
-                                                <div class="office-details">
-                                                    <div class="office-name">
-                                                        <?php echo getOfficeDisplayName($app['office_name']); ?>
+                                            <?php if (($group['total_organizations'] ?? 0) > 0): ?>
+                                                <div>
+                                                    <div style="color: var(--text-light); font-size: 0.9rem;">Organizations</div>
+                                                    <div style="color: var(--primary); font-size: 1.5rem; font-weight: 700;">
+                                                        <?php echo $group['approved_organizations']; ?>/<?php echo $group['total_organizations']; ?>
                                                     </div>
-                                                    <div class="office-status <?php echo $app['status']; ?>">
-                                                        <?php echo ucfirst($app['status']); ?>
-                                                    </div>
-                                                    <?php if (!empty($app['remarks'])): ?>
-                                                        <div class="office-remarks"
-                                                            title="<?php echo htmlspecialchars($app['remarks']); ?>">
-                                                            <i class="fas fa-comment"></i>
-                                                            <?php echo htmlspecialchars(substr($app['remarks'], 0, 20)) . '...'; ?>
-                                                        </div>
-                                                    <?php endif; ?>
-
-                                                    <?php if (!empty($app['student_proof_file'])): ?>
-                                                        <div class="proof-action-group">
-                                                            <a href="../<?php echo $app['student_proof_file']; ?>" target="_blank"
-                                                                class="view-proof-btn" onclick="event.stopPropagation();">
-                                                                <i class="fas fa-eye"></i> View Proof
-                                                            </a>
-                                                        </div>
-                                                    <?php endif; ?>
                                                 </div>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
+                                            <?php endif; ?>
+                                        </div>
 
-                                    <?php if (!empty($group['organization_applications'])): ?>
-                                        <h4 style="margin: 1rem 0; color: var(--text);">Organization Details</h4>
+                                        <!-- Office Cards -->
+                                        <h4 style="margin: 1rem 0; color: var(--text);">Office Details</h4>
                                         <div class="offices-grid">
-                                            <?php foreach ($group['organization_applications'] as $orgApp): ?>
-                                                <div class="office-card <?php echo !empty($orgApp['lacking_comment']) ? 'lacking' : ''; ?>"
-                                                    onclick='viewDetails(<?php echo json_encode($orgApp); ?>)'>
-                                                    <div class="office-icon <?php echo $orgApp['status']; ?>">
-                                                        <i class="fas fa-<?php echo getOrganizationIcon($orgApp['org_type'] ?? ''); ?>"></i>
+                                            <?php foreach ($group['applications'] as $app): ?>
+                                                <div class="office-card" onclick='viewDetails(<?php echo json_encode($app); ?>)'>
+                                                    <div class="office-icon <?php echo $app['status']; ?>">
+                                                        <i class="fas fa-<?php echo getOfficeIcon($app['office_name']); ?>"></i>
                                                     </div>
                                                     <div class="office-details">
                                                         <div class="office-name">
-                                                            <?php echo htmlspecialchars($orgApp['display_name'] ?? $orgApp['org_name'] ?? 'Organization'); ?>
+                                                            <?php echo getOfficeDisplayName($app['office_name']); ?>
                                                         </div>
-                                                        <div class="office-status <?php echo $orgApp['status']; ?>">
-                                                            <?php echo ucfirst($orgApp['status']); ?>
+                                                        <div class="office-status <?php echo $app['status']; ?>">
+                                                            <?php echo ucfirst($app['status']); ?>
                                                         </div>
-                                                        <?php if (!empty($orgApp['clean_remarks'])): ?>
+
+                                                        <?php if (!empty($app['remarks'])): ?>
                                                             <div class="office-remarks"
-                                                                title="<?php echo htmlspecialchars($orgApp['clean_remarks']); ?>">
+                                                                title="<?php echo htmlspecialchars($app['remarks']); ?>">
                                                                 <i class="fas fa-comment"></i>
-                                                                <?php echo htmlspecialchars(strlen($orgApp['clean_remarks']) > 20 ? substr($orgApp['clean_remarks'], 0, 20) . '...' : $orgApp['clean_remarks']); ?>
+                                                                <?php echo htmlspecialchars(substr($app['remarks'], 0, 20)) . '...'; ?>
                                                             </div>
                                                         <?php endif; ?>
-                                                        <?php if (!empty($orgApp['student_proof_file'])): ?>
+
+                                                        <?php if (!empty($app['student_proof_file'])): ?>
                                                             <div class="proof-action-group">
-                                                                <a href="../<?php echo $orgApp['student_proof_file']; ?>" target="_blank"
+                                                                <a href="../<?php echo $app['student_proof_file']; ?>" target="_blank"
                                                                     class="view-proof-btn" onclick="event.stopPropagation();">
                                                                     <i class="fas fa-eye"></i> View Proof
                                                                 </a>
@@ -8154,7 +8223,44 @@ function getOrganizationIcon($org_type)
                                                 </div>
                                             <?php endforeach; ?>
                                         </div>
-                                    <?php endif; ?>
+
+                                        <?php if (!empty($group['organization_applications'])): ?>
+                                            <h4 style="margin: 1rem 0; color: var(--text);">Organization Details</h4>
+                                            <div class="offices-grid">
+                                                <?php foreach ($group['organization_applications'] as $orgApp): ?>
+                                                    <div class="office-card <?php echo !empty($orgApp['lacking_comment']) ? 'lacking' : ''; ?>"
+                                                        onclick='viewDetails(<?php echo json_encode($orgApp); ?>)'>
+                                                        <div class="office-icon <?php echo $orgApp['status']; ?>">
+                                                            <i class="fas fa-<?php echo getOrganizationIcon($orgApp['org_type'] ?? ''); ?>"></i>
+                                                        </div>
+                                                        <div class="office-details">
+                                                            <div class="office-name">
+                                                                <?php echo htmlspecialchars($orgApp['display_name'] ?? $orgApp['org_name'] ?? 'Organization'); ?>
+                                                            </div>
+                                                            <div class="office-status <?php echo $orgApp['status']; ?>">
+                                                                <?php echo ucfirst($orgApp['status']); ?>
+                                                            </div>
+                                                            <?php if (!empty($orgApp['clean_remarks'])): ?>
+                                                                <div class="office-remarks"
+                                                                    title="<?php echo htmlspecialchars($orgApp['clean_remarks']); ?>">
+                                                                    <i class="fas fa-comment"></i>
+                                                                    <?php echo htmlspecialchars(strlen($orgApp['clean_remarks']) > 20 ? substr($orgApp['clean_remarks'], 0, 20) . '...' : $orgApp['clean_remarks']); ?>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                            <?php if (!empty($orgApp['student_proof_file'])): ?>
+                                                                <div class="proof-action-group">
+                                                                    <a href="../<?php echo $orgApp['student_proof_file']; ?>" target="_blank"
+                                                                        class="view-proof-btn" onclick="event.stopPropagation();">
+                                                                        <i class="fas fa-eye"></i> View Proof
+                                                                    </a>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -9249,6 +9355,63 @@ function getOrganizationIcon($org_type)
             document.querySelectorAll('#historyTimeline .timeline-item').forEach(item => {
                 item.style.display = 'block';
             });
+        }
+
+        function toggleHistoryDetails(detailId) {
+            const detailsPanel = document.getElementById(detailId);
+            if (!detailsPanel) {
+                return;
+            }
+
+            const detailsItem = detailsPanel.closest('.timeline-item');
+            const detailsToggleButton = detailsItem ? detailsItem.querySelector('.history-toggle-btn') : null;
+            const detailsToggleLabel = detailsToggleButton ? detailsToggleButton.querySelector('.history-toggle-label') : null;
+            const willOpen = detailsPanel.hasAttribute('hidden');
+
+            document.querySelectorAll('#historyTimeline .history-details-panel').forEach(panel => {
+                if (panel.id === detailId) {
+                    return;
+                }
+
+                panel.setAttribute('hidden', 'hidden');
+
+                const panelItem = panel.closest('.timeline-item');
+                if (panelItem) {
+                    panelItem.classList.remove('history-open');
+                    const panelButton = panelItem.querySelector('.history-toggle-btn');
+                    if (panelButton) {
+                        panelButton.setAttribute('aria-expanded', 'false');
+                        const panelLabel = panelButton.querySelector('.history-toggle-label');
+                        if (panelLabel) {
+                            panelLabel.textContent = 'View Details';
+                        }
+                    }
+                }
+            });
+
+            if (willOpen) {
+                detailsPanel.removeAttribute('hidden');
+                if (detailsItem) {
+                    detailsItem.classList.add('history-open');
+                }
+                if (detailsToggleButton) {
+                    detailsToggleButton.setAttribute('aria-expanded', 'true');
+                }
+                if (detailsToggleLabel) {
+                    detailsToggleLabel.textContent = 'Hide Details';
+                }
+            } else {
+                detailsPanel.setAttribute('hidden', 'hidden');
+                if (detailsItem) {
+                    detailsItem.classList.remove('history-open');
+                }
+                if (detailsToggleButton) {
+                    detailsToggleButton.setAttribute('aria-expanded', 'false');
+                }
+                if (detailsToggleLabel) {
+                    detailsToggleLabel.textContent = 'View Details';
+                }
+            }
         }
 
         // View Details
