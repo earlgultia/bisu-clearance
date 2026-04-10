@@ -2516,17 +2516,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         <div class="patch-note-card">
             <div class="patch-note-header">
                 <span class="patch-note-badge"><i class="fas fa-bullhorn"></i> Patch Notes</span>
-                <h2 class="patch-note-title"><?php echo SITE_VERSION; ?></h2>
-                <p class="patch-note-subtitle">New update highlights are now in one place.</p>
+                <h2 class="patch-note-title">Version BETA 1.6.0</h2>
+                <p class="patch-note-subtitle">This update refreshes the app experience with a new icon, better optimization, and important bug fixes.</p>
             </div>
             <ul class="patch-note-list">
                 <li>
-                    <i class="fas fa-download"></i>
-                    You can now install BISU Clearance as an app for faster launch directly from your home screen.
+                    <i class="fas fa-icons"></i>
+                    New BISU Clearance app icon is now applied.
                 </li>
                 <li>
-                    <i class="fas fa-mobile-alt"></i>
-                    The app-style experience gives quick access with a cleaner, dedicated interface on mobile and desktop.
+                    <i class="fas fa-gauge-high"></i>
+                    Optimized performance for smoother loading and faster navigation.
+                </li>
+                <li>
+                    <i class="fas fa-bug"></i>
+                    Bug fixes and stability improvements across mobile and desktop.
                 </li>
             </ul>
         </div>
