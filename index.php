@@ -4,6 +4,45 @@
 // Initialize session and include database configuration
 require_once 'db.php';
 
+// Redirect authenticated users to their dashboard so browser/app back does not land on public home.
+if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
+    $role = $_SESSION['user_role'] ?? '';
+    $redirectTo = '';
+
+    if ($role === 'super_admin') {
+        $redirectTo = 'admin/dashboard.php';
+    } elseif ($role === 'sub_admin') {
+        $officeLower = strtolower($_SESSION['office_name'] ?? '');
+
+        if (strpos($officeLower, 'sas') !== false || strpos($officeLower, 'director') !== false) {
+            $redirectTo = 'sub_admin/sas_dashboard.php';
+        } elseif (strpos($officeLower, 'libra') !== false) {
+            $redirectTo = 'sub_admin/librarian_dashboard.php';
+        } elseif (strpos($officeLower, 'dean') !== false) {
+            $redirectTo = 'sub_admin/dean_dashboard.php';
+        } elseif (strpos($officeLower, 'cash') !== false) {
+            $redirectTo = 'sub_admin/cashier_dashboard.php';
+        } elseif (strpos($officeLower, 'mis') !== false) {
+            $redirectTo = 'sub_admin/mis_dashboard.php';
+        } elseif (strpos($officeLower, 'registrar') !== false) {
+            $redirectTo = 'sub_admin/registrar_dashboard.php';
+        } else {
+            $redirectTo = 'sub_admin/dashboard.php';
+        }
+    } elseif ($role === 'office_staff') {
+        $redirectTo = 'staff/dashboard.php';
+    } elseif ($role === 'student') {
+        $redirectTo = 'student/dashboard.php';
+    } elseif ($role === 'organization') {
+        $redirectTo = $_SESSION['dashboard_file'] ?? 'organization/dashboard.php';
+    }
+
+    if ($redirectTo !== '') {
+        header('Location: ' . $redirectTo);
+        exit();
+    }
+}
+
 // Get dynamic data from database
 $db = Database::getInstance();
 

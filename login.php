@@ -7,6 +7,13 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Prevent browsers and PWA containers from showing stale login page after sign-in.
+if (!headers_sent()) {
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+}
+
 // Include database configuration
 require_once __DIR__ . '/db.php';
 
@@ -1240,7 +1247,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // Remove loading state when navigating back
-            window.addEventListener('pageshow', function () {
+            window.addEventListener('pageshow', function (event) {
+                const navigationEntries = (typeof performance.getEntriesByType === 'function')
+                    ? performance.getEntriesByType('navigation')
+                    : [];
+                const navType = navigationEntries.length ? navigationEntries[0].type : '';
+
+                // Force a fresh request when restored via browser/app history cache.
+                if (event.persisted || navType === 'back_forward') {
+                    window.location.reload();
+                    return;
+                }
+
                 const btn = document.getElementById('loginBtn');
                 if (btn) {
                     btn.classList.remove('loading');
