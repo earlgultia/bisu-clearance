@@ -481,8 +481,8 @@ function validateStrongPassword($password, &$errorMessage)
     $errorMessage = '';
     $password = (string) $password;
 
-    if (strlen($password) < 10) {
-        $errorMessage = 'Password must be at least 10 characters long.';
+    if (strlen($password) < 8) {
+        $errorMessage = 'Password must be at least 8 characters long.';
         return false;
     }
 
@@ -503,11 +503,6 @@ function validateStrongPassword($password, &$errorMessage)
 
     if (!preg_match('/\d/', $password)) {
         $errorMessage = 'Password must include at least one number.';
-        return false;
-    }
-
-    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
-        $errorMessage = 'Password must include at least one special character.';
         return false;
     }
 
@@ -631,7 +626,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'This reset link is invalid or expired. Please request a new one.';
                 } elseif (!hash_equals($password, $confirmPassword)) {
                     $tokenValid = true;
-                    $error = 'Password confirmation does not match.';
+                    $error = 'Passwords do not match.';
                 } else {
                     $passwordError = '';
                     if (!validateStrongPassword($password, $passwordError)) {
@@ -991,7 +986,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-group">
                         <label for="password">New Password</label>
                         <div class="password-wrap">
-                            <input type="password" id="password" name="password" minlength="10" maxlength="128" autocomplete="new-password" required>
+                            <input type="password" id="password" name="password" minlength="8" maxlength="128" autocomplete="new-password" required>
                             <button class="toggle-pass" type="button" data-target="password" aria-label="Show password">
                                 <i class="fas fa-eye"></i>
                             </button>
@@ -1001,7 +996,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-group">
                         <label for="confirm_password">Confirm Password</label>
                         <div class="password-wrap">
-                            <input type="password" id="confirm_password" name="confirm_password" minlength="10" maxlength="128" autocomplete="new-password" required>
+                            <input type="password" id="confirm_password" name="confirm_password" minlength="8" maxlength="128" autocomplete="new-password" required>
                             <button class="toggle-pass" type="button" data-target="confirm_password" aria-label="Show password confirmation">
                                 <i class="fas fa-eye"></i>
                             </button>
@@ -1009,11 +1004,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
 
                     <ul class="password-rules">
-                        <li>Minimum 10 characters</li>
+                        <li>Minimum 8 characters</li>
                         <li>At least one uppercase letter</li>
                         <li>At least one lowercase letter</li>
                         <li>At least one number</li>
-                        <li>At least one special character</li>
+                        <li>Passwords match</li>
                     </ul>
 
                     <button type="submit" class="btn">Update Password</button>
