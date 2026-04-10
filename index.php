@@ -64,6 +64,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        (function () {
+            try {
+                var bannerVersion = <?php echo json_encode(SITE_VERSION); ?> || 'latest';
+                var dismissKey = 'update-banner-dismissed-' + bannerVersion;
+
+                if (localStorage.getItem(dismissKey) === '1') {
+                    document.documentElement.classList.add('banner-dismissed');
+                }
+            } catch (error) {
+                // Ignore storage access failures and keep banner visible.
+            }
+        })();
+    </script>
     
     <style>
         /* =====================================================
@@ -471,6 +485,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             background: linear-gradient(135deg, color-mix(in srgb, var(--primary-soft) 72%, #fff 28%) 0%, color-mix(in srgb, var(--bg-secondary) 88%, #fff 12%) 100%);
             border-bottom: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border-color) 80%);
             backdrop-filter: blur(6px);
+        }
+
+        html.banner-dismissed .update-banner {
+            display: none;
         }
 
         .update-banner.is-hidden {
@@ -2740,13 +2758,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             const bannerVersion = updateBanner.dataset.version || 'latest';
             const dismissKey = `update-banner-dismissed-${bannerVersion}`;
 
-            if (localStorage.getItem(dismissKey) === '1') {
-                updateBanner.classList.add('is-hidden');
+            try {
+                if (localStorage.getItem(dismissKey) === '1') {
+                    updateBanner.classList.add('is-hidden');
+                    document.documentElement.classList.add('banner-dismissed');
+                }
+            } catch (error) {
+                // Ignore storage access failures and keep banner visible.
             }
 
             updateBannerClose.addEventListener('click', () => {
                 updateBanner.classList.add('is-hidden');
-                localStorage.setItem(dismissKey, '1');
+                document.documentElement.classList.add('banner-dismissed');
+
+                try {
+                    localStorage.setItem(dismissKey, '1');
+                } catch (error) {
+                    // Ignore storage access failures and keep in-memory state.
+                }
             });
         }
 
