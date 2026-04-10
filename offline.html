@@ -7,13 +7,18 @@
     <title>Offline - BISU Online Clearance</title>
     <style>
         :root {
-            --bg: #f8fafc;
-            --card: #ffffff;
-            --text: #1e293b;
-            --muted: #64748b;
+            --bg-1: #f4f1ff;
+            --bg-2: #ecf6ff;
+            --surface: #ffffff;
+            --ink: #1e293b;
+            --muted: #5f6f86;
             --brand: #412886;
-            --brand-soft: #ede9fe;
-            --border: #e2e8f0;
+            --brand-2: #215d87;
+            --brand-soft: rgba(65, 40, 134, 0.1);
+            --border: #dce5f1;
+            --ok: #0f766e;
+            --warn: #c2410c;
+            --shadow: 0 20px 46px rgba(19, 30, 56, 0.12);
         }
 
         * {
@@ -22,101 +27,366 @@
 
         body {
             margin: 0;
-            min-height: 100vh;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background: radial-gradient(circle at top right, #f5f3ff, var(--bg) 58%);
-            color: var(--text);
+            min-height: 100dvh;
+            padding: 24px;
             display: grid;
             place-items: center;
-            padding: 20px;
+            color: var(--ink);
+            font-family: "Trebuchet MS", "Segoe UI", Tahoma, sans-serif;
+            background:
+                radial-gradient(circle at 12% 8%, rgba(65, 40, 134, 0.16), transparent 34%),
+                radial-gradient(circle at 90% 92%, rgba(33, 93, 135, 0.16), transparent 32%),
+                linear-gradient(145deg, var(--bg-1), var(--bg-2));
         }
 
-        .offline-card {
-            width: min(560px, 100%);
-            background: var(--card);
+        .offline-shell {
+            width: min(760px, 100%);
+            background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 28px;
-            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            animation: card-in 420ms ease-out;
         }
 
-        .pill {
+        .offline-top {
+            padding: 28px 28px 18px;
+            background:
+                radial-gradient(circle at top right, rgba(65, 40, 134, 0.14), transparent 48%),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.9));
+            border-bottom: 1px solid var(--border);
+        }
+
+        .status-pill {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            background: var(--brand-soft);
-            color: var(--brand);
+            padding: 7px 14px;
             border-radius: 999px;
-            padding: 6px 12px;
-            font-weight: 600;
-            font-size: 0.85rem;
-            margin-bottom: 16px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            font-size: 0.82rem;
+            background: #fff4ed;
+            color: var(--warn);
+            border: 1px solid #fed7aa;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: currentColor;
+            opacity: 0.95;
+        }
+
+        .hero-row {
+            margin-top: 16px;
+            display: grid;
+            grid-template-columns: 88px minmax(0, 1fr);
+            gap: 16px;
+            align-items: start;
+        }
+
+        .signal-wrap {
+            width: 88px;
+            height: 88px;
+            border-radius: 22px;
+            background: linear-gradient(145deg, var(--brand), #5538a6 65%, var(--brand-2));
+            display: grid;
+            place-items: center;
+            box-shadow: 0 14px 24px rgba(65, 40, 134, 0.28);
+            animation: floaty 3.4s ease-in-out infinite;
+        }
+
+        .signal-wrap svg {
+            width: 44px;
+            height: 44px;
+            color: #ffffff;
         }
 
         h1 {
-            margin: 0 0 10px;
-            font-size: 1.8rem;
+            margin: 3px 0 8px;
+            font-size: clamp(1.45rem, 2.8vw, 2rem);
+            line-height: 1.18;
+            letter-spacing: 0.01em;
         }
 
-        p {
+        .lead {
             margin: 0;
             color: var(--muted);
-            line-height: 1.6;
+            line-height: 1.65;
+            max-width: 60ch;
+        }
+
+        .offline-body {
+            padding: 20px 28px 28px;
+            display: grid;
+            gap: 18px;
+        }
+
+        .helper-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .helper-card {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px;
+            background: #fdfdff;
+        }
+
+        .helper-card strong {
+            display: block;
+            font-size: 0.93rem;
+            margin-bottom: 5px;
+        }
+
+        .helper-card span {
+            color: var(--muted);
+            font-size: 0.86rem;
+            line-height: 1.5;
+        }
+
+        .network-row {
+            padding: 12px 14px;
+            border: 1px dashed var(--border);
+            border-radius: 12px;
+            background: #f8fbff;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            color: var(--muted);
+            font-size: 0.88rem;
+        }
+
+        .network-row strong {
+            color: var(--ink);
+        }
+
+        .network-row .ok {
+            color: var(--ok);
+        }
+
+        .network-row .offline {
+            color: var(--warn);
         }
 
         .actions {
-            margin-top: 22px;
             display: flex;
-            gap: 10px;
             flex-wrap: wrap;
+            gap: 10px;
         }
 
         .btn {
+            min-height: 44px;
             border: 0;
-            border-radius: 10px;
-            padding: 10px 16px;
+            border-radius: 12px;
+            padding: 11px 16px;
             cursor: pointer;
-            font-weight: 600;
+            font-weight: 700;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+            font-size: 0.9rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
         }
 
         .btn-primary {
-            background: var(--brand);
-            color: #fff;
+            color: #ffffff;
+            background: linear-gradient(135deg, var(--brand), #5e3eb8);
+            box-shadow: 0 10px 18px rgba(65, 40, 134, 0.22);
         }
 
         .btn-secondary {
-            background: #fff;
-            color: var(--text);
+            color: var(--ink);
+            background: #ffffff;
             border: 1px solid var(--border);
         }
 
-        @media (max-width: 600px) {
-            .offline-card {
-                padding: 22px;
+        .btn-tertiary {
+            color: #0f3d5f;
+            background: #e6f3ff;
+            border: 1px solid #c8e4ff;
+        }
+
+        @keyframes card-in {
+            from {
+                opacity: 0;
+                transform: translateY(12px) scale(0.98);
             }
 
-            h1 {
-                font-size: 1.45rem;
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes floaty {
+            0% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-4px);
+            }
+
+            100% {
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 700px) {
+            body {
+                padding: 14px;
+            }
+
+            .offline-top,
+            .offline-body {
+                padding-left: 18px;
+                padding-right: 18px;
+            }
+
+            .hero-row {
+                grid-template-columns: 1fr;
+            }
+
+            .signal-wrap {
+                width: 72px;
+                height: 72px;
+            }
+
+            .helper-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .actions .btn {
+                width: 100%;
             }
         }
     </style>
 </head>
 <body>
-    <main class="offline-card">
-        <div class="pill">You are offline</div>
-        <h1>Connection lost</h1>
-        <p>
-            BISU Online Clearance cannot reach the server right now. You can retry after reconnecting,
-            or return to the home page once your internet is back.
-        </p>
-        <div class="actions">
-            <button class="btn btn-primary" type="button" onclick="window.location.reload()">Try Again</button>
-            <a class="btn btn-secondary" href="/index.php">Go to Home</a>
-        </div>
+    <main class="offline-shell" role="main" aria-labelledby="offlineTitle">
+        <section class="offline-top">
+            <div class="status-pill" id="statusPill">
+                <span class="status-dot" aria-hidden="true"></span>
+                <span id="statusLabel">Offline mode</span>
+            </div>
+
+            <div class="hero-row">
+                <div class="signal-wrap" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M2.1 8.5a16 16 0 0 1 19.8 0" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+                        <path d="M5.5 12.2a11.1 11.1 0 0 1 13 0" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+                        <path d="M8.9 16a6 6 0 0 1 6.2 0" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+                        <circle cx="12" cy="19.3" r="1.2" fill="currentColor"/>
+                        <path d="M4 4l16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 id="offlineTitle">Connection lost. You are currently offline.</h1>
+                    <p class="lead" id="messageText">
+                        BISU Online Clearance cannot reach the server right now. You can stay on this screen,
+                        reconnect your internet, then retry or return to the home page.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <section class="offline-body">
+            <div class="helper-grid">
+                <div class="helper-card">
+                    <strong>What you can do now</strong>
+                    <span>Check your Wi-Fi or mobile data, then tap Try Again to reload this page.</span>
+                </div>
+                <div class="helper-card">
+                    <strong>After reconnecting</strong>
+                    <span>You can go back to Home and continue your clearance transactions as normal.</span>
+                </div>
+            </div>
+
+            <div class="network-row" aria-live="polite">
+                <span>Network status:</span>
+                <strong id="networkState" class="offline">Offline</strong>
+                <span id="lastCheck">Checked just now</span>
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-primary" id="retryBtn" type="button">Try Again</button>
+                <button class="btn btn-tertiary" id="checkBtn" type="button">Check Connection</button>
+                <a class="btn btn-secondary" href="/index.php">Go to Home</a>
+            </div>
+        </section>
     </main>
+
+    <script>
+        (function () {
+            const statusPill = document.getElementById('statusPill');
+            const statusLabel = document.getElementById('statusLabel');
+            const networkState = document.getElementById('networkState');
+            const lastCheck = document.getElementById('lastCheck');
+            const messageText = document.getElementById('messageText');
+            const retryBtn = document.getElementById('retryBtn');
+            const checkBtn = document.getElementById('checkBtn');
+
+            function stampNow() {
+                const now = new Date();
+                lastCheck.textContent = 'Last check: ' + now.toLocaleTimeString();
+            }
+
+            function setOnlineUI(isOnline) {
+                if (isOnline) {
+                    statusPill.style.background = '#ecfdf3';
+                    statusPill.style.color = '#0f766e';
+                    statusPill.style.borderColor = '#a7f3d0';
+                    statusLabel.textContent = 'Back online';
+                    networkState.textContent = 'Online';
+                    networkState.classList.remove('offline');
+                    networkState.classList.add('ok');
+                    messageText.textContent = 'Connection restored. You can now retry the page or return to home to continue using BISU Online Clearance.';
+                } else {
+                    statusPill.style.background = '#fff4ed';
+                    statusPill.style.color = '#c2410c';
+                    statusPill.style.borderColor = '#fed7aa';
+                    statusLabel.textContent = 'Offline mode';
+                    networkState.textContent = 'Offline';
+                    networkState.classList.remove('ok');
+                    networkState.classList.add('offline');
+                    messageText.textContent = 'BISU Online Clearance cannot reach the server right now. You can stay on this screen, reconnect your internet, then retry or return to the home page.';
+                }
+
+                stampNow();
+            }
+
+            retryBtn.addEventListener('click', function () {
+                window.location.reload();
+            });
+
+            checkBtn.addEventListener('click', function () {
+                setOnlineUI(navigator.onLine);
+                if (navigator.onLine) {
+                    window.location.reload();
+                }
+            });
+
+            window.addEventListener('online', function () {
+                setOnlineUI(true);
+            });
+
+            window.addEventListener('offline', function () {
+                setOnlineUI(false);
+            });
+
+            setOnlineUI(navigator.onLine);
+        })();
+    </script>
 </body>
 </html>
