@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <script>
         (function () {
             try {
-                var bannerVersion = <?php echo json_encode(SITE_VERSION); ?> || 'latest';
+                var bannerVersion = 'Version BETA 1.6.0';
                 var dismissKey = 'update-banner-dismissed-' + bannerVersion;
 
                 if (localStorage.getItem(dismissKey) === '1') {
@@ -2427,10 +2427,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         </nav>
     </header>
 
-    <section class="update-banner" id="updateBanner" data-version="<?php echo SITE_VERSION; ?>" aria-label="Latest update notice">
+    <section class="update-banner" id="updateBanner" data-version="Version BETA 1.6.0" aria-label="Latest update notice">
         <div class="update-banner-inner">
             <div class="update-banner-text">
-                <span class="update-pill"><i class="fas fa-bolt"></i> New in <?php echo SITE_VERSION; ?></span>
+                <span class="update-pill"><i class="fas fa-bolt"></i> Version BETA 1.6.0</span>
                 <p>You can now install BISU Clearance as an app for faster, one-tap access.</p>
                 <a href="#patch-notes" class="update-banner-link">See patch notes</a>
             </div>
@@ -2463,12 +2463,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             <div class="hero-text">
                 <div class="hero-badge">
                     <i class="fas fa-bolt"></i>
-                    Version <?php echo SITE_VERSION; ?>
+                    Version BETA 1.6.0
                 </div>
                 <h1>Streamline Your Student Clearance Process</h1>
                 <p>Experience a faster, more efficient way to complete your clearance requirements online. No more long
                     queues and paper forms!</p>
-                <p class="hero-version">Version <?php echo SITE_VERSION; ?></p>
+                <p class="hero-version">Version BETA 1.6.0</p>
                 <div class="hero-buttons">
                     <a href="register.php" class="btn btn-primary">
                         <i class="fas fa-user-plus"></i> Sign Up Now
@@ -2492,7 +2492,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                         <span>office checkpoints</span>
                     </div>
                     <div class="hero-mini-card">
-                        <strong><?php echo SITE_VERSION; ?></strong>
+                        <strong>Version BETA 1.6.0</strong>
                         <span>install the clearance as an app</span>
                     </div>
                 </div>
@@ -2822,7 +2822,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             </div>
         </div>
         <div class="footer-bottom">
-            <p>&copy; <?php echo date('Y'); ?> Bohol Island State University. All rights reserved. | Version <?php echo SITE_VERSION; ?></p>
+            <p>&copy; <?php echo date('Y'); ?> Bohol Island State University. All rights reserved. | Version BETA 1.6.0</p>
             <p>Developer: EARL O. GULTIA</p>
         </div>
     </footer>
