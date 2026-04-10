@@ -61,9 +61,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <!-- CSS Libraries -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         (function () {
             try {
@@ -388,6 +390,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             display: flex;
             align-items: center;
             gap: 10px;
+        }
+
+        .logo[role="button"] {
+            cursor: pointer;
+            border-radius: 14px;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .logo[role="button"]:hover {
+            background: var(--primary-soft);
+        }
+
+        .logo[role="button"]:focus-visible {
+            outline: 3px solid rgba(65, 40, 134, 0.35);
+            outline-offset: 3px;
+        }
+
+        .logo[role="button"]:active {
+            transform: scale(0.99);
         }
 
         .logo-icon {
@@ -1881,6 +1902,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             box-shadow: 0 5px 15px rgba(65, 40, 134, 0.3);
         }
 
+        /* Developer SweetAlert */
+        .swal2-popup.developer-swal {
+            width: min(92vw, 540px) !important;
+            border-radius: 18px !important;
+            border: 1px solid var(--border-color) !important;
+            background: var(--card-bg) !important;
+            color: var(--text-primary) !important;
+            padding: 1.4rem !important;
+            box-shadow: var(--card-shadow-hover) !important;
+        }
+
+        .swal2-title.developer-swal-title {
+            font-family: var(--font-display) !important;
+            color: var(--primary) !important;
+            font-size: clamp(1.1rem, 2.5vw, 1.45rem) !important;
+        }
+
+        .swal2-html-container.developer-swal-content {
+            color: var(--text-secondary) !important;
+            line-height: 1.65 !important;
+            font-size: 0.98rem !important;
+            text-align: left !important;
+            margin: 0.4rem 0 1rem !important;
+        }
+
+        .swal2-html-container.developer-swal-content p {
+            margin: 0 0 0.5rem;
+        }
+
+        .swal2-html-container.developer-swal-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .swal2-confirm.developer-swal-confirm {
+            border: none !important;
+            border-radius: 999px !important;
+            min-height: 44px !important;
+            padding: 0.68rem 1.55rem !important;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%) !important;
+            color: #fff !important;
+            font-weight: 600 !important;
+            box-shadow: 0 8px 18px rgba(65, 40, 134, 0.25) !important;
+        }
+
+        @media (max-width: 480px) {
+            .swal2-popup.developer-swal {
+                width: calc(100vw - 22px) !important;
+                padding: 1.12rem !important;
+            }
+
+            .swal2-html-container.developer-swal-content {
+                font-size: 0.92rem !important;
+            }
+        }
+
         /* Responsive */
         @media (max-width: 1024px) {
             .hero-content {
@@ -2312,7 +2388,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <!-- Header -->
     <header id="header">
         <nav>
-            <div class="logo">
+            <div class="logo" id="developerInfoTrigger" role="button" tabindex="0" aria-label="View developer information">
                 <div class="logo-icon">
                     <img src="assets/img/logo.png" alt="BISU Logo">
                 </div>
@@ -2753,6 +2829,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         const navBackdrop = document.getElementById('navBackdrop');
         const updateBanner = document.getElementById('updateBanner');
         const updateBannerClose = document.getElementById('updateBannerClose');
+        const developerInfoTrigger = document.getElementById('developerInfoTrigger');
 
         if (updateBanner && updateBannerClose) {
             const bannerVersion = updateBanner.dataset.version || 'latest';
@@ -2775,6 +2852,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                     localStorage.setItem(dismissKey, '1');
                 } catch (error) {
                     // Ignore storage access failures and keep in-memory state.
+                }
+            });
+        }
+
+        const showDeveloperInfo = () => {
+            const developerInfo = [
+                'EARL O. GULTIA',
+                'Alejawan Lutao, Duero, Bohol',
+                'BSCS Student of Bohol Island State University',
+                'Cogtong Candijay Campus'
+            ];
+
+            if (typeof Swal === 'undefined') {
+                window.alert(developerInfo.join('\n'));
+                return;
+            }
+
+            Swal.fire({
+                icon: 'info',
+                title: 'Developer Information',
+                html: `
+                    <p><strong>EARL O. GULTIA</strong></p>
+                    <p>Alejawan Lutao, Duero, Bohol</p>
+                    <p>BSCS Student of Bohol Island State University</p>
+                    <p>Cogtong Candijay Campus</p>
+                `,
+                confirmButtonText: 'Exit',
+                allowOutsideClick: true,
+                allowEscapeKey: true,
+                customClass: {
+                    popup: 'developer-swal',
+                    title: 'developer-swal-title',
+                    htmlContainer: 'developer-swal-content',
+                    confirmButton: 'developer-swal-confirm'
+                },
+                buttonsStyling: false
+            });
+        };
+
+        if (developerInfoTrigger) {
+            developerInfoTrigger.addEventListener('click', showDeveloperInfo);
+            developerInfoTrigger.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    showDeveloperInfo();
                 }
             });
         }
