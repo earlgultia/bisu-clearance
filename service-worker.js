@@ -1,4 +1,4 @@
-const CACHE_VERSION = "bisu-clearance-v1";
+const CACHE_VERSION = "bisu-clearance-v2";
 const CORE_CACHE = `${CACHE_VERSION}-core`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -16,6 +16,10 @@ const coreAssets = [
   `${appRoot}offline.html`,
   `${appRoot}manifest.webmanifest`,
   `${appRoot}assets/js/pwa-register.js`,
+  `${appRoot}assets/img/pwa-icon-192.png`,
+  `${appRoot}assets/img/pwa-icon-512.png`,
+  `${appRoot}assets/img/pwa-icon-maskable-192.png`,
+  `${appRoot}assets/img/pwa-icon-maskable-512.png`,
   `${appRoot}assets/img/pwa-icon.svg`,
   `${appRoot}assets/img/logo.png`
 ].map((path) => new URL(path, self.location.origin).toString());

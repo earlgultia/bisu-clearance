@@ -945,7 +945,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BISU Clearance">
-    <link rel="apple-touch-icon" href="/assets/img/logo.png">
+    <link rel="apple-touch-icon" href="/assets/img/pwa-icon-192.png">
     <script defer src="/assets/js/pwa-register.js"></script>
 </head>
 <body>
@@ -1070,4 +1070,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </script>
 </body>
 </html>
+
 
