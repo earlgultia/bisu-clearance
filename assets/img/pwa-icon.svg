@@ -1,21 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
   <title id="title">BISU Clearance App Icon</title>
-  <desc id="desc">Checklist clipboard icon for the BISU Online Clearance application.</desc>
+  <desc id="desc">Professional BISU Clearance app icon with check badge and BISU Clearance nameplate.</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="bg" x1="0.08" y1="0.06" x2="0.92" y2="0.94">
       <stop offset="0%" stop-color="#412886" />
-      <stop offset="100%" stop-color="#215d87" />
+      <stop offset="100%" stop-color="#1f50a0" />
     </linearGradient>
+    <clipPath id="icon-shape">
+      <rect x="0" y="0" width="512" height="512" rx="108" ry="108" />
+    </clipPath>
   </defs>
-  <rect x="0" y="0" width="512" height="512" fill="url(#bg)" />
-  <circle cx="220" cy="152" r="148" fill="#ffffff" opacity="0.13" />
-  <rect x="128" y="102" width="256" height="288" fill="#ffffff" opacity="0.95" />
-  <rect x="128" y="102" width="256" height="288" fill="none" stroke="#412886" stroke-width="10" />
-  <rect x="212" y="84" width="88" height="34" fill="#5f46ac" />
-  <path d="M168 242l24 44 50-76" fill="none" stroke="#0f766e" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" />
-  <line x1="200" y1="190" x2="336" y2="190" stroke="#a9b8d8" stroke-width="9" />
-  <line x1="200" y1="242" x2="336" y2="242" stroke="#a9b8d8" stroke-width="9" />
-  <line x1="200" y1="294" x2="336" y2="294" stroke="#a9b8d8" stroke-width="9" />
-  <rect x="148" y="412" width="216" height="52" fill="#ffffff" opacity="0.2" />
-  <text x="256" y="453" text-anchor="middle" fill="#ffffff" font-size="58" font-family="Segoe UI, Arial, sans-serif" font-weight="700" letter-spacing="2">BISU</text>
+
+  <rect x="0" y="0" width="512" height="512" rx="108" ry="108" fill="url(#bg)" />
+
+  <g clip-path="url(#icon-shape)">
+    <circle cx="108" cy="124" r="150" fill="#97d3ff" opacity="0.28" />
+    <circle cx="426" cy="102" r="150" fill="#ffdca0" opacity="0.18" />
+    <circle cx="252" cy="430" r="168" fill="#be8eff" opacity="0.22" />
+  </g>
+
+  <circle cx="256" cy="220" r="130" fill="#ffffff" opacity="0.22" />
+  <circle cx="256" cy="220" r="130" fill="none" stroke="#ffffff" stroke-width="26" opacity="0.95" />
+
+  <path d="M196 228l44 42 77-85" fill="none" stroke="#3c256f" stroke-width="40" stroke-linecap="round" stroke-linejoin="round" opacity="0.34" />
+  <path d="M196 228l44 42 77-85" fill="none" stroke="#f7d777" stroke-width="34" stroke-linecap="round" stroke-linejoin="round" />
+
+  <rect x="56" y="370" width="400" height="90" rx="30" ry="30" fill="#ffffff" opacity="0.23" stroke="#ffffff" stroke-opacity="0.45" stroke-width="2" />
+  <text x="256" y="415" text-anchor="middle" dominant-baseline="middle" fill="#2d1b63" opacity="0.45" font-size="54" font-family="Segoe UI, Arial, sans-serif" font-weight="700">BISU Clearance</text>
+  <text x="256" y="412" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-size="54" font-family="Segoe UI, Arial, sans-serif" font-weight="700">BISU Clearance</text>
 </svg>

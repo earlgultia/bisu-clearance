@@ -1,4 +1,4 @@
-const CACHE_VERSION = "bisu-clearance-v3";
+const CACHE_VERSION = "bisu-clearance-v6";
 const CORE_CACHE = `${CACHE_VERSION}-core`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
