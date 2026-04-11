@@ -1,13 +1,14 @@
-const CACHE_VERSION = "bisu-clearance-v6";
+const CACHE_VERSION = "bisu-clearance-v7";
 const CORE_CACHE = `${CACHE_VERSION}-core`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
+const APP_ASSET_VERSION = "20260411";
 
 const appRoot = (() => {
   const scopePath = new URL(self.registration.scope).pathname;
   return scopePath.endsWith("/") ? scopePath : `${scopePath}/`;
 })();
 
-const coreAssets = [
+const baseCoreAssets = [
   appRoot,
   `${appRoot}index.php`,
   `${appRoot}login.php`,
@@ -23,7 +24,19 @@ const coreAssets = [
   `${appRoot}assets/img/pwa-icon.svg`,
   `${appRoot}assets/img/logo.png`,
   `${appRoot}assets/img/bisu-candijay-campus-offline-map.svg`
-].map((path) => new URL(path, self.location.origin).toString());
+];
+
+const versionedCoreAssets = [
+  `${appRoot}manifest.webmanifest?v=${APP_ASSET_VERSION}`,
+  `${appRoot}assets/js/pwa-register.js?v=${APP_ASSET_VERSION}`,
+  `${appRoot}assets/img/pwa-icon-192.png?v=${APP_ASSET_VERSION}`,
+  `${appRoot}assets/img/pwa-icon-512.png?v=${APP_ASSET_VERSION}`,
+  `${appRoot}assets/img/pwa-icon-maskable-192.png?v=${APP_ASSET_VERSION}`,
+  `${appRoot}assets/img/pwa-icon-maskable-512.png?v=${APP_ASSET_VERSION}`,
+  `${appRoot}assets/img/pwa-icon.svg?v=${APP_ASSET_VERSION}`
+];
+
+const coreAssets = [...baseCoreAssets, ...versionedCoreAssets].map((path) => new URL(path, self.location.origin).toString());
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -2661,13 +2661,13 @@ function timeAgo($datetime)
             }
         }
     </style>
-    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="manifest" href="<?php echo htmlspecialchars(versionedUrl('manifest.webmanifest'), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="theme-color" content="#412886">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BISU Clearance">
-    <link rel="apple-touch-icon" href="/assets/img/pwa-icon-192.png">
-    <script defer src="/assets/js/pwa-register.js"></script>
+    <link rel="apple-touch-icon" href="<?php echo htmlspecialchars(versionedUrl('assets/img/pwa-icon-192.png'), ENT_QUOTES, 'UTF-8'); ?>">
+    <script defer src="<?php echo htmlspecialchars(versionedUrl('assets/js/pwa-register.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </head>
 
 <body>

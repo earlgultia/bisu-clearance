@@ -24,6 +24,7 @@ define('BASE_URL', 'http://localhost/clearance/');  // Change this to your actua
 // Site information
 define('SITE_NAME', 'BISU Student Online Clearance System');
 define('SITE_VERSION', 'BETA 1.5.0');
+define('ASSET_VERSION', '20260411');
 define('DEBUG_MODE', file_exists(BASE_PATH . '/.env'));
 
 // Error reporting (turn off in production)
@@ -1136,6 +1137,23 @@ function getStatusBadge($status)
 function baseUrl($path = '')
 {
     return BASE_URL . ltrim($path, '/');
+}
+
+/**
+ * Build cache-busted absolute app URL
+ */
+function versionedUrl($path = '', $version = null)
+{
+    $url = baseUrl($path);
+    $defaultVersion = defined('ASSET_VERSION') ? (string) ASSET_VERSION : (string) SITE_VERSION;
+    $resolvedVersion = $version === null ? $defaultVersion : (string) $version;
+
+    if ($resolvedVersion === '') {
+        return $url;
+    }
+
+    $separator = strpos($url, '?') === false ? '?' : '&';
+    return $url . $separator . 'v=' . rawurlencode($resolvedVersion);
 }
 
 /**

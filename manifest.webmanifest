@@ -2,39 +2,39 @@
   "name": "BISU Online Clearance System",
   "short_name": "BISU Clearance",
   "description": "Student online clearance workflow for Bohol Island State University.",
-  "start_url": "/index.php",
-  "scope": "/",
+  "start_url": "./index.php",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#412886",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/assets/img/pwa-icon-192.png",
+      "src": "assets/img/pwa-icon-192.png?v=20260411",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/img/pwa-icon-512.png",
+      "src": "assets/img/pwa-icon-512.png?v=20260411",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/img/pwa-icon-maskable-192.png",
+      "src": "assets/img/pwa-icon-maskable-192.png?v=20260411",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/assets/img/pwa-icon-maskable-512.png",
+      "src": "assets/img/pwa-icon-maskable-512.png?v=20260411",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/assets/img/pwa-icon.svg",
+      "src": "assets/img/pwa-icon.svg?v=20260411",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
