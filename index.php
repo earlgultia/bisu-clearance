@@ -62,6 +62,8 @@ $stats = $db->single();
 
 // Check if user is already logged in (for redirect purposes only)
 $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
+$showPwaDebug = DEBUG_MODE || isset($_GET['pwa_debug']);
+$pwaDebugUrl = baseUrl('pwa-debug.php');
 
 // Handle newsletter subscription
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['newsletter_email'])) {
@@ -1951,6 +1953,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             animation: none;
         }
 
+        .pwa-debug-fab {
+            position: fixed;
+            left: 30px;
+            bottom: 30px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(65, 40, 134, 0.3);
+            background: rgba(255, 255, 255, 0.95);
+            color: var(--primary-dark);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            box-shadow: 0 8px 22px rgba(29, 18, 60, 0.16);
+            z-index: 999;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .pwa-debug-fab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 28px rgba(29, 18, 60, 0.24);
+        }
+
+        .dark-mode .pwa-debug-fab {
+            background: rgba(19, 31, 54, 0.92);
+            color: #edf2ff;
+            border-color: rgba(158, 180, 226, 0.4);
+        }
+
         /* Newsletter */
         .newsletter-form {
             display: flex;
@@ -2447,6 +2481,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                 height: 32px;
             }
 
+            .pwa-debug-fab {
+                left: 16px;
+                bottom: 16px;
+                padding: 9px 12px;
+                font-size: 0.8rem;
+            }
+
             .offline-map-meta {
                 left: 12px;
                 right: 12px;
@@ -2479,6 +2520,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     <button class="scroll-top" id="scrollTop" onclick="scrollToTop()">
         <i class="fas fa-arrow-up"></i>
     </button>
+    <?php if ($showPwaDebug): ?>
+    <a class="pwa-debug-fab" href="<?php echo htmlspecialchars($pwaDebugUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener" aria-label="Open PWA diagnostics page">
+        <i class="fas fa-microscope"></i>
+        <span>PWA Debug</span>
+    </a>
+    <?php endif; ?>
     <div class="nav-backdrop" id="navBackdrop"></div>
 
     <!-- Header -->
