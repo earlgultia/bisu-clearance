@@ -1095,6 +1095,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             color: var(--accent);
         }
 
+        .dark-mode .patch-note-list i {
+            color: #5eead4;
+        }
+
         /* Stats Section */
         .stats-section {
             background: var(--bg-secondary);
