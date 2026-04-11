@@ -1057,6 +1057,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 border-radius: 18px;
             }
 
+            .input-wrapper input {
+                padding: 14px 44px 14px 42px;
+            }
+
+            .input-icon {
+                left: 14px;
+                font-size: 16px;
+            }
+
+            .password-toggle {
+                right: 14px;
+                font-size: 16px;
+            }
+
+            .input-wrapper input::placeholder {
+                font-size: 12px;
+            }
+
             .form-options {
                 flex-direction: row;
                 align-items: center;
