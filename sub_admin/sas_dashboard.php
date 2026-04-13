@@ -3200,7 +3200,7 @@ function getOrgTypeBadge($type)
                                                     <?php
                                                     $sas_proof_path = str_replace('\\', '/', (string) ($clearance['proof_file'] ?? ''));
                                                     $sas_proof_path = preg_replace('#^(?:\.\./|\./)+#', '', $sas_proof_path);
-                                                    $sas_proof_href = '../' . ltrim((string) $sas_proof_path, '/');
+                                                    $sas_proof_href = '../serve_proof.php?file=' . rawurlencode(ltrim((string) $sas_proof_path, '/'));
                                                     ?>
                                                     <a href="<?php echo htmlspecialchars($sas_proof_href, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="action-btn proof" title="View Proof">
                                                         <i class="fas fa-file"></i>

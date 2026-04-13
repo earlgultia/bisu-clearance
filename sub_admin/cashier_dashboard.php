@@ -5008,7 +5008,7 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
                 .replace(/\\/g, '/')
                 .replace(/^(\.\.\/|\.\/)+/, '')
                 .replace(/^\/+/, '');
-            const proofUrl = safeProofFile ? `../${encodeURI(safeProofFile)}` : '';
+            const proofUrl = safeProofFile ? `../serve_proof.php?file=${encodeURIComponent(safeProofFile)}` : '';
             const fileExt = safeProofFile.split('.').pop().toLowerCase();
             const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt);
 

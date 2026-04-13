@@ -1,7 +1,7 @@
-const CACHE_VERSION = "bisu-clearance-v7";
+const CACHE_VERSION = "bisu-clearance-v8";
 const CORE_CACHE = `${CACHE_VERSION}-core`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
-const APP_ASSET_VERSION = "20260411";
+const APP_ASSET_VERSION = "20260413";
 
 const appRoot = (() => {
   const scopePath = new URL(self.registration.scope).pathname;
