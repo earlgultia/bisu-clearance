@@ -19,11 +19,40 @@
   }
 
   var appRoot = resolveAppRoot();
-  var swUrl = appRoot + "service-worker.js";
+  var swVersion = "20260413-2";
+  var swUrl = appRoot + "service-worker.js?v=" + encodeURIComponent(swVersion);
+
+  function requestActivation(registration) {
+    if (registration && registration.waiting) {
+      registration.waiting.postMessage({ type: "SKIP_WAITING" });
+    }
+  }
 
   window.addEventListener("load", function () {
-    navigator.serviceWorker.register(swUrl, { scope: appRoot }).catch(function (error) {
-      console.warn("Service worker registration failed:", error);
-    });
+    navigator.serviceWorker
+      .register(swUrl, { scope: appRoot })
+      .then(function (registration) {
+        requestActivation(registration);
+
+        registration.addEventListener("updatefound", function () {
+          var newWorker = registration.installing;
+          if (!newWorker) {
+            return;
+          }
+
+          newWorker.addEventListener("statechange", function () {
+            if (newWorker.state === "installed") {
+              requestActivation(registration);
+            }
+          });
+        });
+
+        registration.update().catch(function () {
+          return null;
+        });
+      })
+      .catch(function (error) {
+        console.warn("Service worker registration failed:", error);
+      });
   });
 })();

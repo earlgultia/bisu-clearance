@@ -3905,7 +3905,7 @@ function getYearLevelBadge($year_level)
                 .replace(/\\/g, '/')
                 .replace(/^(\.\.\/|\.\/)+/, '')
                 .replace(/^\/+/, '');
-            const proofUrl = safeProofFile ? `../serve_proof.php?file=${encodeURIComponent(safeProofFile)}` : '';
+            const proofUrl = safeProofFile ? `serve_proof.php?file=${encodeURIComponent(safeProofFile)}` : '';
             const fileExt = safeProofFile.split('.').pop().toLowerCase();
             const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt);
 

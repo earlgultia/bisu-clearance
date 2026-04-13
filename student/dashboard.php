@@ -156,7 +156,7 @@ function buildStudentAssetHref($path)
     $normalized_path = preg_replace('#^(?:\.\./|\./)+#', '', $normalized_path);
     $normalized_path = ltrim((string) $normalized_path, '/');
 
-    return '../serve_proof.php?file=' . rawurlencode($normalized_path);
+    return 'serve_proof.php?file=' . rawurlencode($normalized_path);
 }
 
 function getMessageTimeDisplayOffsetSeconds($db)
@@ -9498,7 +9498,7 @@ function getOrganizationIcon($org_type)
                 .replace(/^(\.\.\/|\.\/)+/, '')
                 .replace(/^\/+/, '');
 
-            return normalizedPath ? `../serve_proof.php?file=${encodeURIComponent(normalizedPath)}` : '';
+            return normalizedPath ? `serve_proof.php?file=${encodeURIComponent(normalizedPath)}` : '';
         }
 
         // View Details
