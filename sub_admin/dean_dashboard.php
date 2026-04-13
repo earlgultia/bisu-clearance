@@ -4791,7 +4791,7 @@ function getActivityIcon($action)
                                                                         $is_image = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif']);
                                                                         ?>
                                                                         <?php if ($is_image): ?>
-                                                                                <img src="../<?php echo $clearance['student_proof_file']; ?>"
+                                                                            <img src="<?php echo htmlspecialchars('../' . ltrim((string) preg_replace('#^(?:\.\./|\./)+#', '', str_replace('\\', '/', (string) ($clearance['student_proof_file'] ?? ''))), '/'), ENT_QUOTES, 'UTF-8'); ?>"
                                                                                     style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; cursor: pointer;"
                                                                                     onclick="viewStudentProof('<?php echo $clearance['clearance_id']; ?>', '<?php echo $clearance['student_proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['student_proof_remarks'] ?? '')); ?>')">
                                                                         <?php else: ?>
@@ -4811,7 +4811,7 @@ function getActivityIcon($action)
                                                                         $is_image = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif']);
                                                                         ?>
                                                                         <?php if ($is_image): ?>
-                                                                                <img src="../<?php echo $clearance['proof_file']; ?>"
+                                                                            <img src="<?php echo htmlspecialchars('../' . ltrim((string) preg_replace('#^(?:\.\./|\./)+#', '', str_replace('\\', '/', (string) ($clearance['proof_file'] ?? ''))), '/'), ENT_QUOTES, 'UTF-8'); ?>"
                                                                                     style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; cursor: pointer;"
                                                                                     onclick="viewDeanProof('<?php echo $clearance['proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['proof_remarks'] ?? '')); ?>', '<?php echo htmlspecialchars(($clearance['proof_by_fname'] ?? '') . ' ' . ($clearance['proof_by_lname'] ?? '')); ?>', '<?php echo $clearance['proof_uploaded_at']; ?>')">
                                                                         <?php else: ?>
