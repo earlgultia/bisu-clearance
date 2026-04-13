@@ -5004,14 +5004,19 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
 
         // View Student Proof
         function viewStudentProof(clearanceId, proofFile, remarks) {
-            const fileExt = String(proofFile || '').split('.').pop().toLowerCase();
+            const safeProofFile = String(proofFile || '')
+                .replace(/\\/g, '/')
+                .replace(/^(\.\.\/|\.\/)+/, '')
+                .replace(/^\/+/, '');
+            const proofUrl = safeProofFile ? `../${encodeURI(safeProofFile)}` : '';
+            const fileExt = safeProofFile.split('.').pop().toLowerCase();
             const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt);
 
             let previewHtml = '';
             if (isImage) {
-                previewHtml = `<img src="../${proofFile}" style="max-width: 100%; max-height: 400px; border-radius: 8px; cursor: pointer;" onclick="window.open('../${proofFile}', '_blank')">`;
+                previewHtml = `<img src="${proofUrl}" style="max-width: 100%; max-height: 400px; border-radius: 8px; cursor: pointer;" onclick="window.open('${proofUrl}', '_blank')">`;
             } else {
-                previewHtml = `<a href="../${proofFile}" target="_blank" class="btn btn-primary"><i class="fas fa-download"></i> Download File</a>`;
+                previewHtml = `<a href="${proofUrl}" target="_blank" class="btn btn-primary"><i class="fas fa-download"></i> Download File</a>`;
             }
 
             document.getElementById('studentProofPreview').innerHTML = previewHtml;

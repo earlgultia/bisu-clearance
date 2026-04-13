@@ -150,6 +150,15 @@ function buildMessageSnippet($text, $maxChars = 120, $collapseWhitespace = true)
     return rtrim((string) $trimmed) . '...';
 }
 
+function buildStudentAssetHref($path)
+{
+    $normalized_path = str_replace('\\', '/', trim((string) $path));
+    $normalized_path = preg_replace('#^(?:\.\./|\./)+#', '', $normalized_path);
+    $normalized_path = ltrim((string) $normalized_path, '/');
+
+    return '../' . $normalized_path;
+}
+
 function getMessageTimeDisplayOffsetSeconds($db)
 {
     static $offset_seconds = null;
@@ -7877,7 +7886,7 @@ function getOrganizationIcon($org_type)
                                                                     <i class="fas fa-check-circle"></i> Proof Uploaded
                                                                 </div>
                                                                 <?php if (!empty($app['student_proof_file'])): ?>
-                                                                    <a href="../<?php echo $app['student_proof_file']; ?>" target="_blank"
+                                                                    <a href="<?php echo htmlspecialchars(buildStudentAssetHref($app['student_proof_file']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank"
                                                                         class="view-proof-btn" onclick="event.stopPropagation();">
                                                                         <i class="fas fa-eye"></i> View Proof
                                                                     </a>
@@ -7929,7 +7938,7 @@ function getOrganizationIcon($org_type)
                                                                     <div class="proof-badge">
                                                                         <i class="fas fa-check-circle"></i> Proof Uploaded
                                                                     </div>
-                                                                    <a href="../<?php echo $orgApp['student_proof_file']; ?>" target="_blank"
+                                                                    <a href="<?php echo htmlspecialchars(buildStudentAssetHref($orgApp['student_proof_file']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank"
                                                                         class="view-proof-btn" onclick="event.stopPropagation();">
                                                                         <i class="fas fa-eye"></i> View Proof
                                                                     </a>
@@ -8220,7 +8229,7 @@ function getOrganizationIcon($org_type)
 
                                                         <?php if (!empty($app['student_proof_file'])): ?>
                                                             <div class="proof-action-group">
-                                                                <a href="../<?php echo $app['student_proof_file']; ?>" target="_blank"
+                                                                <a href="<?php echo htmlspecialchars(buildStudentAssetHref($app['student_proof_file']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank"
                                                                     class="view-proof-btn" onclick="event.stopPropagation();">
                                                                     <i class="fas fa-eye"></i> View Proof
                                                                 </a>
@@ -8256,7 +8265,7 @@ function getOrganizationIcon($org_type)
                                                             <?php endif; ?>
                                                             <?php if (!empty($orgApp['student_proof_file'])): ?>
                                                                 <div class="proof-action-group">
-                                                                    <a href="../<?php echo $orgApp['student_proof_file']; ?>" target="_blank"
+                                                                    <a href="<?php echo htmlspecialchars(buildStudentAssetHref($orgApp['student_proof_file']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank"
                                                                         class="view-proof-btn" onclick="event.stopPropagation();">
                                                                         <i class="fas fa-eye"></i> View Proof
                                                                     </a>
@@ -9483,6 +9492,15 @@ function getOrganizationIcon($org_type)
             }
         }
 
+        function buildStudentProofUrl(path) {
+            const normalizedPath = String(path || '')
+                .replace(/\\/g, '/')
+                .replace(/^(\.\.\/|\.\/)+/, '')
+                .replace(/^\/+/, '');
+
+            return normalizedPath ? `../${encodeURI(normalizedPath)}` : '';
+        }
+
         // View Details
         function viewDetails(item) {
             const modal = document.getElementById('detailsModal');
@@ -9515,7 +9533,7 @@ function getOrganizationIcon($org_type)
                         </h4>
                         <div class="file-info">
                             <i class="fas fa-file"></i>
-                            <a href="../${item.student_proof_file}" target="_blank">View Uploaded Proof</a>
+                            <a href="${buildStudentProofUrl(item.student_proof_file)}" target="_blank">View Uploaded Proof</a>
                         </div>
                         ${item.student_proof_remarks ? '<p><strong>Remarks:</strong> ' + item.student_proof_remarks + '</p>' : ''}
                         ${item.student_proof_uploaded_at ? '<small>Uploaded: ' + new Date(item.student_proof_uploaded_at).toLocaleString() + '</small>' : ''}

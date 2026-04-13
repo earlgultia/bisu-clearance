@@ -3901,7 +3901,11 @@ function getYearLevelBadge($year_level)
         }
 
         function viewStudentProof(clearanceId, proofFile, remarks) {
-            const safeProofFile = String(proofFile || '');
+            const safeProofFile = String(proofFile || '')
+                .replace(/\\/g, '/')
+                .replace(/^(\.\.\/|\.\/)+/, '')
+                .replace(/^\/+/, '');
+            const proofUrl = safeProofFile ? `../${encodeURI(safeProofFile)}` : '';
             const fileExt = safeProofFile.split('.').pop().toLowerCase();
             const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt);
 
@@ -3909,9 +3913,9 @@ function getYearLevelBadge($year_level)
             document.getElementById('studentProofRemarks').textContent = remarks || 'No remarks provided';
 
             if (isImage) {
-                document.getElementById('studentProofPreview').innerHTML = `<img src="../${encodeURI(safeProofFile)}" alt="Student proof" onclick="window.open('../${encodeURI(safeProofFile)}', '_blank')">`;
+                document.getElementById('studentProofPreview').innerHTML = `<img src="${proofUrl}" alt="Student proof" onclick="window.open('${proofUrl}', '_blank')">`;
             } else {
-                document.getElementById('studentProofPreview').innerHTML = `<a href="../${encodeURI(safeProofFile)}" target="_blank" class="btn btn-primary"><i class="fas fa-download"></i> Open Proof File</a>`;
+                document.getElementById('studentProofPreview').innerHTML = `<a href="${proofUrl}" target="_blank" class="btn btn-primary"><i class="fas fa-download"></i> Open Proof File</a>`;
             }
 
             document.getElementById('studentProofInfo').innerHTML = '<p style="color: var(--text-secondary);">Loading proof information...</p>';

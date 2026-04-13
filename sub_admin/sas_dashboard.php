@@ -3197,7 +3197,12 @@ function getOrgTypeBadge($type)
                                             <td><?php echo htmlspecialchars($clearance['remarks'] ?? '—'); ?></td>
                                             <td>
                                                 <?php if (!empty($clearance['proof_file'])): ?>
-                                                    <a href="../<?php echo $clearance['proof_file']; ?>" target="_blank" class="action-btn proof" title="View Proof">
+                                                    <?php
+                                                    $sas_proof_path = str_replace('\\', '/', (string) ($clearance['proof_file'] ?? ''));
+                                                    $sas_proof_path = preg_replace('#^(?:\.\./|\./)+#', '', $sas_proof_path);
+                                                    $sas_proof_href = '../' . ltrim((string) $sas_proof_path, '/');
+                                                    ?>
+                                                    <a href="<?php echo htmlspecialchars($sas_proof_href, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="action-btn proof" title="View Proof">
                                                         <i class="fas fa-file"></i>
                                                     </a>
                                                 <?php else: ?>
