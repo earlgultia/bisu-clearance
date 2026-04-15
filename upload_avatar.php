@@ -7,6 +7,8 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/db.php';
 
+const AVATAR_UPDATE_COOLDOWN_DAYS = 45;
+
 function jsonResponse(array $payload, int $statusCode = 200): void
 {
     http_response_code($statusCode);
@@ -121,6 +123,30 @@ function optimizeAvatarImage(string $filePath, string $mimeType, int $maxDimensi
     return $saved;
 }
 
+function ensureAvatarCooldownColumn(Database $db): void
+{
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    if (!shouldRunMaintenanceTask('users_avatar_updated_at_column', 21600)) {
+        return;
+    }
+
+    try {
+        if (!hasDatabaseColumn('users', 'avatar_updated_at')) {
+            $db->query("ALTER TABLE users ADD COLUMN avatar_updated_at DATETIME NULL AFTER profile_picture");
+            $db->execute();
+        }
+    } catch (Exception $e) {
+        error_log('Avatar cooldown column ensure failed: ' . $e->getMessage());
+    }
+}
+
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || empty($_SESSION['user_id'])) {
     jsonResponse([
         'success' => false,
@@ -174,6 +200,87 @@ if (!$imageInfo || !isset($allowedMimeTypes[$imageInfo['mime']])) {
 }
 
 $userId = (int) $_SESSION['user_id'];
+$db = Database::getInstance();
+$oldProfilePicture = null;
+$avatarCooldownColumnAvailable = false;
+
+try {
+    ensureAvatarCooldownColumn($db);
+    $avatarCooldownColumnAvailable = hasDatabaseColumn('users', 'avatar_updated_at');
+
+    if ($avatarCooldownColumnAvailable) {
+        $db->query('SELECT profile_picture, avatar_updated_at FROM users WHERE users_id = :user_id');
+    } else {
+        $db->query('SELECT profile_picture FROM users WHERE users_id = :user_id');
+    }
+
+    $db->bind(':user_id', $userId);
+    $user = $db->single();
+
+    if (!$user) {
+        jsonResponse([
+            'success' => false,
+            'message' => 'User account not found.'
+        ], 404);
+    }
+
+    $oldProfilePicture = $user['profile_picture'] ?? null;
+    $lastAvatarUpdatedAtRaw = trim((string) ($user['avatar_updated_at'] ?? ''));
+
+    if ($lastAvatarUpdatedAtRaw === '') {
+        // Fallback for existing accounts that updated avatars before cooldown tracking was added.
+        $db->query("SELECT created_at
+                    FROM activity_logs
+                    WHERE users_id = :user_id
+                      AND action = 'UPDATE_PROFILE_PICTURE'
+                    ORDER BY created_at DESC
+                    LIMIT 1");
+        $db->bind(':user_id', $userId);
+        $lastAvatarLog = $db->single();
+
+        if ($lastAvatarLog && !empty($lastAvatarLog['created_at'])) {
+            $lastAvatarUpdatedAtRaw = (string) $lastAvatarLog['created_at'];
+
+            if ($avatarCooldownColumnAvailable) {
+                $db->query('UPDATE users
+                            SET avatar_updated_at = :avatar_updated_at
+                            WHERE users_id = :user_id
+                              AND avatar_updated_at IS NULL');
+                $db->bind(':avatar_updated_at', $lastAvatarUpdatedAtRaw);
+                $db->bind(':user_id', $userId);
+                $db->execute();
+            }
+        }
+    }
+
+    if ($lastAvatarUpdatedAtRaw !== '') {
+        $lastAvatarUpdatedAtTs = strtotime($lastAvatarUpdatedAtRaw);
+
+        if ($lastAvatarUpdatedAtTs !== false) {
+            $cooldownSeconds = AVATAR_UPDATE_COOLDOWN_DAYS * 24 * 60 * 60;
+            $nextAllowedTs = $lastAvatarUpdatedAtTs + $cooldownSeconds;
+            $nowTs = time();
+
+            if ($nowTs < $nextAllowedTs) {
+                $remainingDays = (int) ceil(($nextAllowedTs - $nowTs) / 86400);
+                $nextAllowedText = date('M d, Y h:i A', $nextAllowedTs);
+
+                jsonResponse([
+                    'success' => false,
+                    'message' => 'You can only change your profile picture every ' . AVATAR_UPDATE_COOLDOWN_DAYS . ' days. Try again on ' . $nextAllowedText . ' (' . $remainingDays . ' day' . ($remainingDays === 1 ? '' : 's') . ' remaining).'
+                ], 429);
+            }
+        }
+    }
+} catch (Exception $e) {
+    error_log('Avatar cooldown validation error: ' . $e->getMessage());
+
+    jsonResponse([
+        'success' => false,
+        'message' => 'Unable to validate avatar update cooldown right now. Please try again later.'
+    ], 500);
+}
+
 $uploadDir = __DIR__ . '/uploads/avatars/';
 
 if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true)) {
@@ -198,18 +305,19 @@ if (!move_uploaded_file($file['tmp_name'], $destination)) {
 
 optimizeAvatarImage($destination, $imageInfo['mime']);
 
-$db = Database::getInstance();
-$oldProfilePicture = null;
-
 try {
-    $db->query('SELECT profile_picture FROM users WHERE users_id = :user_id');
-    $db->bind(':user_id', $userId);
-    $user = $db->single();
-    $oldProfilePicture = $user['profile_picture'] ?? null;
-
-    $db->query('UPDATE users SET profile_picture = :profile_picture WHERE users_id = :user_id');
-    $db->bind(':profile_picture', $storedPath);
-    $db->bind(':user_id', $userId);
+    if ($avatarCooldownColumnAvailable) {
+        $db->query('UPDATE users
+                    SET profile_picture = :profile_picture,
+                        avatar_updated_at = NOW()
+                    WHERE users_id = :user_id');
+        $db->bind(':profile_picture', $storedPath);
+        $db->bind(':user_id', $userId);
+    } else {
+        $db->query('UPDATE users SET profile_picture = :profile_picture WHERE users_id = :user_id');
+        $db->bind(':profile_picture', $storedPath);
+        $db->bind(':user_id', $userId);
+    }
 
     if (!$db->execute()) {
         if (file_exists($destination)) {
