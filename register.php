@@ -971,8 +971,31 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             transition: color 0.3s ease;
         }
 
+        .requirement::before {
+            content: '\f00d';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.68rem;
+            color: var(--text-secondary);
+            background: var(--bg-tertiary);
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+        }
+
         .requirement.valid {
             color: var(--success-text);
+        }
+
+        .requirement.valid::before {
+            content: '\f00c';
+            color: #fff;
+            background: var(--success-text);
         }
 
         .btn-register {
@@ -2062,40 +2085,16 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             const password = document.getElementById('password').value;
             // Length check
             const lengthReq = document.getElementById('req-length');
-            if (password.length >= 8) {
-                lengthReq.classList.add('valid');
-                lengthReq.textContent = 'At least 8 characters - complete';
-            } else {
-                lengthReq.classList.remove('valid');
-                lengthReq.textContent = 'At least 8 characters';
-            }
+            lengthReq.classList.toggle('valid', password.length >= 8);
             // Uppercase check
             const upperReq = document.getElementById('req-uppercase');
-            if (/[A-Z]/.test(password)) {
-                upperReq.classList.add('valid');
-                upperReq.textContent = 'At least one uppercase letter - complete';
-            } else {
-                upperReq.classList.remove('valid');
-                upperReq.textContent = 'At least one uppercase letter';
-            }
+            upperReq.classList.toggle('valid', /[A-Z]/.test(password));
             // Lowercase check
             const lowerReq = document.getElementById('req-lowercase');
-            if (/[a-z]/.test(password)) {
-                lowerReq.classList.add('valid');
-                lowerReq.textContent = 'At least one lowercase letter - complete';
-            } else {
-                lowerReq.classList.remove('valid');
-                lowerReq.textContent = 'At least one lowercase letter';
-            }
+            lowerReq.classList.toggle('valid', /[a-z]/.test(password));
             // Number check
             const numReq = document.getElementById('req-number');
-            if (/[0-9]/.test(password)) {
-                numReq.classList.add('valid');
-                numReq.textContent = 'At least one number - complete';
-            } else {
-                numReq.classList.remove('valid');
-                numReq.textContent = 'At least one number';
-            }
+            numReq.classList.toggle('valid', /[0-9]/.test(password));
             checkPasswordMatch();
         }
 
@@ -2104,13 +2103,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             const password = document.getElementById('password').value;
             const confirm = document.getElementById('confirm_password').value;
             const matchReq = document.getElementById('req-match');
-            if (password && confirm && password === confirm) {
-                matchReq.classList.add('valid');
-                matchReq.textContent = 'Passwords match - complete';
-            } else {
-                matchReq.classList.remove('valid');
-                matchReq.textContent = 'Passwords match';
-            }
+            matchReq.classList.toggle('valid', !!password && !!confirm && password === confirm);
         }
 
         // Form validation
