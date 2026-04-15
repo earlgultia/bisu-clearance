@@ -274,6 +274,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - BISU Online Clearance System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
@@ -363,23 +364,51 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             position: fixed;
             top: calc(12px + env(safe-area-inset-top));
             right: calc(12px + env(safe-area-inset-right));
-            min-height: 40px;
-            padding: 0 14px;
+            width: 60px;
+            height: 30px;
             background: var(--bg-tertiary);
-            border-radius: 999px;
+            border-radius: 30px;
             border: 2px solid var(--border-color);
             cursor: pointer;
             z-index: 1000;
             transition: 0.3s;
             backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 5px;
             color: var(--text-primary);
-            font-size: 0.8rem;
-            font-weight: 700;
-            font-family: inherit;
+            overflow: hidden;
+        }
+
+        .theme-toggle i {
+            font-size: 14px;
+            color: var(--text-secondary);
+            z-index: 1;
+            transition: 0.3s;
+        }
+
+        .theme-toggle .toggle-ball {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: var(--primary);
+            border-radius: 50%;
+            top: 1px;
+            left: 1px;
+            transition: transform 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .dark-mode .theme-toggle .toggle-ball {
+            transform: translateX(30px);
         }
 
         .theme-toggle:hover {
             border-color: var(--primary);
+        }
+
+        .theme-toggle:hover i {
             color: var(--primary);
         }
 
@@ -1156,7 +1185,11 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 </head>
 <body>
     <!-- Dark Mode Toggle -->
-    <button type="button" class="theme-toggle" id="themeToggle">Switch Theme</button>
+    <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">
+        <i class="fas fa-sun" aria-hidden="true"></i>
+        <i class="fas fa-moon" aria-hidden="true"></i>
+        <span class="toggle-ball" aria-hidden="true"></span>
+    </button>
 
     <div class="before-register-modal" id="beforeRegisterModal" role="dialog" aria-modal="true" aria-labelledby="beforeRegisterTitle" aria-describedby="beforeRegisterDescription">
         <div class="before-register-dialog">
@@ -1447,9 +1480,12 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                 return;
             }
 
-            themeToggle.textContent = document.body.classList.contains('dark-mode')
-                ? 'Switch to Light Mode'
-                : 'Switch to Dark Mode';
+            const label = document.body.classList.contains('dark-mode')
+                ? 'Switch to light mode'
+                : 'Switch to dark mode';
+
+            themeToggle.setAttribute('aria-label', label);
+            themeToggle.setAttribute('title', label);
         }
 
         themeToggle.addEventListener('click', () => {
