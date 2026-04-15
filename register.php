@@ -1218,7 +1218,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
     <div class="register-container">
         <div class="brand">
-            <div class="brand-badge">Secure Student Onboarding</div>
+            <div class="brand-badge"><i class="fas fa-shield-alt" aria-hidden="true"></i> Secure Student Onboarding</div>
             <h1>BISU Online Clearance</h1>
             <p>Create your student account</p>
         </div>
