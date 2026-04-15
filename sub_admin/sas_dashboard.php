@@ -4390,8 +4390,45 @@ function getOrgTypeBadge($type)
         const uploadProgress = document.getElementById('uploadProgress');
         const profileImage = document.getElementById('profileImage');
         const avatarIcon = document.getElementById('avatarIcon');
+        const avatarCooldownStatusUrl = '../upload_avatar.php?cooldown_status=1';
+        let avatarCooldownState = null;
 
-        avatarContainer.addEventListener('click', () => avatarInput.click());
+        function fetchAvatarCooldownStatus(forceRefresh = false) {
+            if (!forceRefresh && avatarCooldownState !== null) {
+                return Promise.resolve(avatarCooldownState);
+            }
+
+            return fetch(avatarCooldownStatusUrl, {
+                method: 'GET',
+                credentials: 'same-origin'
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.success) {
+                        avatarCooldownState = {
+                            canUpload: !!data.can_upload,
+                            message: String(data.message || '')
+                        };
+                        return avatarCooldownState;
+                    }
+
+                    avatarCooldownState = { canUpload: true, message: '' };
+                    return avatarCooldownState;
+                })
+                .catch(() => ({ canUpload: true, message: '' }));
+        }
+
+        avatarContainer.addEventListener('click', () => {
+            fetchAvatarCooldownStatus()
+                .then(status => {
+                    if (!status.canUpload) {
+                        showToast(status.message || 'You can update your profile picture after the cooldown period.', 'error');
+                        return;
+                    }
+
+                    avatarInput.click();
+                });
+        });
 
         avatarInput.addEventListener('change', function (e) {
             const file = e.target.files[0];
@@ -4429,8 +4466,15 @@ function getOrgTypeBadge($type)
                         const headerAvatar = document.querySelector('.user-avatar img');
                         if (headerAvatar) headerAvatar.src = '../' + data.filepath + '?t=' + new Date().getTime();
 
+                        avatarCooldownState = null;
                         showToast('Profile picture updated successfully!', 'success');
                     } else {
+                        if (data && data.can_upload === false) {
+                            avatarCooldownState = {
+                                canUpload: false,
+                                message: String(data.message || '')
+                            };
+                        }
                         showToast(data.message || 'Upload failed', 'error');
                     }
                 })

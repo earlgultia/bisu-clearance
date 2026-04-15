@@ -154,55 +154,15 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || empty($
     ], 401);
 }
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    jsonResponse([
-        'success' => false,
-        'message' => 'Invalid request method.'
-    ], 405);
-}
-
-if (!isset($_FILES['avatar'])) {
-    jsonResponse([
-        'success' => false,
-        'message' => 'No file uploaded.'
-    ], 400);
-}
-
-$file = $_FILES['avatar'];
-
-if ($file['error'] !== UPLOAD_ERR_OK) {
-    jsonResponse([
-        'success' => false,
-        'message' => 'Upload failed. Please try again.'
-    ], 400);
-}
-
-$maxOriginalUploadSize = 20 * 1024 * 1024; // Larger source files are allowed and then compressed.
-if ($file['size'] > $maxOriginalUploadSize) {
-    jsonResponse([
-        'success' => false,
-        'message' => 'File size must be less than 20MB before compression.'
-    ], 400);
-}
-
-$imageInfo = @getimagesize($file['tmp_name']);
-$allowedMimeTypes = [
-    'image/jpeg' => 'jpg',
-    'image/png' => 'png',
-    'image/gif' => 'gif'
-];
-
-if (!$imageInfo || !isset($allowedMimeTypes[$imageInfo['mime']])) {
-    jsonResponse([
-        'success' => false,
-        'message' => 'Please upload a valid JPG, PNG, or GIF image.'
-    ], 400);
-}
-
 $userId = (int) $_SESSION['user_id'];
 $db = Database::getInstance();
 $oldProfilePicture = null;
 $avatarCooldownColumnAvailable = false;
+$canUploadAvatar = true;
+$cooldownMessage = '';
+$remainingDays = 0;
+$nextAllowedText = '';
+$nextAllowedIso = null;
 
 try {
     ensureAvatarCooldownColumn($db);
@@ -264,11 +224,9 @@ try {
             if ($nowTs < $nextAllowedTs) {
                 $remainingDays = (int) ceil(($nextAllowedTs - $nowTs) / 86400);
                 $nextAllowedText = date('M d, Y h:i A', $nextAllowedTs);
-
-                jsonResponse([
-                    'success' => false,
-                    'message' => 'You can only change your profile picture every ' . AVATAR_UPDATE_COOLDOWN_DAYS . ' days. Try again on ' . $nextAllowedText . ' (' . $remainingDays . ' day' . ($remainingDays === 1 ? '' : 's') . ' remaining).'
-                ], 429);
+                $nextAllowedIso = date('c', $nextAllowedTs);
+                $canUploadAvatar = false;
+                $cooldownMessage = 'You can only change your profile picture every ' . AVATAR_UPDATE_COOLDOWN_DAYS . ' days. Try again on ' . $nextAllowedText . ' (' . $remainingDays . ' day' . ($remainingDays === 1 ? '' : 's') . ' remaining).';
             }
         }
     }
@@ -279,6 +237,74 @@ try {
         'success' => false,
         'message' => 'Unable to validate avatar update cooldown right now. Please try again later.'
     ], 500);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['cooldown_status'])) {
+    jsonResponse([
+        'success' => true,
+        'can_upload' => $canUploadAvatar,
+        'cooldown_days' => AVATAR_UPDATE_COOLDOWN_DAYS,
+        'remaining_days' => $remainingDays,
+        'next_allowed_at' => $nextAllowedIso,
+        'next_allowed_text' => $nextAllowedText,
+        'message' => $canUploadAvatar ? 'You can update your profile picture now.' : $cooldownMessage
+    ]);
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    jsonResponse([
+        'success' => false,
+        'message' => 'Invalid request method.'
+    ], 405);
+}
+
+if (!$canUploadAvatar) {
+    jsonResponse([
+        'success' => false,
+        'message' => $cooldownMessage,
+        'can_upload' => false,
+        'remaining_days' => $remainingDays,
+        'next_allowed_at' => $nextAllowedIso,
+        'next_allowed_text' => $nextAllowedText
+    ], 429);
+}
+
+if (!isset($_FILES['avatar'])) {
+    jsonResponse([
+        'success' => false,
+        'message' => 'No file uploaded.'
+    ], 400);
+}
+
+$file = $_FILES['avatar'];
+
+if ($file['error'] !== UPLOAD_ERR_OK) {
+    jsonResponse([
+        'success' => false,
+        'message' => 'Upload failed. Please try again.'
+    ], 400);
+}
+
+$maxOriginalUploadSize = 20 * 1024 * 1024; // Larger source files are allowed and then compressed.
+if ($file['size'] > $maxOriginalUploadSize) {
+    jsonResponse([
+        'success' => false,
+        'message' => 'File size must be less than 20MB before compression.'
+    ], 400);
+}
+
+$imageInfo = @getimagesize($file['tmp_name']);
+$allowedMimeTypes = [
+    'image/jpeg' => 'jpg',
+    'image/png' => 'png',
+    'image/gif' => 'gif'
+];
+
+if (!$imageInfo || !isset($allowedMimeTypes[$imageInfo['mime']])) {
+    jsonResponse([
+        'success' => false,
+        'message' => 'Please upload a valid JPG, PNG, or GIF image.'
+    ], 400);
 }
 
 $uploadDir = __DIR__ . '/uploads/avatars/';
