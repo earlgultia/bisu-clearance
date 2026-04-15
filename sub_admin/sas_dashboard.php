@@ -68,6 +68,132 @@ $error = '';
 $active_tab = $_GET['tab'] ?? 'dashboard';
 $profile_pic = null;
 
+function detectSasProofUploadMimeType($tmpFilePath)
+{
+    $tmpFilePath = trim((string) $tmpFilePath);
+    if ($tmpFilePath === '' || !is_file($tmpFilePath)) {
+        return '';
+    }
+
+    $imageInfo = @getimagesize($tmpFilePath);
+    if ($imageInfo && !empty($imageInfo['mime'])) {
+        return strtolower((string) $imageInfo['mime']);
+    }
+
+    if (function_exists('finfo_open')) {
+        $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo) {
+            $mimeType = @finfo_file($finfo, $tmpFilePath);
+            @finfo_close($finfo);
+            if (is_string($mimeType) && $mimeType !== '') {
+                return strtolower($mimeType);
+            }
+        }
+    }
+
+    return '';
+}
+
+function saveSasOptimizedProofImage($sourcePath, $destinationPath, $mimeType, $maxDimension = 1920, $jpegQuality = 82, $pngCompression = 7)
+{
+    $sourcePath = trim((string) $sourcePath);
+    $destinationPath = trim((string) $destinationPath);
+    $mimeType = strtolower(trim((string) $mimeType));
+
+    if ($sourcePath === '' || $destinationPath === '' || !is_file($sourcePath)) {
+        return false;
+    }
+
+    $createFunctions = [
+        'image/jpeg' => 'imagecreatefromjpeg',
+        'image/jpg' => 'imagecreatefromjpeg',
+        'image/png' => 'imagecreatefrompng'
+    ];
+
+    if (!isset($createFunctions[$mimeType])) {
+        return false;
+    }
+
+    $imageSize = @getimagesize($sourcePath);
+    if (!$imageSize || empty($imageSize[0]) || empty($imageSize[1])) {
+        return false;
+    }
+
+    $sourceWidth = (int) $imageSize[0];
+    $sourceHeight = (int) $imageSize[1];
+    if ($sourceWidth <= 0 || $sourceHeight <= 0) {
+        return false;
+    }
+
+    if (($sourceWidth * $sourceHeight) > 25000000) {
+        return false;
+    }
+
+    $createFunction = $createFunctions[$mimeType];
+    if (!function_exists($createFunction)) {
+        return false;
+    }
+
+    $sourceImage = @$createFunction($sourcePath);
+    if (!$sourceImage) {
+        return false;
+    }
+
+    $maxDimension = max(200, (int) $maxDimension);
+    $scale = 1.0;
+    if ($sourceWidth > $maxDimension || $sourceHeight > $maxDimension) {
+        $scale = min($maxDimension / $sourceWidth, $maxDimension / $sourceHeight);
+    }
+
+    $targetWidth = max(1, (int) floor($sourceWidth * $scale));
+    $targetHeight = max(1, (int) floor($sourceHeight * $scale));
+
+    $outputImage = $sourceImage;
+    if ($targetWidth !== $sourceWidth || $targetHeight !== $sourceHeight) {
+        $resizedImage = imagecreatetruecolor($targetWidth, $targetHeight);
+        if (!$resizedImage) {
+            imagedestroy($sourceImage);
+            return false;
+        }
+
+        if ($mimeType === 'image/png') {
+            imagealphablending($resizedImage, false);
+            imagesavealpha($resizedImage, true);
+            $transparent = imagecolorallocatealpha($resizedImage, 0, 0, 0, 127);
+            imagefilledrectangle($resizedImage, 0, 0, $targetWidth, $targetHeight, $transparent);
+        }
+
+        imagecopyresampled(
+            $resizedImage,
+            $sourceImage,
+            0,
+            0,
+            0,
+            0,
+            $targetWidth,
+            $targetHeight,
+            $sourceWidth,
+            $sourceHeight
+        );
+
+        $outputImage = $resizedImage;
+    }
+
+    $saved = false;
+    if (($mimeType === 'image/jpeg' || $mimeType === 'image/jpg') && function_exists('imagejpeg')) {
+        $saved = imagejpeg($outputImage, $destinationPath, max(55, min(90, (int) $jpegQuality)));
+    } elseif ($mimeType === 'image/png' && function_exists('imagepng')) {
+        $saved = imagepng($outputImage, $destinationPath, max(0, min(9, (int) $pngCompression)));
+    }
+
+    if ($outputImage !== $sourceImage) {
+        imagedestroy($outputImage);
+    }
+    imagedestroy($sourceImage);
+
+    return $saved;
+}
+
 // ============================================
 // HANDLE ADD ORGANIZATION
 // ============================================
@@ -736,27 +862,61 @@ if (isset($_POST['upload_proof'])) {
 
     if ($clearance_id && isset($_FILES['proof_file']) && $_FILES['proof_file']['error'] === UPLOAD_ERR_OK) {
         $file = $_FILES['proof_file'];
-        $allowed_types = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-        $max_size = 5 * 1024 * 1024; // 5MB
+        $tmp_file_path = (string) ($file['tmp_name'] ?? '');
+        $detected_mime_type = detectSasProofUploadMimeType($tmp_file_path);
+        $file_size = (int) ($file['size'] ?? 0);
 
-        if (!in_array($file['type'], $allowed_types)) {
+        $allowed_image_types = [
+            'image/jpeg' => 'jpg',
+            'image/jpg' => 'jpg',
+            'image/png' => 'png'
+        ];
+
+        $is_image_upload = isset($allowed_image_types[$detected_mime_type]);
+        $is_pdf_upload = $detected_mime_type === 'application/pdf';
+
+        $max_image_upload_size = 20 * 1024 * 1024;
+        $max_pdf_size = 5 * 1024 * 1024;
+
+        if (!$is_image_upload && !$is_pdf_upload) {
             $error = "Only PDF, JPG, and PNG files are allowed.";
-        } elseif ($file['size'] > $max_size) {
-            $error = "File size must be less than 5MB.";
+        } elseif ($is_image_upload && $file_size > $max_image_upload_size) {
+            $error = "Image size must be less than 20MB before compression.";
+        } elseif ($is_pdf_upload && $file_size > $max_pdf_size) {
+            $error = "PDF size must be less than 5MB.";
         } else {
             try {
                 // Create upload directory if it doesn't exist
                 $upload_dir = __DIR__ . '/../uploads/proofs/';
-                if (!file_exists($upload_dir)) {
-                    mkdir($upload_dir, 0777, true);
+                if (!file_exists($upload_dir) && !mkdir($upload_dir, 0777, true)) {
+                    throw new Exception("Unable to create proof upload directory");
                 }
 
                 // Generate unique filename
-                $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $extension = $is_pdf_upload ? 'pdf' : $allowed_image_types[$detected_mime_type];
                 $filename = 'proof_' . $clearance_id . '_' . time() . '.' . $extension;
                 $filepath = 'uploads/proofs/' . $filename;
+                $destination_path = $upload_dir . $filename;
 
-                if (move_uploaded_file($file['tmp_name'], $upload_dir . $filename)) {
+                $upload_saved = false;
+                if ($is_image_upload) {
+                    $upload_saved = saveSasOptimizedProofImage(
+                        $tmp_file_path,
+                        $destination_path,
+                        $detected_mime_type,
+                        1920,
+                        82,
+                        7
+                    );
+
+                    if (!$upload_saved) {
+                        $upload_saved = move_uploaded_file($tmp_file_path, $destination_path);
+                    }
+                } else {
+                    $upload_saved = move_uploaded_file($tmp_file_path, $destination_path);
+                }
+
+                if ($upload_saved) {
                     $db = Database::getInstance();
 
                     // Update clearance with proof info
