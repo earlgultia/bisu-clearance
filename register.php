@@ -274,7 +274,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - BISU Online Clearance System</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
@@ -364,49 +363,23 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             position: fixed;
             top: calc(12px + env(safe-area-inset-top));
             right: calc(12px + env(safe-area-inset-right));
-            width: 60px;
-            height: 30px;
+            min-height: 40px;
+            padding: 0 14px;
             background: var(--bg-tertiary);
-            border-radius: 30px;
+            border-radius: 999px;
             border: 2px solid var(--border-color);
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 5px;
             z-index: 1000;
             transition: 0.3s;
             backdrop-filter: blur(10px);
-        }
-
-        .theme-toggle i {
-            font-size: 14px;
-            color: var(--text-secondary);
-            z-index: 1;
-            transition: 0.3s;
-        }
-
-        .theme-toggle .toggle-ball {
-            position: absolute;
-            width: 24px;
-            height: 24px;
-            background: var(--primary);
-            border-radius: 50%;
-            top: 1px;
-            left: 1px;
-            transition: transform 0.3s ease;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-        }
-
-        .dark-mode .theme-toggle .toggle-ball {
-            transform: translateX(30px);
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            font-weight: 700;
+            font-family: inherit;
         }
 
         .theme-toggle:hover {
             border-color: var(--primary);
-        }
-
-        .theme-toggle:hover i {
             color: var(--primary);
         }
 
@@ -467,14 +440,17 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             position: absolute;
             top: 10px;
             right: 10px;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
+            min-height: 36px;
+            padding: 0 12px;
+            border-radius: 999px;
             border: 1px solid var(--border-color);
             background: var(--bg-secondary);
             color: var(--text-secondary);
             cursor: pointer;
             transition: 0.3s;
+            font: inherit;
+            font-size: 0.82rem;
+            font-weight: 700;
         }
 
         .before-register-close:hover {
@@ -530,11 +506,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             background: var(--hint-bg);
         }
 
-        .before-register-list i {
-            margin-top: 2px;
-            color: #16a34a;
-        }
-
         .before-register-action {
             width: 100%;
             min-height: 46px;
@@ -578,11 +549,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             gap: 10px;
             font-size: 0.88rem;
             line-height: 1.5;
-        }
-
-        .aside-list i {
-            margin-top: 2px;
-            color: #dcfce7;
         }
 
         .brand {
@@ -676,10 +642,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             border: 1px solid var(--success-border);
         }
 
-        .alert i {
-            font-size: 1.2rem;
-        }
-
         .form-title {
             color: var(--primary);
             margin-bottom: 22px;
@@ -688,11 +650,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             display: flex;
             align-items: center;
             gap: 10px;
-        }
-
-        .form-title i {
-            font-size: 1.5rem;
-            color: var(--primary);
         }
 
         .form-title h2 {
@@ -722,10 +679,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             text-transform: uppercase;
         }
 
-        .section-label i {
-            color: var(--primary);
-        }
-
         .form-row {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -745,11 +698,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             font-weight: 600;
             font-size: 0.95rem;
             transition: color 0.3s ease;
-        }
-
-        .form-group label i {
-            color: var(--primary);
-            margin-right: 5px;
         }
 
         .form-group input,
@@ -815,10 +763,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             transition: all 0.3s ease;
         }
 
-        .email-hint i {
-            font-size: 0.8rem;
-        }
-
         .email-hint.valid {
             color: var(--success-text);
         }
@@ -831,25 +775,31 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             color: var(--text-secondary);
         }
 
-        /* Password field with eye icon */
+        /* Password field visibility toggle */
         .password-wrapper {
             position: relative;
         }
 
         .password-wrapper input {
-            padding-right: 45px !important;
+            padding-right: 72px !important;
         }
 
         .password-toggle {
             position: absolute;
-            right: 15px;
+            right: 14px;
             top: 50%;
             transform: translateY(-50%);
             color: var(--text-muted);
             cursor: pointer;
-            font-size: 1.2rem;
             transition: color 0.3s;
             z-index: 2;
+            border: none;
+            background: transparent;
+            font: inherit;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            padding: 0;
         }
 
         .password-toggle:hover {
@@ -864,11 +814,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             display: flex;
             align-items: center;
             gap: 5px;
-        }
-
-        .ismis-hint i {
-            color: var(--primary);
-            font-size: 0.8rem;
         }
 
         .password-requirements {
@@ -896,16 +841,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             transition: color 0.3s ease;
         }
 
-        .requirement i {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
         .requirement.valid {
-            color: var(--success-text);
-        }
-
-        .requirement.valid i {
             color: var(--success-text);
         }
 
@@ -1127,25 +1063,19 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 </head>
 <body>
     <!-- Dark Mode Toggle -->
-    <div class="theme-toggle" id="themeToggle">
-        <i class="fas fa-sun"></i>
-        <i class="fas fa-moon"></i>
-        <div class="toggle-ball"></div>
-    </div>
+    <button type="button" class="theme-toggle" id="themeToggle">Switch Theme</button>
 
     <div class="before-register-modal" id="beforeRegisterModal" role="dialog" aria-modal="true" aria-labelledby="beforeRegisterTitle" aria-describedby="beforeRegisterDescription">
         <div class="before-register-dialog">
-            <button type="button" class="before-register-close" id="closeBeforeRegister" aria-label="Close notification">
-                <i class="fas fa-times"></i>
-            </button>
-            <span class="before-register-badge"><i class="fas fa-circle-info"></i> Before You Register</span>
+            <button type="button" class="before-register-close" id="closeBeforeRegister" aria-label="Close notification">Close</button>
+            <span class="before-register-badge">Before You Register</span>
             <h2 class="before-register-title" id="beforeRegisterTitle">Before You Register</h2>
             <p class="before-register-description" id="beforeRegisterDescription">Use your official BISU credentials and complete details to avoid account approval issues.</p>
             <ul class="before-register-list">
-                <li><i class="fas fa-circle-check"></i><span>Use an active BISU email ending with @bisu.edu.ph</span></li>
-                <li><i class="fas fa-circle-check"></i><span>Prepare your 6-digit ISMIS ID before submitting</span></li>
-                <li><i class="fas fa-circle-check"></i><span>Choose the correct college and course for accurate records</span></li>
-                <li><i class="fas fa-circle-check"></i><span>Create a strong password to protect your account</span></li>
+                <li><span>Use an active BISU email ending with @bisu.edu.ph</span></li>
+                <li><span>Prepare your 6-digit ISMIS ID before submitting</span></li>
+                <li><span>Choose the correct college and course for accurate records</span></li>
+                <li><span>Create a strong password to protect your account</span></li>
             </ul>
             <button type="button" class="before-register-action" id="continueRegistrationBtn">I Understand, Continue</button>
         </div>
@@ -1153,7 +1083,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
     <div class="register-container">
         <div class="brand">
-            <div class="brand-badge"><i class="fas fa-shield-alt"></i> Secure Student Onboarding</div>
+            <div class="brand-badge">Secure Student Onboarding</div>
             <h1>BISU Online Clearance</h1>
             <p>Create your student account</p>
         </div>
@@ -1162,53 +1092,50 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
         <div class="register-card">
             <?php if ($error): ?>
                 <div class="alert alert-error">
-                    <i class="fas fa-exclamation-circle"></i>
                     <div><?php echo $error; ?></div>
                 </div>
             <?php endif; ?>
 
             <?php if ($success): ?>
                 <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i>
                     <div><?php echo $success; ?></div>
                 </div>
             <?php endif; ?>
 
             <div class="form-title">
-                <i class="fas fa-user-plus"></i>
                 <h2>Student Registration Form</h2>
             </div>
 
             <form method="POST" action="" id="registerForm" onsubmit="return validateForm()">
                 <!-- Personal Information -->
                 <div class="form-section">
-                <div class="section-label"><i class="fas fa-user"></i> Personal Information</div>
+                <div class="section-label">Personal Information</div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label><i class="fas fa-user"></i> First Name *</label>
+                        <label>First Name *</label>
                         <input type="text" name="fname" id="fname" value="<?php echo htmlspecialchars($form_data['fname']); ?>" 
                                placeholder="Enter first name" autocapitalize="words" autocomplete="given-name" required>
                     </div>
                     <div class="form-group">
-                        <label><i class="fas fa-user"></i> Last Name *</label>
+                        <label>Last Name *</label>
                         <input type="text" name="lname" id="lname" value="<?php echo htmlspecialchars($form_data['lname']); ?>" 
                                placeholder="Enter last name" autocapitalize="words" autocomplete="family-name" required>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label><i class="fas fa-map-marker-alt"></i> Complete Address *</label>
+                    <label>Complete Address *</label>
                     <textarea name="address" id="address" rows="2" placeholder="Enter your complete address" required><?php echo htmlspecialchars($form_data['address']); ?></textarea>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label><i class="fas fa-calendar-alt"></i> Age *</label>
+                        <label>Age *</label>
                         <input type="number" name="age" id="age" value="<?php echo htmlspecialchars($form_data['age']); ?>" 
                                placeholder="Enter age" min="15" max="100" required>
                     </div>
                     <div class="form-group">
-                        <label><i class="fas fa-phone"></i> Contact Number *</label>
+                        <label>Contact Number *</label>
                         <input type="text" name="contact" id="contact" value="<?php echo htmlspecialchars($form_data['contact']); ?>" 
                                placeholder="Enter contact number" required>
                     </div>
@@ -1217,35 +1144,29 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
                 <!-- Account Information -->
                 <div class="form-section">
-                <div class="section-label"><i class="fas fa-id-card"></i> Account Information</div>
+                <div class="section-label">Account Information</div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label><i class="fas fa-envelope"></i> Email Address *</label>
+                        <label>Email Address *</label>
                         <input type="email" name="email" id="email" value="<?php echo htmlspecialchars($form_data['email']); ?>" 
                                placeholder="Enter your @bisu.edu.ph email" required onkeyup="checkEmailDomain()">
-                        <div class="email-hint" id="emailHint">
-                            <i class="fas fa-info-circle"></i>
-                            <span>Must be a valid BISU email (@bisu.edu.ph)</span>
-                        </div>
+                        <div class="email-hint" id="emailHint">Must be a valid BISU email (@bisu.edu.ph)</div>
                     </div>
                     <div class="form-group">
-                        <label><i class="fas fa-id-card"></i> ISMIS ID *</label>
+                        <label>ISMIS ID *</label>
                         <input type="text" name="ismis_id" id="ismis_id" value="<?php echo htmlspecialchars($form_data['ismis_id']); ?>" 
                                placeholder="Enter 6-digit ISMIS ID" maxlength="6" pattern="\d{6}" inputmode="numeric" required>
-                        <div class="ismis-hint">
-                            <i class="fas fa-info-circle"></i>
-                            <span>Must be exactly 6 digits (e.g., 123456)</span>
-                        </div>
+                        <div class="ismis-hint">Must be exactly 6 digits (e.g., 123456)</div>
                     </div>
                 </div>
                 </div>
 
                 <!-- Academic Information -->
                 <div class="form-section">
-                <div class="section-label"><i class="fas fa-graduation-cap"></i> Academic Information</div>
+                <div class="section-label">Academic Information</div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label><i class="fas fa-university"></i> College *</label>
+                        <label>College *</label>
                         <select name="college_id" id="college_id" required onchange="loadCourses()">
                             <option value="">-- Select College --</option>
                             <?php foreach ($colleges as $college): ?>
@@ -1256,7 +1177,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                         </select>
                     </div>
                     <div class="form-group">
-                        <label><i class="fas fa-book"></i> Course *</label>
+                        <label>Course *</label>
                         <select name="course_id" id="course_id" required>
                             <option value="">-- Select College First --</option>
                         </select>
@@ -1266,20 +1187,20 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
                 <!-- Password -->
                 <div class="form-section">
-                <div class="section-label"><i class="fas fa-lock"></i> Security Setup</div>
+                <div class="section-label">Security Setup</div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label><i class="fas fa-lock"></i> Password *</label>
+                        <label>Password *</label>
                         <div class="password-wrapper">
                             <input type="password" name="password" id="password" placeholder="Enter password" required onkeyup="checkPasswordStrength()">
-                            <i class="fas fa-eye password-toggle" id="togglePassword" onclick="togglePassword('password', 'togglePassword')"></i>
+                            <button type="button" class="password-toggle" id="togglePassword" onclick="togglePassword('password', 'togglePassword')" aria-label="Show password">Show</button>
                         </div>
                     </div>
                     <div class="form-group">
-                        <label><i class="fas fa-lock"></i> Confirm Password *</label>
+                        <label>Confirm Password *</label>
                         <div class="password-wrapper">
                             <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm password" required onkeyup="checkPasswordMatch()">
-                            <i class="fas fa-eye password-toggle" id="toggleConfirmPassword" onclick="togglePassword('confirm_password', 'toggleConfirmPassword')"></i>
+                            <button type="button" class="password-toggle" id="toggleConfirmPassword" onclick="togglePassword('confirm_password', 'toggleConfirmPassword')" aria-label="Show password">Show</button>
                         </div>
                     </div>
                 </div>
@@ -1288,25 +1209,15 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                 <!-- Password Requirements -->
                 <div class="password-requirements">
                     <h4>Password Requirements:</h4>
-                    <div class="requirement" id="req-length">
-                        <i class="fas fa-circle"></i> At least 8 characters
-                    </div>
-                    <div class="requirement" id="req-uppercase">
-                        <i class="fas fa-circle"></i> At least one uppercase letter
-                    </div>
-                    <div class="requirement" id="req-lowercase">
-                        <i class="fas fa-circle"></i> At least one lowercase letter
-                    </div>
-                    <div class="requirement" id="req-number">
-                        <i class="fas fa-circle"></i> At least one number
-                    </div>
-                    <div class="requirement" id="req-match">
-                        <i class="fas fa-circle"></i> Passwords match
-                    </div>
+                    <div class="requirement" id="req-length">At least 8 characters</div>
+                    <div class="requirement" id="req-uppercase">At least one uppercase letter</div>
+                    <div class="requirement" id="req-lowercase">At least one lowercase letter</div>
+                    <div class="requirement" id="req-number">At least one number</div>
+                    <div class="requirement" id="req-match">Passwords match</div>
                 </div>
 
                 <button type="submit" class="btn-register" id="registerBtn">
-                    <span class="btn-text">Create Account <i class="fas fa-arrow-right"></i></span>
+                    <span class="btn-text">Create Account</span>
                     <span class="spinner"></span>
                 </button>
 
@@ -1318,7 +1229,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
         </div>
 
         <div class="back-home">
-            <a href="index.php"><i class="fas fa-arrow-left"></i> Back to Home</a>
+            <a href="index.php">Back to Home</a>
         </div>
     </div>
 
@@ -1413,6 +1324,8 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             if (savedTheme === 'dark') {
                 document.body.classList.add('dark-mode');
             }
+
+            updateThemeToggleText();
         });
 
         closeBeforeRegister?.addEventListener('click', closeBeforeRegisterModal);
@@ -1433,6 +1346,16 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
         // Dark Mode Toggle
         const themeToggle = document.getElementById('themeToggle');
         
+        function updateThemeToggleText() {
+            if (!themeToggle) {
+                return;
+            }
+
+            themeToggle.textContent = document.body.classList.contains('dark-mode')
+                ? 'Switch to Light Mode'
+                : 'Switch to Dark Mode';
+        }
+
         themeToggle.addEventListener('click', () => {
             document.body.classList.toggle('dark-mode');
             
@@ -1442,21 +1365,23 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             } else {
                 localStorage.setItem('theme', 'light');
             }
+
+            updateThemeToggleText();
         });
 
         // Toggle password visibility
         function togglePassword(inputId, toggleId) {
             const passwordInput = document.getElementById(inputId);
-            const toggleIcon = document.getElementById(toggleId);
+            const toggleButton = document.getElementById(toggleId);
             
             if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
-                toggleIcon.classList.remove('fa-eye');
-                toggleIcon.classList.add('fa-eye-slash');
+                toggleButton.textContent = 'Hide';
+                toggleButton.setAttribute('aria-label', 'Hide password');
             } else {
                 passwordInput.type = 'password';
-                toggleIcon.classList.remove('fa-eye-slash');
-                toggleIcon.classList.add('fa-eye');
+                toggleButton.textContent = 'Show';
+                toggleButton.setAttribute('aria-label', 'Show password');
             }
         }
 
@@ -1482,69 +1407,62 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
         function checkEmailDomain() {
             const email = document.getElementById('email').value;
             const emailHint = document.getElementById('emailHint');
-            
             if (email.includes('@')) {
                 const domain = email.split('@')[1].toLowerCase();
-                
                 if (domain === 'bisu.edu.ph') {
                     emailHint.classList.add('valid');
                     emailHint.classList.remove('invalid');
-                    emailHint.innerHTML = '<i class="fas fa-check-circle"></i> <span>Valid BISU email ✓</span>';
+                    emailHint.textContent = 'Valid BISU email address';
                 } else {
                     emailHint.classList.add('invalid');
                     emailHint.classList.remove('valid');
-                    emailHint.innerHTML = '<i class="fas fa-exclamation-circle"></i> <span>Must be @bisu.edu.ph domain</span>';
+                    emailHint.textContent = 'Must use the @bisu.edu.ph domain';
                 }
             } else {
                 emailHint.classList.remove('valid', 'invalid');
-                emailHint.innerHTML = '<i class="fas fa-info-circle"></i> <span>Must be a valid BISU email (@bisu.edu.ph)</span>';
+                emailHint.textContent = 'Must be a valid BISU email (@bisu.edu.ph)';
             }
         }
 
         // Check password strength
         function checkPasswordStrength() {
             const password = document.getElementById('password').value;
-            
             // Length check
             const lengthReq = document.getElementById('req-length');
             if (password.length >= 8) {
                 lengthReq.classList.add('valid');
-                lengthReq.innerHTML = '<i class="fas fa-check-circle"></i> At least 8 characters ✓';
+                lengthReq.textContent = 'At least 8 characters - complete';
             } else {
                 lengthReq.classList.remove('valid');
-                lengthReq.innerHTML = '<i class="fas fa-circle"></i> At least 8 characters';
+                lengthReq.textContent = 'At least 8 characters';
             }
-            
             // Uppercase check
             const upperReq = document.getElementById('req-uppercase');
             if (/[A-Z]/.test(password)) {
                 upperReq.classList.add('valid');
-                upperReq.innerHTML = '<i class="fas fa-check-circle"></i> At least one uppercase letter ✓';
+                upperReq.textContent = 'At least one uppercase letter - complete';
             } else {
                 upperReq.classList.remove('valid');
-                upperReq.innerHTML = '<i class="fas fa-circle"></i> At least one uppercase letter';
+                upperReq.textContent = 'At least one uppercase letter';
             }
-            
             // Lowercase check
             const lowerReq = document.getElementById('req-lowercase');
             if (/[a-z]/.test(password)) {
                 lowerReq.classList.add('valid');
-                lowerReq.innerHTML = '<i class="fas fa-check-circle"></i> At least one lowercase letter ✓';
+                lowerReq.textContent = 'At least one lowercase letter - complete';
             } else {
                 lowerReq.classList.remove('valid');
-                lowerReq.innerHTML = '<i class="fas fa-circle"></i> At least one lowercase letter';
+                lowerReq.textContent = 'At least one lowercase letter';
             }
-            
             // Number check
             const numReq = document.getElementById('req-number');
             if (/[0-9]/.test(password)) {
                 numReq.classList.add('valid');
-                numReq.innerHTML = '<i class="fas fa-check-circle"></i> At least one number ✓';
+                numReq.textContent = 'At least one number - complete';
             } else {
                 numReq.classList.remove('valid');
-                numReq.innerHTML = '<i class="fas fa-circle"></i> At least one number';
+                numReq.textContent = 'At least one number';
             }
-            
             checkPasswordMatch();
         }
 
@@ -1553,13 +1471,12 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             const password = document.getElementById('password').value;
             const confirm = document.getElementById('confirm_password').value;
             const matchReq = document.getElementById('req-match');
-            
             if (password && confirm && password === confirm) {
                 matchReq.classList.add('valid');
-                matchReq.innerHTML = '<i class="fas fa-check-circle"></i> Passwords match ✓';
+                matchReq.textContent = 'Passwords match - complete';
             } else {
                 matchReq.classList.remove('valid');
-                matchReq.innerHTML = '<i class="fas fa-circle"></i> Passwords match';
+                matchReq.textContent = 'Passwords match';
             }
         }
 
