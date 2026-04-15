@@ -54,7 +54,7 @@ $file_path = $base_dir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARA
 if (!is_file($file_path)) {
     http_response_code(200);
     header('Content-Type: text/html; charset=UTF-8');
-    echo '<!doctype html><html><head><meta charset="UTF-8"><title>Proof File</title></head><body style="font-family: Arial, sans-serif; padding: 24px;"><h2>Proof file not found</h2><p>The proof record exists, but the physical file is missing on the server.</p></body></html>';
+    echo '<!doctype html><html><head><meta charset="UTF-8"><title>Proof File</title><link rel="icon" type="image/png" href="assets/img/favicon.png"></head><body style="font-family: Arial, sans-serif; padding: 24px;"><h2>Proof file not found</h2><p>The proof record exists, but the physical file is missing on the server.</p></body></html>';
     exit();
 }
 

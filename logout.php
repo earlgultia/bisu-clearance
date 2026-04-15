@@ -526,6 +526,7 @@ $role_label_html = htmlspecialchars($role_label, ENT_QUOTES, 'UTF-8');
     <meta http-equiv="refresh" content="2;url=login.php">
     <?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(versionedUrl('assets/img/favicon.png'), ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="manifest" href="<?php echo htmlspecialchars(versionedUrl('manifest.webmanifest'), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="theme-color" content="#412886">
     <meta name="apple-mobile-web-app-capable" content="yes">

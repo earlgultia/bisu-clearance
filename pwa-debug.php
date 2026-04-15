@@ -4,6 +4,7 @@ require_once __DIR__ . '/db.php';
 $homeUrl = baseUrl('index.php');
 $manifestUrl = versionedUrl('manifest.webmanifest');
 $pwaRegisterUrl = versionedUrl('assets/js/pwa-register.js');
+$faviconUrl = versionedUrl('assets/img/favicon.png');
 $touchIconUrl = versionedUrl('assets/img/pwa-icon-192.png');
 $assetVersion = defined('ASSET_VERSION') ? ASSET_VERSION : SITE_VERSION;
 ?>
@@ -15,6 +16,7 @@ $assetVersion = defined('ASSET_VERSION') ? ASSET_VERSION : SITE_VERSION;
     <title>PWA Diagnostics | BISU Clearance</title>
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#412886">
+    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($faviconUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="manifest" href="<?php echo htmlspecialchars($manifestUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="apple-touch-icon" href="<?php echo htmlspecialchars($touchIconUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <script defer src="<?php echo htmlspecialchars($pwaRegisterUrl, ENT_QUOTES, 'UTF-8'); ?>"></script>

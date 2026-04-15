@@ -3389,6 +3389,7 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
             }
         }
     </style>
+    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(versionedUrl('assets/img/favicon.png'), ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="manifest" href="<?php echo htmlspecialchars(versionedUrl('manifest.webmanifest'), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="theme-color" content="#412886">
     <meta name="apple-mobile-web-app-capable" content="yes">
