@@ -1295,7 +1295,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                         <div class="password-wrapper">
                             <input type="password" name="ismis_id" id="ismis_id" value="<?php echo htmlspecialchars($form_data['ismis_id']); ?>"
                                    placeholder="Enter 6-digit ISMIS ID" maxlength="6" pattern="\d{6}" inputmode="numeric" autocomplete="off" required>
-                            <button type="button" class="password-toggle" id="toggleIsmisId" onclick="togglePassword('ismis_id', 'toggleIsmisId')" aria-label="Show ISMIS ID">
+                            <button type="button" class="password-toggle" id="toggleIsmisId" onclick="toggleFieldVisibility('ismis_id', 'toggleIsmisId')" aria-label="Show ISMIS ID" title="Show ISMIS ID">
                                 <i class="fas fa-eye" aria-hidden="true"></i>
                             </button>
                         </div>
@@ -1336,7 +1336,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                         <label>Password *</label>
                         <div class="password-wrapper">
                             <input type="password" name="password" id="password" placeholder="Enter password" required onkeyup="checkPasswordStrength()">
-                            <button type="button" class="password-toggle" id="togglePassword" onclick="togglePassword('password', 'togglePassword')" aria-label="Show password">
+                            <button type="button" class="password-toggle" id="togglePasswordBtn" onclick="toggleFieldVisibility('password', 'togglePasswordBtn')" aria-label="Show password" title="Show password">
                                 <i class="fas fa-eye" aria-hidden="true"></i>
                             </button>
                         </div>
@@ -1345,7 +1345,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                         <label>Confirm Password *</label>
                         <div class="password-wrapper">
                             <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm password" required onkeyup="checkPasswordMatch()">
-                            <button type="button" class="password-toggle" id="toggleConfirmPassword" onclick="togglePassword('confirm_password', 'toggleConfirmPassword')" aria-label="Show password">
+                            <button type="button" class="password-toggle" id="toggleConfirmPasswordBtn" onclick="toggleFieldVisibility('confirm_password', 'toggleConfirmPasswordBtn')" aria-label="Show password" title="Show password">
                                 <i class="fas fa-eye" aria-hidden="true"></i>
                             </button>
                         </div>
@@ -1519,8 +1519,8 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             updateThemeToggleText();
         });
 
-        // Toggle password visibility
-        function togglePassword(inputId, toggleId) {
+        // Toggle password/ID visibility
+        function toggleFieldVisibility(inputId, toggleId) {
             const passwordInput = document.getElementById(inputId);
             const toggleButton = document.getElementById(toggleId);
             if (!passwordInput || !toggleButton) {
@@ -1540,10 +1540,7 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             const fieldLabel = isIsmisField ? 'ISMIS ID' : 'password';
             const actionLabel = isMasked ? 'Hide' : 'Show';
             toggleButton.setAttribute('aria-label', `${actionLabel} ${fieldLabel}`);
-            
-            if (isIsmisField) {
-                toggleButton.setAttribute('title', `${actionLabel} ISMIS ID`);
-            }
+            toggleButton.setAttribute('title', `${actionLabel} ${fieldLabel}`);
         }
 
         function toProperCase(value) {
