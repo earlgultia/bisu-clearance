@@ -775,6 +775,98 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             color: var(--text-secondary);
         }
 
+        .address-hint,
+        .address-status {
+            font-size: 0.82rem;
+            line-height: 1.5;
+            margin-top: 6px;
+        }
+
+        .address-hint {
+            color: var(--text-secondary);
+        }
+
+        .address-status {
+            color: var(--text-secondary);
+            min-height: 20px;
+        }
+
+        .address-status.loading {
+            color: var(--primary);
+        }
+
+        .address-status.error {
+            color: var(--error-text);
+        }
+
+        .address-suggestions {
+            margin-top: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            background: var(--card-bg);
+            box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+            overflow: hidden;
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .address-suggestions[hidden] {
+            display: none;
+        }
+
+        .address-suggestion {
+            width: 100%;
+            border: none;
+            background: transparent;
+            text-align: left;
+            padding: 12px 14px;
+            display: grid;
+            gap: 4px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            border-bottom: 1px solid var(--border-color);
+            font: inherit;
+            color: inherit;
+        }
+
+        .address-suggestion:last-child {
+            border-bottom: none;
+        }
+
+        .address-suggestion:hover,
+        .address-suggestion.active {
+            background: var(--primary-soft);
+        }
+
+        .address-suggestion-title {
+            color: var(--text-primary);
+            font-weight: 700;
+            font-size: 0.94rem;
+        }
+
+        .address-suggestion-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .address-suggestion-type {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: var(--bg-secondary);
+            color: var(--primary-dark);
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+        }
+
         /* Password field visibility toggle */
         .password-wrapper {
             position: relative;
@@ -1125,7 +1217,10 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
                 <div class="form-group">
                     <label>Complete Address *</label>
-                    <textarea name="address" id="address" rows="2" placeholder="Enter your complete address" required><?php echo htmlspecialchars($form_data['address']); ?></textarea>
+                    <textarea name="address" id="address" rows="2" placeholder="Start typing your barangay, city, municipality, province, or region" autocomplete="off" spellcheck="false" required><?php echo htmlspecialchars($form_data['address']); ?></textarea>
+                    <div class="address-hint">Suggestions come from the PSGC API. You can still add street, purok, or house details manually.</div>
+                    <div class="address-suggestions" id="addressSuggestions" hidden></div>
+                    <div class="address-status" id="addressStatus" aria-live="polite">Location suggestions will appear as you type.</div>
                 </div>
 
                 <div class="form-row">
@@ -1403,6 +1498,481 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             return input.value;
         }
 
+        const PSGC_API_BASE = 'https://psgc.gitlab.io/api';
+        const ADDRESS_DEFAULT_STATUS = 'Location suggestions will appear as you type.';
+        const ADDRESS_RESULT_LIMIT = 8;
+        const LOCATION_TYPE_LABELS = {
+            barangay: 'Barangay',
+            city: 'City / Municipality',
+            province: 'Province',
+            region: 'Region'
+        };
+        const LOCATION_TYPE_WEIGHT = {
+            barangay: 0,
+            city: 1,
+            province: 2,
+            region: 3
+        };
+        const locationState = {
+            basePromise: null,
+            barangayPromise: null,
+            baseLoaded: false,
+            barangaysLoaded: false,
+            baseItems: [],
+            barangayItems: [],
+            regionsByCode: new Map(),
+            provincesByCode: new Map(),
+            citiesByCode: new Map()
+        };
+        const addressInput = document.getElementById('address');
+        const addressSuggestions = document.getElementById('addressSuggestions');
+        const addressStatus = document.getElementById('addressStatus');
+        let currentAddressMatches = [];
+        let activeAddressSuggestionIndex = -1;
+        let currentAddressSelectionContext = { preservePrefix: '' };
+        let addressSearchDebounce = null;
+        let addressSearchToken = 0;
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, function(character) {
+                return ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                })[character];
+            });
+        }
+
+        function normalizeLocationSearchValue(value) {
+            return String(value || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function setAddressStatus(message, tone = '') {
+            if (!addressStatus) {
+                return;
+            }
+
+            addressStatus.textContent = message;
+            addressStatus.classList.toggle('loading', tone === 'loading');
+            addressStatus.classList.toggle('error', tone === 'error');
+        }
+
+        function hideAddressSuggestions() {
+            if (!addressSuggestions) {
+                return;
+            }
+
+            addressSuggestions.hidden = true;
+            addressSuggestions.innerHTML = '';
+            currentAddressMatches = [];
+            activeAddressSuggestionIndex = -1;
+        }
+
+        function setActiveAddressSuggestion(index) {
+            activeAddressSuggestionIndex = index;
+
+            if (!addressSuggestions) {
+                return;
+            }
+
+            addressSuggestions.querySelectorAll('.address-suggestion').forEach(function(button, buttonIndex) {
+                const isActive = buttonIndex === index;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+
+                if (isActive) {
+                    button.scrollIntoView({ block: 'nearest' });
+                }
+            });
+        }
+
+        function deriveAddressSearchContexts(rawValue) {
+            const compactValue = String(rawValue || '').replace(/\s+/g, ' ').trim();
+            const contexts = [];
+            const fullQuery = normalizeLocationSearchValue(compactValue);
+
+            if (fullQuery) {
+                contexts.push({
+                    query: fullQuery,
+                    preservePrefix: ''
+                });
+            }
+
+            const lastCommaIndex = compactValue.lastIndexOf(',');
+            if (lastCommaIndex !== -1) {
+                const prefix = compactValue.slice(0, lastCommaIndex).trim();
+                const trailingFragment = compactValue.slice(lastCommaIndex + 1).trim();
+                const trailingQuery = normalizeLocationSearchValue(trailingFragment);
+
+                if (trailingQuery && trailingQuery !== fullQuery) {
+                    contexts.push({
+                        query: trailingQuery,
+                        preservePrefix: prefix
+                    });
+                }
+            }
+
+            return contexts;
+        }
+
+        function fetchPsgcJson(endpoint) {
+            return fetch(endpoint).then(function(response) {
+                if (!response.ok) {
+                    throw new Error(`Failed to load ${endpoint}`);
+                }
+
+                return response.json();
+            });
+        }
+
+        function buildLocationSearchItem(type, primaryText, valueText, subtitleText, extraSearchTerms) {
+            const extraTerms = Array.isArray(extraSearchTerms) ? extraSearchTerms : [];
+
+            return {
+                type: type,
+                primaryText: primaryText,
+                valueText: valueText,
+                subtitleText: subtitleText,
+                searchText: normalizeLocationSearchValue([primaryText, valueText, subtitleText].concat(extraTerms).join(' ')),
+                primarySearchText: normalizeLocationSearchValue(primaryText),
+                valueSearchText: normalizeLocationSearchValue(valueText)
+            };
+        }
+
+        async function ensureBaseLocationData() {
+            if (locationState.baseLoaded) {
+                return;
+            }
+
+            if (!locationState.basePromise) {
+                locationState.basePromise = Promise.all([
+                    fetchPsgcJson(`${PSGC_API_BASE}/regions/`),
+                    fetchPsgcJson(`${PSGC_API_BASE}/provinces/`),
+                    fetchPsgcJson(`${PSGC_API_BASE}/cities-municipalities/`)
+                ]).then(function(results) {
+                    const [regions, provinces, cities] = results;
+
+                    locationState.regionsByCode = new Map();
+                    locationState.provincesByCode = new Map();
+                    locationState.citiesByCode = new Map();
+
+                    regions.forEach(function(region) {
+                        locationState.regionsByCode.set(String(region.code), region);
+                    });
+
+                    provinces.forEach(function(province) {
+                        locationState.provincesByCode.set(String(province.code), province);
+                    });
+
+                    cities.forEach(function(city) {
+                        locationState.citiesByCode.set(String(city.code), city);
+                    });
+
+                    const regionItems = regions.map(function(region) {
+                        return buildLocationSearchItem(
+                            'region',
+                            region.name,
+                            region.name,
+                            'Region',
+                            [region.regionName, region.islandGroupCode]
+                        );
+                    });
+
+                    const provinceItems = provinces.map(function(province) {
+                        const region = locationState.regionsByCode.get(String(province.regionCode));
+                        const subtitleParts = ['Province'];
+
+                        if (region && region.name) {
+                            subtitleParts.push(region.name);
+                        }
+
+                        return buildLocationSearchItem(
+                            'province',
+                            province.name,
+                            province.name,
+                            subtitleParts.join(' | '),
+                            [region ? region.name : '', region ? region.regionName : '', province.islandGroupCode]
+                        );
+                    });
+
+                    const cityItems = cities.map(function(city) {
+                        const province = city.provinceCode ? locationState.provincesByCode.get(String(city.provinceCode)) : null;
+                        const region = locationState.regionsByCode.get(String(city.regionCode));
+                        const subtitleLocation = province && province.name ? province.name : (region ? region.name : '');
+                        const subtitleParts = ['City / Municipality'];
+
+                        if (subtitleLocation) {
+                            subtitleParts.push(subtitleLocation);
+                        }
+
+                        return buildLocationSearchItem(
+                            'city',
+                            city.name,
+                            [city.name, subtitleLocation].filter(Boolean).join(', '),
+                            subtitleParts.join(' | '),
+                            [city.oldName || '', province ? province.name : '', region ? region.name : '', region ? region.regionName : '', city.isCity ? 'city' : 'municipality']
+                        );
+                    });
+
+                    locationState.baseItems = regionItems.concat(provinceItems, cityItems);
+                    locationState.baseLoaded = true;
+                }).catch(function(error) {
+                    locationState.basePromise = null;
+                    throw error;
+                });
+            }
+
+            return locationState.basePromise;
+        }
+
+        async function ensureBarangayLocationData() {
+            if (locationState.barangaysLoaded) {
+                return;
+            }
+
+            await ensureBaseLocationData();
+
+            if (!locationState.barangayPromise) {
+                locationState.barangayPromise = fetchPsgcJson(`${PSGC_API_BASE}/barangays/`).then(function(barangays) {
+                    locationState.barangayItems = barangays.map(function(barangay) {
+                        const cityCode = barangay.cityCode || barangay.municipalityCode || barangay.subMunicipalityCode;
+                        const city = cityCode ? locationState.citiesByCode.get(String(cityCode)) : null;
+                        const province = barangay.provinceCode ? locationState.provincesByCode.get(String(barangay.provinceCode)) : null;
+                        const region = locationState.regionsByCode.get(String(barangay.regionCode));
+                        const locationParts = [];
+
+                        if (city && city.name) {
+                            locationParts.push(city.name);
+                        }
+
+                        if (province && province.name) {
+                            locationParts.push(province.name);
+                        } else if (region && region.name) {
+                            locationParts.push(region.name);
+                        }
+
+                        return buildLocationSearchItem(
+                            'barangay',
+                            barangay.name,
+                            [barangay.name].concat(locationParts).filter(Boolean).join(', '),
+                            ['Barangay'].concat(locationParts).join(' | '),
+                            [barangay.oldName || '', city ? city.name : '', province ? province.name : '', region ? region.name : '', region ? region.regionName : '']
+                        );
+                    });
+
+                    locationState.barangaysLoaded = true;
+                }).catch(function(error) {
+                    locationState.barangayPromise = null;
+                    throw error;
+                });
+            }
+
+            return locationState.barangayPromise;
+        }
+
+        function getLocationMatchScore(item, query) {
+            const matchIndex = item.searchText.indexOf(query);
+
+            if (matchIndex === -1) {
+                return null;
+            }
+
+            let baseScore = 30;
+
+            if (item.primarySearchText.startsWith(query)) {
+                baseScore = 0;
+            } else if (item.valueSearchText.startsWith(query)) {
+                baseScore = 6;
+            } else if (item.searchText.includes(` ${query}`)) {
+                baseScore = 12;
+            }
+
+            return baseScore + (LOCATION_TYPE_WEIGHT[item.type] || 9) + (item.valueText.length / 1000);
+        }
+
+        function collectLocationMatches(sourceItems, query, results) {
+            sourceItems.forEach(function(item) {
+                const score = getLocationMatchScore(item, query);
+
+                if (score === null) {
+                    return;
+                }
+
+                const candidate = { item: item, score: score };
+                const insertAt = results.findIndex(function(existing) {
+                    return candidate.score < existing.score;
+                });
+
+                if (insertAt === -1) {
+                    if (results.length < ADDRESS_RESULT_LIMIT) {
+                        results.push(candidate);
+                    }
+
+                    return;
+                }
+
+                results.splice(insertAt, 0, candidate);
+
+                if (results.length > ADDRESS_RESULT_LIMIT) {
+                    results.pop();
+                }
+            });
+        }
+
+        function searchLocationItems(query) {
+            const matches = [];
+
+            collectLocationMatches(locationState.baseItems, query, matches);
+
+            if (locationState.barangaysLoaded) {
+                collectLocationMatches(locationState.barangayItems, query, matches);
+            }
+
+            return matches.map(function(match) {
+                return match.item;
+            });
+        }
+
+        function findLocationMatchesForInput(rawValue) {
+            const contexts = deriveAddressSearchContexts(rawValue);
+
+            for (const context of contexts) {
+                if (context.query.length < 2) {
+                    continue;
+                }
+
+                const matches = searchLocationItems(context.query);
+
+                if (matches.length > 0) {
+                    return {
+                        matches: matches,
+                        context: context
+                    };
+                }
+            }
+
+            return {
+                matches: [],
+                context: contexts.find(function(context) {
+                    return context.query.length >= 2;
+                }) || { preservePrefix: '' }
+            };
+        }
+
+        function renderAddressSuggestions(matches) {
+            if (!addressSuggestions) {
+                return;
+            }
+
+            currentAddressMatches = matches;
+            activeAddressSuggestionIndex = -1;
+            addressSuggestions.innerHTML = matches.map(function(match, index) {
+                return `
+                    <button type="button" class="address-suggestion" data-address-index="${index}" aria-selected="false">
+                        <span class="address-suggestion-title">${escapeHtml(match.primaryText)}</span>
+                        <span class="address-suggestion-meta">
+                            <span class="address-suggestion-type">${escapeHtml(LOCATION_TYPE_LABELS[match.type] || 'Location')}</span>
+                            <span>${escapeHtml(match.valueText)}</span>
+                        </span>
+                    </button>
+                `;
+            }).join('');
+            addressSuggestions.hidden = false;
+        }
+
+        function applyAddressSuggestion(index) {
+            const selectedMatch = currentAddressMatches[index];
+
+            if (!selectedMatch || !addressInput) {
+                return;
+            }
+
+            const prefix = currentAddressSelectionContext.preservePrefix
+                ? `${currentAddressSelectionContext.preservePrefix}, `
+                : '';
+
+            addressInput.value = `${prefix}${selectedMatch.valueText}`;
+            hideAddressSuggestions();
+            setAddressStatus(`Selected ${selectedMatch.valueText}. Add street or purok details if needed.`);
+            addressInput.focus();
+            addressInput.setSelectionRange(addressInput.value.length, addressInput.value.length);
+        }
+
+        async function updateAddressSuggestions() {
+            if (!addressInput) {
+                return;
+            }
+
+            const rawValue = addressInput.value;
+            const normalizedValue = normalizeLocationSearchValue(rawValue);
+            const searchToken = ++addressSearchToken;
+
+            if (normalizedValue.length < 2) {
+                hideAddressSuggestions();
+                setAddressStatus(ADDRESS_DEFAULT_STATUS);
+                return;
+            }
+
+            setAddressStatus('Loading PSGC location suggestions...', 'loading');
+
+            try {
+                await ensureBaseLocationData();
+
+                if (searchToken !== addressSearchToken) {
+                    return;
+                }
+
+                let searchResult = findLocationMatchesForInput(rawValue);
+                const needsBarangayLookup = deriveAddressSearchContexts(rawValue).some(function(context) {
+                    return context.query.length >= 3;
+                });
+
+                if (!searchResult.matches.length && needsBarangayLookup && !locationState.barangaysLoaded) {
+                    setAddressStatus('Loading barangay suggestions from PSGC...', 'loading');
+                    await ensureBarangayLocationData();
+
+                    if (searchToken !== addressSearchToken) {
+                        return;
+                    }
+
+                    searchResult = findLocationMatchesForInput(rawValue);
+                }
+
+                currentAddressSelectionContext = searchResult.context || { preservePrefix: '' };
+
+                if (!searchResult.matches.length) {
+                    hideAddressSuggestions();
+                    setAddressStatus('No PSGC match yet. Keep typing or enter the address manually.');
+                    return;
+                }
+
+                renderAddressSuggestions(searchResult.matches);
+
+                if (locationState.barangaysLoaded) {
+                    setAddressStatus('Select a location suggestion to fill the address faster.');
+                } else {
+                    setAddressStatus('Select a location suggestion to fill the address faster.');
+                }
+            } catch (error) {
+                console.error('PSGC lookup failed:', error);
+                hideAddressSuggestions();
+                setAddressStatus('PSGC suggestions are unavailable right now. You can still type your address manually.', 'error');
+            }
+        }
+
+        function scheduleAddressSuggestionRefresh(delay = 180) {
+            clearTimeout(addressSearchDebounce);
+            addressSearchDebounce = setTimeout(updateAddressSuggestions, delay);
+        }
+
         // Check email domain
         function checkEmailDomain() {
             const email = document.getElementById('email').value;
@@ -1565,6 +2135,67 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
 
         document.getElementById('lname').addEventListener('blur', function() {
             normalizePersonalNameInput('lname');
+        });
+
+        addressInput?.addEventListener('focus', function() {
+            ensureBaseLocationData().catch(function(error) {
+                console.error('Unable to prepare PSGC lookup:', error);
+            });
+
+            if (addressInput.value.trim().length >= 2) {
+                scheduleAddressSuggestionRefresh(0);
+            }
+        });
+
+        addressInput?.addEventListener('input', function() {
+            scheduleAddressSuggestionRefresh();
+        });
+
+        addressInput?.addEventListener('keydown', function(event) {
+            if (!addressSuggestions || addressSuggestions.hidden || currentAddressMatches.length === 0) {
+                return;
+            }
+
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                const nextIndex = activeAddressSuggestionIndex < currentAddressMatches.length - 1
+                    ? activeAddressSuggestionIndex + 1
+                    : 0;
+                setActiveAddressSuggestion(nextIndex);
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                const nextIndex = activeAddressSuggestionIndex > 0
+                    ? activeAddressSuggestionIndex - 1
+                    : currentAddressMatches.length - 1;
+                setActiveAddressSuggestion(nextIndex);
+            } else if (event.key === 'Enter' && activeAddressSuggestionIndex >= 0) {
+                event.preventDefault();
+                applyAddressSuggestion(activeAddressSuggestionIndex);
+            } else if (event.key === 'Escape') {
+                hideAddressSuggestions();
+                setAddressStatus(ADDRESS_DEFAULT_STATUS);
+            }
+        });
+
+        addressSuggestions?.addEventListener('mousedown', function(event) {
+            const suggestionButton = event.target.closest('[data-address-index]');
+
+            if (!suggestionButton) {
+                return;
+            }
+
+            event.preventDefault();
+            applyAddressSuggestion(Number(suggestionButton.getAttribute('data-address-index')));
+        });
+
+        document.addEventListener('click', function(event) {
+            if (!addressSuggestions || !addressInput) {
+                return;
+            }
+
+            if (!addressSuggestions.contains(event.target) && event.target !== addressInput) {
+                hideAddressSuggestions();
+            }
         });
 
         // Real-time email validation
