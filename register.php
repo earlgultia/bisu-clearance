@@ -902,29 +902,38 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
         }
 
         .password-wrapper input {
-            padding-right: 72px !important;
+            padding-right: 52px !important;
         }
 
         .password-toggle {
             position: absolute;
-            right: 14px;
+            right: 10px;
             top: 50%;
             transform: translateY(-50%);
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
             color: var(--text-muted);
             cursor: pointer;
-            transition: color 0.3s;
+            transition: color 0.3s, background-color 0.3s;
             z-index: 2;
             border: none;
             background: transparent;
-            font: inherit;
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 0.01em;
             padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
         }
 
         .password-toggle:hover {
             color: var(--primary);
+            background: var(--primary-soft);
+        }
+
+        .password-toggle:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
         }
 
         /* ISMIS ID hint */
@@ -1283,8 +1292,13 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                     </div>
                     <div class="form-group">
                         <label>ISMIS ID *</label>
-                        <input type="text" name="ismis_id" id="ismis_id" value="<?php echo htmlspecialchars($form_data['ismis_id']); ?>" 
-                               placeholder="Enter 6-digit ISMIS ID" maxlength="6" pattern="\d{6}" inputmode="numeric" required>
+                        <div class="password-wrapper">
+                            <input type="password" name="ismis_id" id="ismis_id" value="<?php echo htmlspecialchars($form_data['ismis_id']); ?>"
+                                   placeholder="Enter 6-digit ISMIS ID" maxlength="6" pattern="\d{6}" inputmode="numeric" autocomplete="off" required>
+                            <button type="button" class="password-toggle" id="toggleIsmisId" onclick="togglePassword('ismis_id', 'toggleIsmisId')" aria-label="Show ISMIS ID">
+                                <i class="fas fa-eye" aria-hidden="true"></i>
+                            </button>
+                        </div>
                         <div class="ismis-hint">Must be exactly 6 digits (e.g., 123456)</div>
                     </div>
                 </div>
@@ -1322,14 +1336,18 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                         <label>Password *</label>
                         <div class="password-wrapper">
                             <input type="password" name="password" id="password" placeholder="Enter password" required onkeyup="checkPasswordStrength()">
-                            <button type="button" class="password-toggle" id="togglePassword" onclick="togglePassword('password', 'togglePassword')" aria-label="Show password">Show</button>
+                            <button type="button" class="password-toggle" id="togglePassword" onclick="togglePassword('password', 'togglePassword')" aria-label="Show password">
+                                <i class="fas fa-eye" aria-hidden="true"></i>
+                            </button>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Confirm Password *</label>
                         <div class="password-wrapper">
                             <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm password" required onkeyup="checkPasswordMatch()">
-                            <button type="button" class="password-toggle" id="toggleConfirmPassword" onclick="togglePassword('confirm_password', 'toggleConfirmPassword')" aria-label="Show password">Show</button>
+                            <button type="button" class="password-toggle" id="toggleConfirmPassword" onclick="togglePassword('confirm_password', 'toggleConfirmPassword')" aria-label="Show password">
+                                <i class="fas fa-eye" aria-hidden="true"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1505,15 +1523,26 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
         function togglePassword(inputId, toggleId) {
             const passwordInput = document.getElementById(inputId);
             const toggleButton = document.getElementById(toggleId);
+            if (!passwordInput || !toggleButton) {
+                return;
+            }
+
+            const icon = toggleButton.querySelector('i');
+            const isMasked = passwordInput.type === 'password';
+            passwordInput.type = isMasked ? 'text' : 'password';
+
+            if (icon) {
+                icon.classList.toggle('fa-eye', !isMasked);
+                icon.classList.toggle('fa-eye-slash', isMasked);
+            }
+
+            const isIsmisField = inputId === 'ismis_id';
+            const fieldLabel = isIsmisField ? 'ISMIS ID' : 'password';
+            const actionLabel = isMasked ? 'Hide' : 'Show';
+            toggleButton.setAttribute('aria-label', `${actionLabel} ${fieldLabel}`);
             
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                toggleButton.textContent = 'Hide';
-                toggleButton.setAttribute('aria-label', 'Hide password');
-            } else {
-                passwordInput.type = 'password';
-                toggleButton.textContent = 'Show';
-                toggleButton.setAttribute('aria-label', 'Show password');
+            if (isIsmisField) {
+                toggleButton.setAttribute('title', `${actionLabel} ISMIS ID`);
             }
         }
 
