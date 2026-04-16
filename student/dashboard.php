@@ -3243,12 +3243,17 @@ function getOrganizationIcon($org_type)
         }
 
         .avatar-cooldown-note {
-            margin: -0.45rem auto 0.8rem;
-            max-width: 208px;
-            padding: 0.34rem 0.56rem;
-            border-radius: 9px;
-            font-size: 0.68rem;
-            line-height: 1.24;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            margin: -0.3rem auto 0.7rem;
+            max-width: calc(100% - 0.5rem);
+            min-height: 24px;
+            padding: 0.34rem 0.62rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            line-height: 1;
             font-weight: 600;
             text-align: center;
             border: 1px solid var(--border);
@@ -6722,12 +6727,12 @@ function getOrganizationIcon($org_type)
             }
 
             .avatar-cooldown-note {
-                margin: -0.2rem auto 0.6rem;
-                max-width: 188px;
-                padding: 0.28rem 0.46rem;
-                border-radius: 8px;
-                font-size: 0.61rem;
-                line-height: 1.2;
+                margin: -0.08rem auto 0.55rem;
+                min-height: 22px;
+                max-width: calc(100% - 0.35rem);
+                padding: 0.3rem 0.55rem;
+                font-size: 0.68rem;
+                line-height: 1;
             }
 
             .content-area {
@@ -7136,11 +7141,12 @@ function getOrganizationIcon($org_type)
             }
 
             .avatar-cooldown-note {
-                max-width: 165px;
-                padding: 0.24rem 0.4rem;
-                font-size: 0.56rem;
-                line-height: 1.16;
-                margin: -0.1rem auto 0.52rem;
+                margin: 0 auto 0.5rem;
+                min-height: 20px;
+                max-width: calc(100% - 0.25rem);
+                padding: 0.26rem 0.5rem;
+                font-size: 0.64rem;
+                line-height: 1;
             }
 
             .clearance-type-helper {
@@ -9865,12 +9871,12 @@ function getOrganizationIcon($org_type)
 
             if (normalized.canUpload) {
                 avatarCooldownInfo.classList.add('ready');
-                avatarCooldownInfo.textContent = 'Ready to change profile picture.';
+                avatarCooldownInfo.textContent = '0 days';
                 return;
             }
 
             avatarCooldownInfo.classList.add('waiting');
-            avatarCooldownInfo.textContent = normalized.remainingDays + ' ' + dayLabel + ' left to change profile picture.';
+            avatarCooldownInfo.textContent = normalized.remainingDays + ' ' + dayLabel;
         }
 
         function fetchAvatarCooldownStatus(forceRefresh = false) {
@@ -9909,6 +9915,11 @@ function getOrganizationIcon($org_type)
                         updateAvatarCooldownCountdown(status);
 
                         if (!status.canUpload) {
+                            const daysLeft = Number.isFinite(Number(status.remainingDays))
+                                ? Math.max(0, parseInt(status.remainingDays, 10))
+                                : 0;
+                            const dayLabel = daysLeft === 1 ? 'day' : 'days';
+                            showToast('You can change your profile picture in ' + daysLeft + ' ' + dayLabel + '.', 'info');
                             return;
                         }
 
