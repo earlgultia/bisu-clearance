@@ -3242,6 +3242,44 @@ function getOrganizationIcon($org_type)
             display: flex;
         }
 
+        .avatar-cooldown-note {
+            margin: -0.55rem auto 1rem;
+            max-width: 240px;
+            padding: 0.45rem 0.7rem;
+            border-radius: 10px;
+            font-size: 0.78rem;
+            line-height: 1.4;
+            font-weight: 700;
+            text-align: center;
+            border: 1px solid var(--border);
+            background: rgba(58, 36, 117, 0.07);
+            color: var(--text);
+        }
+
+        .avatar-cooldown-note.waiting {
+            border-color: rgba(249, 168, 38, 0.38);
+            background: rgba(249, 168, 38, 0.14);
+            color: #8a4b00;
+        }
+
+        .avatar-cooldown-note.ready {
+            border-color: rgba(46, 125, 50, 0.34);
+            background: rgba(46, 125, 50, 0.12);
+            color: #215c24;
+        }
+
+        .dark-mode .avatar-cooldown-note.waiting {
+            border-color: rgba(249, 168, 38, 0.45);
+            background: rgba(249, 168, 38, 0.2);
+            color: #ffd28a;
+        }
+
+        .dark-mode .avatar-cooldown-note.ready {
+            border-color: rgba(76, 175, 80, 0.45);
+            background: rgba(46, 125, 50, 0.28);
+            color: #9be8a5;
+        }
+
         .profile-name {
             font-size: 1.3rem;
             font-weight: 700;
@@ -7446,6 +7484,7 @@ function getOrganizationIcon($org_type)
                     </div>
                 </div>
                 <input type="file" id="avatarUpload" accept="image/jpeg,image/png,image/gif" style="display: none;">
+                <div class="avatar-cooldown-note" id="avatarCooldownInfo" aria-live="polite">Loading avatar change countdown...</div>
 
                 <div class="profile-name">
                     <?php echo htmlspecialchars($student_name); ?>
@@ -9781,8 +9820,41 @@ function getOrganizationIcon($org_type)
         const avatarContainer = document.getElementById('avatarContainer');
         const uploadProgress = document.getElementById('uploadProgress');
         const profileImage = document.getElementById('profileImage');
+        const avatarCooldownInfo = document.getElementById('avatarCooldownInfo');
         const avatarCooldownStatusUrl = '../upload_avatar.php?cooldown_status=1';
         let avatarCooldownState = null;
+
+        function normalizeAvatarCooldownStatus(status) {
+            const rawStatus = status && typeof status === 'object' ? status : {};
+            const parsedRemainingDays = parseInt(rawStatus.remainingDays, 10);
+
+            return {
+                canUpload: !!rawStatus.canUpload,
+                message: String(rawStatus.message || ''),
+                remainingDays: Number.isFinite(parsedRemainingDays) ? Math.max(0, parsedRemainingDays) : 0,
+                nextAllowedText: String(rawStatus.nextAllowedText || '')
+            };
+        }
+
+        function updateAvatarCooldownCountdown(status) {
+            if (!avatarCooldownInfo) {
+                return;
+            }
+
+            const normalized = normalizeAvatarCooldownStatus(status);
+            const dayLabel = normalized.remainingDays === 1 ? 'day' : 'days';
+
+            avatarCooldownInfo.classList.remove('ready', 'waiting');
+
+            if (normalized.canUpload) {
+                avatarCooldownInfo.classList.add('ready');
+                avatarCooldownInfo.textContent = '0 days left. You can change your profile picture now.';
+                return;
+            }
+
+            avatarCooldownInfo.classList.add('waiting');
+            avatarCooldownInfo.textContent = normalized.remainingDays + ' ' + dayLabel + ' left before you can change your profile picture.';
+        }
 
         function fetchAvatarCooldownStatus(forceRefresh = false) {
             if (!forceRefresh && avatarCooldownState !== null) {
@@ -9798,23 +9870,28 @@ function getOrganizationIcon($org_type)
                     if (data && data.success) {
                         avatarCooldownState = {
                             canUpload: !!data.can_upload,
-                            message: String(data.message || '')
+                            message: String(data.message || ''),
+                            remainingDays: parseInt(data.remaining_days, 10) || 0,
+                            nextAllowedText: String(data.next_allowed_text || '')
                         };
                         return avatarCooldownState;
                     }
 
-                    avatarCooldownState = { canUpload: true, message: '' };
+                    avatarCooldownState = { canUpload: true, message: '', remainingDays: 0, nextAllowedText: '' };
                     return avatarCooldownState;
                 })
-                .catch(() => ({ canUpload: true, message: '' }));
+                .catch(() => ({ canUpload: true, message: '', remainingDays: 0, nextAllowedText: '' }));
         }
+
+        fetchAvatarCooldownStatus().then(updateAvatarCooldownCountdown);
 
         if (avatarContainer) {
             avatarContainer.addEventListener('click', () => {
                 fetchAvatarCooldownStatus()
                     .then(status => {
+                        updateAvatarCooldownCountdown(status);
+
                         if (!status.canUpload) {
-                            showToast(status.message || 'You can update your profile picture after the cooldown period.', 'error');
                             return;
                         }
 
@@ -9856,13 +9933,18 @@ function getOrganizationIcon($org_type)
                             profileImage.src = '../' + data.filepath + '?t=' + new Date().getTime();
                             document.querySelector('.user-avatar img').src = '../' + data.filepath + '?t=' + new Date().getTime();
                             avatarCooldownState = null;
+                            fetchAvatarCooldownStatus(true).then(updateAvatarCooldownCountdown);
                             showToast('Profile picture updated!', 'success');
                         } else {
                             if (data && data.can_upload === false) {
                                 avatarCooldownState = {
                                     canUpload: false,
-                                    message: String(data.message || '')
+                                    message: String(data.message || ''),
+                                    remainingDays: parseInt(data.remaining_days, 10) || 0,
+                                    nextAllowedText: String(data.next_allowed_text || '')
                                 };
+                                updateAvatarCooldownCountdown(avatarCooldownState);
+                                return;
                             }
                             showToast(data.message || 'Upload failed', 'error');
                         }
