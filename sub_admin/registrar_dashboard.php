@@ -31,6 +31,7 @@ if ($_SESSION['user_role'] !== 'sub_admin') {
 
 // Get database instance
 $db = Database::getInstance();
+ensurePushInfrastructure($db);
 
 // Verify that this sub_admin is assigned to Registrar office
 $db->query("SELECT sao.*, o.office_name, o.office_id, o.office_order
@@ -564,6 +565,7 @@ if (isset($_POST['approve_clearance'])) {
     $clearance_id = $_POST['clearance_id'] ?? '';
 
     if ($clearance_id) {
+        $completionDispatchUserId = 0;
         try {
             $db->beginTransaction();
 
@@ -632,8 +634,35 @@ if (isset($_POST['approve_clearance'])) {
                 $db->bind(':school_year', $current['school_year']);
                 $check = $db->single();
 
-                if ($check['total'] == $check['approved']) {
+                if ((int) ($check['total'] ?? 0) === (int) ($check['approved'] ?? 0)) {
                     // All offices approved - clearance complete
+                    $completionDispatchUserId = (int) ($current['users_id'] ?? 0);
+
+                    if ($completionDispatchUserId > 0) {
+                        $completionSemester = trim((string) ($current['semester'] ?? 'Semester'));
+                        $completionSchoolYear = trim((string) ($current['school_year'] ?? ''));
+                        $completionBody = 'Your ' . $completionSemester
+                            . ($completionSchoolYear !== '' ? (' ' . $completionSchoolYear) : '')
+                            . ' clearance is now complete.';
+                        $dedupeSemesterKey = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $completionSemester));
+                        $dedupeSchoolYearKey = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $completionSchoolYear));
+
+                        queueAppNotification(
+                            $completionDispatchUserId,
+                            'clearance_completed',
+                            'Clearance completed',
+                            $completionBody,
+                            'student/dashboard.php?tab=history',
+                            [
+                                'semester' => $completionSemester,
+                                'school_year' => $completionSchoolYear,
+                                'approved_by' => (int) $registrar_id
+                            ],
+                            'clearance_complete:' . $completionDispatchUserId . ':' . $dedupeSemesterKey . ':' . $dedupeSchoolYearKey,
+                            (int) $registrar_id
+                        );
+                    }
+
                     if (class_exists('ActivityLogModel')) {
                         $logModel = new ActivityLogModel();
                         $logModel->log($registrar_id, 'CLEARANCE_COMPLETED', "Clearance completed for student: {$current['fname']} {$current['lname']} ({$current['ismis_id']}) for {$current['semester']} {$current['school_year']}");
@@ -647,6 +676,11 @@ if (isset($_POST['approve_clearance'])) {
                 }
 
                 $db->commit();
+
+                if ($completionDispatchUserId > 0) {
+                    dispatchQueuedPushNotifications($completionDispatchUserId, 10);
+                }
+
                 $_SESSION['success_message'] = "Clearance approved successfully!";
                 header("Location: registrar_dashboard.php?tab=pending");
                 exit();
@@ -750,33 +784,69 @@ if (isset($_POST['bulk_approve'])) {
             }
 
             if ($db->execute()) {
-                // Check for completed clearances and log
-                if (class_exists('ActivityLogModel')) {
-                    $logModel = new ActivityLogModel();
+                $completionDispatchUserIds = [];
+                $logModel = class_exists('ActivityLogModel') ? new ActivityLogModel() : null;
 
-                    // Log bulk approval
+                if ($logModel) {
                     $logModel->log($registrar_id, 'BULK_APPROVE', "Bulk approved " . count($eligible_ids) . " clearances");
+                }
 
-                    // Check for completed clearances
-                    foreach ($eligible as $cl) {
-                        $db->query("SELECT COUNT(*) as total, 
-                                    SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved 
-                                    FROM clearance 
-                                    WHERE users_id = :user_id 
-                                    AND semester = :semester 
-                                    AND school_year = :school_year");
-                        $db->bind(':user_id', $cl['users_id']);
-                        $db->bind(':semester', $cl['semester']);
-                        $db->bind(':school_year', $cl['school_year']);
-                        $check = $db->single();
+                foreach ($eligible as $cl) {
+                    $db->query("SELECT COUNT(*) as total, 
+                                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved 
+                                FROM clearance 
+                                WHERE users_id = :user_id 
+                                AND semester = :semester 
+                                AND school_year = :school_year");
+                    $db->bind(':user_id', $cl['users_id']);
+                    $db->bind(':semester', $cl['semester']);
+                    $db->bind(':school_year', $cl['school_year']);
+                    $check = $db->single();
 
-                        if ($check['total'] == $check['approved']) {
-                            $logModel->log($registrar_id, 'CLEARANCE_COMPLETED', "Clearance completed for student ID: {$cl['users_id']} for {$cl['semester']} {$cl['school_year']}");
+                    if ((int) ($check['total'] ?? 0) === (int) ($check['approved'] ?? 0)) {
+                        $completedUserId = (int) ($cl['users_id'] ?? 0);
+                        $completedSemester = trim((string) ($cl['semester'] ?? 'Semester'));
+                        $completedSchoolYear = trim((string) ($cl['school_year'] ?? ''));
+
+                        if ($logModel) {
+                            $logModel->log($registrar_id, 'CLEARANCE_COMPLETED', "Clearance completed for student ID: {$completedUserId} for {$completedSemester} {$completedSchoolYear}");
+                        }
+
+                        if ($completedUserId > 0) {
+                            $completionBody = 'Your ' . $completedSemester
+                                . ($completedSchoolYear !== '' ? (' ' . $completedSchoolYear) : '')
+                                . ' clearance is now complete.';
+                            $dedupeSemesterKey = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $completedSemester));
+                            $dedupeSchoolYearKey = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $completedSchoolYear));
+
+                            queueAppNotification(
+                                $completedUserId,
+                                'clearance_completed',
+                                'Clearance completed',
+                                $completionBody,
+                                'student/dashboard.php?tab=history',
+                                [
+                                    'semester' => $completedSemester,
+                                    'school_year' => $completedSchoolYear,
+                                    'approved_by' => (int) $registrar_id
+                                ],
+                                'clearance_complete:' . $completedUserId . ':' . $dedupeSemesterKey . ':' . $dedupeSchoolYearKey,
+                                (int) $registrar_id
+                            );
+
+                            $completionDispatchUserIds[$completedUserId] = true;
                         }
                     }
                 }
 
                 $db->commit();
+
+                if (!empty($completionDispatchUserIds)) {
+                    foreach (array_keys($completionDispatchUserIds) as $dispatchUserId) {
+                        dispatchQueuedPushNotifications((int) $dispatchUserId, 10);
+                    }
+                }
+
                 $_SESSION['success_message'] = count($eligible_ids) . " clearance(s) approved successfully!" . ($warning ? " " . $warning : "");
                 header("Location: registrar_dashboard.php?tab=pending");
                 exit();

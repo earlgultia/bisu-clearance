@@ -1,7 +1,7 @@
-const CACHE_VERSION = "bisu-clearance-v11";
+const CACHE_VERSION = "bisu-clearance-v12";
 const CORE_CACHE = `${CACHE_VERSION}-core`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
-const APP_ASSET_VERSION = "20260416-2";
+const APP_ASSET_VERSION = "20260416-3";
 
 const appRoot = (() => {
   const scopePath = new URL(self.registration.scope).pathname;
@@ -72,7 +72,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (requestUrl.pathname.endsWith("logout.php") || requestUrl.pathname.includes("/get_")) {
+  if (requestUrl.pathname.endsWith("logout.php") || requestUrl.pathname.includes("/get_") || requestUrl.pathname.endsWith("push_notifications.php")) {
     return;
   }
 
@@ -93,6 +93,27 @@ self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
+});
+
+self.addEventListener("push", (event) => {
+  const payload = parsePushPayload(event);
+  const notificationTitle = payload.title || "BISU Clearance Update";
+  const notificationOptions = buildNotificationOptions(payload);
+
+  event.waitUntil(self.registration.showNotification(notificationTitle, notificationOptions));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const data = event.notification && event.notification.data ? event.notification.data : {};
+  const targetUrl = resolveNotificationUrl(data.url || "");
+
+  event.waitUntil(focusOrOpenUrl(targetUrl));
+});
+
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(refreshPushSubscription());
 });
 
 async function handleNavigation(request) {
@@ -148,4 +169,150 @@ async function staleWhileRevalidate(request) {
 
 function isStaticAsset(pathname) {
   return /\.(?:css|js|png|jpg|jpeg|svg|gif|webp|ico|woff|woff2|ttf)$/i.test(pathname);
+}
+
+function parsePushPayload(event) {
+  if (!event || !event.data) {
+    return {};
+  }
+
+  try {
+    const jsonPayload = event.data.json();
+    if (jsonPayload && typeof jsonPayload === "object") {
+      return jsonPayload;
+    }
+  } catch (error) {
+    // Fall back to plain text payload parsing.
+  }
+
+  try {
+    const textPayload = event.data.text();
+    return textPayload ? { body: textPayload } : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function buildNotificationOptions(payload) {
+  const defaultIcon = `${appRoot}assets/img/pwa-icon-192.png?v=${APP_ASSET_VERSION}`;
+  const defaultBadge = `${appRoot}assets/img/pwa-icon-maskable-192.png?v=${APP_ASSET_VERSION}`;
+  const bodyText = typeof payload.body === "string" && payload.body.trim() !== ""
+    ? payload.body
+    : "You have a new clearance update.";
+
+  return {
+    body: bodyText,
+    icon: payload.icon || defaultIcon,
+    badge: payload.badge || defaultBadge,
+    tag: payload.tag || "bisu-clearance-notification",
+    renotify: false,
+    data: {
+      url: resolveNotificationUrl(payload.url || ""),
+      eventType: payload.event_type || "notice",
+      notificationId: payload.notification_id || null,
+      meta: payload.meta || null
+    }
+  };
+}
+
+function resolveNotificationUrl(rawUrl) {
+  const fallbackUrl = new URL(`${appRoot}student/dashboard.php?tab=messages`, self.location.origin).toString();
+
+  if (typeof rawUrl !== "string" || rawUrl.trim() === "") {
+    return fallbackUrl;
+  }
+
+  try {
+    return new URL(rawUrl, self.location.origin).toString();
+  } catch (error) {
+    return fallbackUrl;
+  }
+}
+
+async function focusOrOpenUrl(targetUrl) {
+  const normalizedTargetUrl = resolveNotificationUrl(targetUrl || "");
+  const targetOrigin = new URL(normalizedTargetUrl).origin;
+  const windowClients = await clients.matchAll({ type: "window", includeUncontrolled: true });
+
+  for (const client of windowClients) {
+    if (!client || typeof client.url !== "string") {
+      continue;
+    }
+
+    try {
+      const clientOrigin = new URL(client.url).origin;
+      if (clientOrigin === targetOrigin) {
+        if (typeof client.navigate === "function" && client.url !== normalizedTargetUrl) {
+          try {
+            await client.navigate(normalizedTargetUrl);
+          } catch (error) {
+            // Ignore navigate errors and still focus current client.
+          }
+        }
+
+        if (typeof client.focus === "function") {
+          return client.focus();
+        }
+      }
+    } catch (error) {
+      // Ignore malformed client URLs.
+    }
+  }
+
+  return clients.openWindow(normalizedTargetUrl);
+}
+
+async function refreshPushSubscription() {
+  if (!(self.registration && self.registration.pushManager)) {
+    return;
+  }
+
+  try {
+    const configResponse = await fetch(`${appRoot}push_notifications.php?action=config`, {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store"
+    });
+
+    if (!configResponse.ok) {
+      return;
+    }
+
+    const config = await configResponse.json();
+    if (!config || !config.enabled || !config.public_key) {
+      return;
+    }
+
+    const applicationServerKey = urlBase64ToUint8Array(String(config.public_key));
+    const freshSubscription = await self.registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey
+    });
+
+    await fetch(`${appRoot}push_notifications.php?action=subscribe`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        subscription: freshSubscription.toJSON ? freshSubscription.toJSON() : freshSubscription
+      })
+    });
+  } catch (error) {
+    // Keep silent; subscription refresh can retry on next app open.
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const normalized = String(base64String || "").replace(/-/g, "+").replace(/_/g, "/");
+  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(normalized + padding);
+  const outputArray = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    outputArray[i] = binary.charCodeAt(i);
+  }
+
+  return outputArray;
 }

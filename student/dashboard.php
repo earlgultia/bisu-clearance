@@ -42,6 +42,7 @@ if ($_SESSION['user_role'] !== 'student') {
 
 // Get database instance
 $db = Database::getInstance();
+ensurePushInfrastructure($db);
 $runStudentSchemaMaintenance = shouldRunMaintenanceTask('student_dashboard_schema_migrations', 21600);
 
 function ensureOrganizationProofColumns($db)
@@ -1560,6 +1561,42 @@ if (isset($_POST['send_message'])) {
                         $db->bind(':reply_to_message_id', $reply_to_message_id);
 
                         if ($db->execute()) {
+                            $sentMessageId = (int) $db->lastInsertId();
+
+                            $senderLabel = trim((string) $student_name);
+                            if ($senderLabel === '') {
+                                $senderLabel = trim((string) (($student_fname ?? '') . ' ' . ($student_lname ?? '')));
+                            }
+                            if ($senderLabel === '') {
+                                $senderLabel = 'A student';
+                            }
+
+                            $messagePreview = buildMessageSnippet($message_body, 120, true);
+                            if ($messagePreview === '' && !empty($message_attachment_name)) {
+                                $messagePreview = '[Attachment] ' . buildMessageSnippet($message_attachment_name, 80, false);
+                            }
+
+                            $notificationBody = $messagePreview !== ''
+                                ? ($senderLabel . ': ' . $messagePreview)
+                                : ($senderLabel . ' sent you a message.');
+
+                            queueAppNotification(
+                                (int) $recipient_id,
+                                'new_message',
+                                'New student message',
+                                $notificationBody,
+                                'student/dashboard.php?tab=messages&chat_with=' . (int) $student_id,
+                                [
+                                    'sender_id' => (int) $student_id,
+                                    'recipient_id' => (int) $recipient_id,
+                                    'message_id' => $sentMessageId
+                                ],
+                                'message:' . $sentMessageId,
+                                (int) $student_id
+                            );
+
+                            dispatchQueuedPushNotifications((int) $recipient_id, 10);
+
                             if (class_exists('ActivityLogModel')) {
                                 $logModel = new ActivityLogModel();
                                 $logModel->log($student_id, 'SEND_MESSAGE', "Sent message to student ID: {$recipient_id}");
