@@ -19,7 +19,7 @@
   }
 
   var appRoot = resolveAppRoot();
-  var swVersion = "20260413-2";
+  var swVersion = "20260416-2";
   var swUrl = appRoot + "service-worker.js?v=" + encodeURIComponent(swVersion);
 
   function requestActivation(registration) {
