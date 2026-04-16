@@ -3243,13 +3243,13 @@ function getOrganizationIcon($org_type)
         }
 
         .avatar-cooldown-note {
-            margin: -0.55rem auto 1rem;
-            max-width: 240px;
-            padding: 0.45rem 0.7rem;
-            border-radius: 10px;
-            font-size: 0.78rem;
-            line-height: 1.4;
-            font-weight: 700;
+            margin: -0.45rem auto 0.8rem;
+            max-width: 208px;
+            padding: 0.34rem 0.56rem;
+            border-radius: 9px;
+            font-size: 0.68rem;
+            line-height: 1.24;
+            font-weight: 600;
             text-align: center;
             border: 1px solid var(--border);
             background: rgba(58, 36, 117, 0.07);
@@ -6721,6 +6721,15 @@ function getOrganizationIcon($org_type)
                 padding: 0.85rem 1rem;
             }
 
+            .avatar-cooldown-note {
+                margin: -0.2rem auto 0.6rem;
+                max-width: 188px;
+                padding: 0.28rem 0.46rem;
+                border-radius: 8px;
+                font-size: 0.61rem;
+                line-height: 1.2;
+            }
+
             .content-area {
                 position: relative;
                 z-index: 1;
@@ -7124,6 +7133,14 @@ function getOrganizationIcon($org_type)
             .profile-id {
                 font-size: 0.78rem;
                 padding: 0.35rem 0.7rem;
+            }
+
+            .avatar-cooldown-note {
+                max-width: 165px;
+                padding: 0.24rem 0.4rem;
+                font-size: 0.56rem;
+                line-height: 1.16;
+                margin: -0.1rem auto 0.52rem;
             }
 
             .clearance-type-helper {
@@ -9848,12 +9865,12 @@ function getOrganizationIcon($org_type)
 
             if (normalized.canUpload) {
                 avatarCooldownInfo.classList.add('ready');
-                avatarCooldownInfo.textContent = '0 days left. You can change your profile picture now.';
+                avatarCooldownInfo.textContent = 'Ready to change profile picture.';
                 return;
             }
 
             avatarCooldownInfo.classList.add('waiting');
-            avatarCooldownInfo.textContent = normalized.remainingDays + ' ' + dayLabel + ' left before you can change your profile picture.';
+            avatarCooldownInfo.textContent = normalized.remainingDays + ' ' + dayLabel + ' left to change profile picture.';
         }
 
         function fetchAvatarCooldownStatus(forceRefresh = false) {
