@@ -9911,11 +9911,6 @@ function getOrganizationIcon($org_type)
                     return;
                 }
 
-                if (file.size > 5 * 1024 * 1024) {
-                    alert('File size must be less than 5MB');
-                    return;
-                }
-
                 uploadProgress.classList.add('show');
 
                 const formData = new FormData();

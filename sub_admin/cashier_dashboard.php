@@ -5677,12 +5677,6 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
                     return;
                 }
 
-                if (file.size > 2 * 1024 * 1024) {
-                    showToast('File size must be less than 2MB', 'error');
-                    avatarInput.value = '';
-                    return;
-                }
-
                 uploadProgress.classList.add('show');
 
                 const formData = new FormData();

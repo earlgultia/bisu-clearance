@@ -4440,11 +4440,6 @@ function getOrgTypeBadge($type)
                 return;
             }
 
-            if (file.size > 2 * 1024 * 1024) {
-                alert('File size must be less than 2MB');
-                return;
-            }
-
             uploadProgress.classList.add('show');
             const formData = new FormData();
             formData.append('avatar', file);

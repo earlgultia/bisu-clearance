@@ -6564,12 +6564,6 @@ function getActivityIcon($action)
                     return;
                 }
 
-                if (file.size > 2 * 1024 * 1024) {
-                    showToast('File size must be less than 2MB', 'error');
-                    avatarInput.value = '';
-                    return;
-                }
-
                 uploadProgress.classList.add('show');
 
                 const formData = new FormData();

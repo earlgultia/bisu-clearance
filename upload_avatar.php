@@ -279,19 +279,25 @@ if (!isset($_FILES['avatar'])) {
 $file = $_FILES['avatar'];
 
 if ($file['error'] !== UPLOAD_ERR_OK) {
+    $uploadErrorMessage = 'Upload failed. Please try again.';
+
+    if ($file['error'] === UPLOAD_ERR_INI_SIZE || $file['error'] === UPLOAD_ERR_FORM_SIZE) {
+        $uploadErrorMessage = 'Upload is larger than the current server upload limit. Please try a smaller file or increase upload_max_filesize and post_max_size.';
+    } elseif ($file['error'] === UPLOAD_ERR_PARTIAL) {
+        $uploadErrorMessage = 'Upload was interrupted. Please try again.';
+    } elseif ($file['error'] === UPLOAD_ERR_NO_TMP_DIR) {
+        $uploadErrorMessage = 'Upload failed because the server temporary folder is missing.';
+    } elseif ($file['error'] === UPLOAD_ERR_CANT_WRITE) {
+        $uploadErrorMessage = 'Upload failed because the server could not write the file.';
+    }
+
     jsonResponse([
         'success' => false,
-        'message' => 'Upload failed. Please try again.'
+        'message' => $uploadErrorMessage
     ], 400);
 }
 
-$maxOriginalUploadSize = 20 * 1024 * 1024; // Larger source files are allowed and then compressed.
-if ($file['size'] > $maxOriginalUploadSize) {
-    jsonResponse([
-        'success' => false,
-        'message' => 'File size must be less than 20MB before compression.'
-    ], 400);
-}
+// No app-level avatar file-size cap here; PHP upload settings still apply.
 
 $imageInfo = @getimagesize($file['tmp_name']);
 $allowedMimeTypes = [
@@ -329,7 +335,16 @@ if (!move_uploaded_file($file['tmp_name'], $destination)) {
     ], 500);
 }
 
-optimizeAvatarImage($destination, $imageInfo['mime']);
+if (!optimizeAvatarImage($destination, $imageInfo['mime'])) {
+    if (file_exists($destination)) {
+        unlink($destination);
+    }
+
+    jsonResponse([
+        'success' => false,
+        'message' => 'Unable to optimize this image. Please try a smaller image dimension.'
+    ], 400);
+}
 
 try {
     if ($avatarCooldownColumnAvailable) {
