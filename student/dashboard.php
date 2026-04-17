@@ -6384,6 +6384,9 @@ function getOrganizationIcon($org_type)
             position: fixed;
             top: 20px;
             right: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
             padding: 1rem 2rem;
             border-radius: 50px;
             color: white;
@@ -6391,6 +6394,16 @@ function getOrganizationIcon($org_type)
             z-index: 10000;
             animation: slideIn 0.3s ease;
             box-shadow: var(--shadow);
+        }
+
+        .toast i {
+            flex-shrink: 0;
+            font-size: 0.95rem;
+            line-height: 1;
+        }
+
+        .toast .toast-text {
+            line-height: 1.3;
         }
 
         .toast.success {
@@ -6403,6 +6416,10 @@ function getOrganizationIcon($org_type)
 
         .toast.info {
             background: var(--info);
+        }
+
+        .toast.warning {
+            background: var(--danger);
         }
 
         .graduating-alert-popup {
@@ -9956,7 +9973,7 @@ function getOrganizationIcon($org_type)
                                 ? Math.max(0, parseInt(status.remainingDays, 10))
                                 : 0;
                             const dayLabel = daysLeft === 1 ? 'day' : 'days';
-                            showToast('You can change your profile picture in ' + daysLeft + ' ' + dayLabel + '.', 'info');
+                            showToast('You can change your profile picture in ' + daysLeft + ' ' + dayLabel + '.', 'warning');
                             return;
                         }
 
@@ -10022,7 +10039,7 @@ function getOrganizationIcon($org_type)
             toast.className = `toast ${type}`;
             const iconName = type === 'success'
                 ? 'check-circle'
-                : (type === 'info' ? 'info-circle' : 'exclamation-circle');
+                : ((type === 'info' || type === 'warning') ? 'info-circle' : 'exclamation-circle');
             toast.innerHTML = `<i class="fas fa-${iconName}"></i><span class="toast-text"></span>`;
             const textContainer = toast.querySelector('.toast-text');
             if (textContainer) {
