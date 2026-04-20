@@ -19,12 +19,72 @@
   }
 
   var appRoot = resolveAppRoot();
-  var swVersion = "20260416-3";
+  var swVersion = "20260420-1";
   var swUrl = appRoot + "service-worker.js?v=" + encodeURIComponent(swVersion);
   var pushConfigUrl = appRoot + "push_notifications.php?action=config";
   var pushSubscribeUrl = appRoot + "push_notifications.php?action=subscribe";
   var pushUnsubscribeUrl = appRoot + "push_notifications.php?action=unsubscribe";
   var pushSyncInProgress = false;
+  var deferredInstallPrompt = null;
+  var installPromptRequested = false;
+  var installStorageKey = "bisu-clearance-install-dismissed";
+
+  function isStandaloneMode() {
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  }
+
+  function canAskForInstall() {
+    if (isStandaloneMode()) {
+      return false;
+    }
+
+    try {
+      return window.localStorage.getItem(installStorageKey) !== "1";
+    } catch (error) {
+      return true;
+    }
+  }
+
+  function markInstallDismissed() {
+    try {
+      window.localStorage.setItem(installStorageKey, "1");
+    } catch (error) {
+      return;
+    }
+  }
+
+  function clearInstallDismissed() {
+    try {
+      window.localStorage.removeItem(installStorageKey);
+    } catch (error) {
+      return;
+    }
+  }
+
+  function showInstallPrompt() {
+    if (!deferredInstallPrompt || installPromptRequested || !canAskForInstall()) {
+      return;
+    }
+
+    installPromptRequested = true;
+    deferredInstallPrompt.prompt();
+
+    deferredInstallPrompt.userChoice
+      .then(function (choiceResult) {
+        if (!choiceResult || choiceResult.outcome !== "accepted") {
+          markInstallDismissed();
+        } else {
+          clearInstallDismissed();
+        }
+      })
+      .catch(function () {
+        markInstallDismissed();
+      })
+      .finally(function () {
+        deferredInstallPrompt = null;
+        installPromptRequested = false;
+      });
+  }
 
   function requestActivation(registration) {
     if (registration && registration.waiting) {
@@ -183,6 +243,21 @@
         pushSyncInProgress = false;
       });
   }
+
+  window.addEventListener("beforeinstallprompt", function (event) {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+
+    window.setTimeout(function () {
+      showInstallPrompt();
+    }, 1200);
+  });
+
+  window.addEventListener("appinstalled", function () {
+    deferredInstallPrompt = null;
+    installPromptRequested = false;
+    clearInstallDismissed();
+  });
 
   window.addEventListener("load", function () {
     navigator.serviceWorker
