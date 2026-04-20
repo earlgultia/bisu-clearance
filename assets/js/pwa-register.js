@@ -27,10 +27,29 @@
   var pushSyncInProgress = false;
   var deferredInstallPrompt = null;
   var installPromptRequested = false;
-  var installStorageKey = "bisu-clearance-install-dismissed";
+  var installStorageKey = "bisu-clearance-install-dismissed-v2";
+  var installBannerShown = false;
+  var installBannerElement = null;
+  var installBannerTimer = null;
 
   function isStandaloneMode() {
     return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  }
+
+  function isIosDevice() {
+    var userAgent = window.navigator.userAgent || "";
+    var platform = window.navigator.platform || "";
+    var touchPoints = Number(window.navigator.maxTouchPoints || 0);
+    return /iphone|ipad|ipod/i.test(userAgent) || (platform === "MacIntel" && touchPoints > 1);
+  }
+
+  function isSafariBrowser() {
+    var userAgent = window.navigator.userAgent || "";
+    return /safari/i.test(userAgent) && !/chrome|chromium|crios|android|fxios|edgios/i.test(userAgent);
+  }
+
+  function isAndroidDevice() {
+    return /android/i.test(window.navigator.userAgent || "");
   }
 
   function canAskForInstall() {
@@ -61,6 +80,171 @@
     }
   }
 
+  function dismissInstallBanner(rememberChoice) {
+    if (installBannerTimer) {
+      window.clearTimeout(installBannerTimer);
+      installBannerTimer = null;
+    }
+
+    if (rememberChoice) {
+      markInstallDismissed();
+    }
+
+    if (installBannerElement && installBannerElement.parentNode) {
+      installBannerElement.parentNode.removeChild(installBannerElement);
+    }
+
+    installBannerElement = null;
+    installBannerShown = false;
+  }
+
+  function getInstallBannerCopy() {
+    if (isIosDevice() && isSafariBrowser()) {
+      return {
+        title: "Install on iPhone",
+        message: 'Tap Share, then choose "Add to Home Screen" to install BISU Clearance.',
+        buttonLabel: "Got it",
+        mode: "ios"
+      };
+    }
+
+    if (deferredInstallPrompt) {
+      return {
+        title: "Install BISU Clearance",
+        message: "Add this app to your home screen for faster access and an app-like experience.",
+        buttonLabel: "Install now",
+        mode: "prompt"
+      };
+    }
+
+    if (isAndroidDevice()) {
+      return {
+        title: "Install BISU Clearance",
+        message: 'Open the browser menu and tap "Install app" or "Add to Home screen" if the browser does not show the prompt yet.',
+        buttonLabel: "Got it",
+        mode: "android-help"
+      };
+    }
+
+    return null;
+  }
+
+  function ensureInstallBanner() {
+    if (installBannerElement) {
+      return installBannerElement;
+    }
+
+    var banner = document.createElement("section");
+    banner.setAttribute("id", "bisuInstallBanner");
+    banner.setAttribute("role", "dialog");
+    banner.setAttribute("aria-live", "polite");
+    banner.setAttribute("aria-label", "Install BISU Clearance");
+    banner.innerHTML =
+      '<div class="bisu-install-banner__content">' +
+        '<button type="button" class="bisu-install-banner__close" aria-label="Dismiss install message">&times;</button>' +
+        '<div class="bisu-install-banner__eyebrow">BISU Clearance</div>' +
+        '<h2 class="bisu-install-banner__title"></h2>' +
+        '<p class="bisu-install-banner__message"></p>' +
+        '<div class="bisu-install-banner__actions">' +
+          '<button type="button" class="bisu-install-banner__primary"></button>' +
+          '<button type="button" class="bisu-install-banner__secondary">Not now</button>' +
+        "</div>" +
+      "</div>";
+
+    var style = document.createElement("style");
+    style.textContent =
+      "#bisuInstallBanner{" +
+        "position:fixed;left:16px;right:16px;bottom:16px;z-index:99999;" +
+        "font-family:Arial,sans-serif;" +
+      "}" +
+      "#bisuInstallBanner .bisu-install-banner__content{" +
+        "position:relative;background:linear-gradient(135deg,#1f5f99 0%,#143b63 100%);" +
+        "color:#fff;border-radius:20px;padding:20px 18px 18px;box-shadow:0 20px 40px rgba(0,0,0,.28);" +
+      "}" +
+      "#bisuInstallBanner .bisu-install-banner__eyebrow{" +
+        "font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.8;margin-bottom:8px;" +
+      "}" +
+      "#bisuInstallBanner .bisu-install-banner__title{" +
+        "margin:0 34px 8px 0;font-size:20px;line-height:1.2;" +
+      "}" +
+      "#bisuInstallBanner .bisu-install-banner__message{" +
+        "margin:0;font-size:14px;line-height:1.5;opacity:.94;" +
+      "}" +
+      "#bisuInstallBanner .bisu-install-banner__actions{" +
+        "display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;" +
+      "}" +
+      "#bisuInstallBanner .bisu-install-banner__primary," +
+      "#bisuInstallBanner .bisu-install-banner__secondary{" +
+        "border:0;border-radius:999px;padding:12px 16px;font-size:14px;font-weight:700;cursor:pointer;" +
+      "}" +
+      "#bisuInstallBanner .bisu-install-banner__primary{" +
+        "background:#fff;color:#143b63;" +
+      "}" +
+      "#bisuInstallBanner .bisu-install-banner__secondary{" +
+        "background:rgba(255,255,255,.16);color:#fff;" +
+      "}" +
+      "#bisuInstallBanner .bisu-install-banner__close{" +
+        "position:absolute;top:10px;right:10px;width:32px;height:32px;border:0;border-radius:50%;" +
+        "background:rgba(255,255,255,.14);color:#fff;font-size:22px;line-height:1;cursor:pointer;" +
+      "}" +
+      "@media (min-width: 768px){" +
+        "#bisuInstallBanner{left:auto;right:24px;bottom:24px;max-width:380px;}" +
+      "}";
+
+    document.head.appendChild(style);
+    document.body.appendChild(banner);
+
+    banner.querySelector(".bisu-install-banner__close").addEventListener("click", function () {
+      dismissInstallBanner(true);
+    });
+
+    banner.querySelector(".bisu-install-banner__secondary").addEventListener("click", function () {
+      dismissInstallBanner(true);
+    });
+
+    banner.querySelector(".bisu-install-banner__primary").addEventListener("click", function () {
+      var copy = getInstallBannerCopy();
+      if (!copy) {
+        dismissInstallBanner(true);
+        return;
+      }
+
+      if (copy.mode === "prompt") {
+        showInstallPrompt();
+        return;
+      }
+
+      dismissInstallBanner(true);
+    });
+
+    installBannerElement = banner;
+    return banner;
+  }
+
+  function showInstallBanner() {
+    var copy = getInstallBannerCopy();
+    var banner;
+    if (!copy || !canAskForInstall()) {
+      return;
+    }
+
+    banner = ensureInstallBanner();
+    banner.querySelector(".bisu-install-banner__title").textContent = copy.title;
+    banner.querySelector(".bisu-install-banner__message").textContent = copy.message;
+    banner.querySelector(".bisu-install-banner__primary").textContent = copy.buttonLabel;
+    installBannerShown = true;
+  }
+
+  function scheduleInstallBanner(delayMs) {
+    if (installBannerTimer) {
+      window.clearTimeout(installBannerTimer);
+    }
+
+    installBannerTimer = window.setTimeout(function () {
+      showInstallBanner();
+    }, typeof delayMs === "number" ? delayMs : 900);
+  }
+
   function showInstallPrompt() {
     if (!deferredInstallPrompt || installPromptRequested || !canAskForInstall()) {
       return;
@@ -75,6 +259,7 @@
           markInstallDismissed();
         } else {
           clearInstallDismissed();
+          dismissInstallBanner(false);
         }
       })
       .catch(function () {
@@ -83,6 +268,9 @@
       .finally(function () {
         deferredInstallPrompt = null;
         installPromptRequested = false;
+        if (!isStandaloneMode()) {
+          scheduleInstallBanner(1600);
+        }
       });
   }
 
@@ -247,19 +435,22 @@
   window.addEventListener("beforeinstallprompt", function (event) {
     event.preventDefault();
     deferredInstallPrompt = event;
-
-    window.setTimeout(function () {
-      showInstallPrompt();
-    }, 1200);
+    clearInstallDismissed();
+    scheduleInstallBanner(1200);
   });
 
   window.addEventListener("appinstalled", function () {
     deferredInstallPrompt = null;
     installPromptRequested = false;
     clearInstallDismissed();
+    dismissInstallBanner(false);
   });
 
   window.addEventListener("load", function () {
+    if (!isStandaloneMode() && canAskForInstall()) {
+      scheduleInstallBanner(isIosDevice() ? 1200 : 2400);
+    }
+
     navigator.serviceWorker
       .register(swUrl, { scope: appRoot })
       .then(function (registration) {

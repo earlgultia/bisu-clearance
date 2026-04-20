@@ -2,6 +2,7 @@
   "name": "BISU Online Clearance System",
   "short_name": "BISU Clearance",
   "description": "Student online clearance workflow for Bohol Island State University.",
+  "id": "./",
   "start_url": "./index.php",
   "scope": "./",
   "display": "standalone",
