@@ -508,19 +508,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             gap: 12px;
         }
 
+        .mobile-install-slot {
+            display: contents;
+        }
+
+        .mobile-auth-buttons {
+            display: contents;
+        }
+
         .install-nav-btn {
-            background: rgba(31, 95, 153, 0.08);
+            background: linear-gradient(135deg, rgba(31, 95, 153, 0.10), rgba(20, 59, 99, 0.16));
             color: var(--primary) !important;
             padding: 10px 18px;
             border-radius: 999px;
             font-weight: 600;
-            border: 2px solid rgba(31, 95, 153, 0.2);
+            border: 1px solid rgba(31, 95, 153, 0.22);
             transition: 0.3s;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
             cursor: pointer;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
         }
 
         .install-nav-btn:hover {
@@ -2230,12 +2239,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             }
 
             .mobile-auth-row {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .mobile-install-slot {
+                display: block;
+            }
+
+            .mobile-auth-buttons {
                 display: grid;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 10px;
             }
 
-            .mobile-auth-row .install-nav-btn,
+            .mobile-auth-row .install-nav-btn {
+                width: 100%;
+                justify-content: center;
+                padding: 12px 14px;
+                font-size: 0.95rem;
+                min-height: 46px;
+                border-radius: 16px;
+            }
+
             .mobile-auth-row .signup-btn,
             .mobile-auth-row .login-btn {
                 width: 100%;
@@ -2363,12 +2390,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             }
 
             .mobile-auth-row {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .mobile-install-slot {
+                display: block;
+            }
+
+            .mobile-auth-buttons {
                 display: grid;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 10px;
             }
 
-            .mobile-auth-row .install-nav-btn,
+            .mobile-auth-row .install-nav-btn {
+                width: 100%;
+                justify-content: center;
+                padding: 12px 14px;
+                font-size: 0.95rem;
+                min-height: 46px;
+                border-radius: 16px;
+            }
+
             .mobile-auth-row .signup-btn,
             .mobile-auth-row .login-btn {
                 width: 100%;
@@ -2591,15 +2636,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
 
                 <!-- Sign Up and Login Buttons Only -->
                 <div class="mobile-auth-row">
-                    <button type="button" class="install-nav-btn" data-pwa-install>
-                        <i class="fas fa-download"></i> Install App
-                    </button>
-                    <a href="register.php" class="signup-btn">
-                        <i class="fas fa-user-plus"></i> Sign Up
-                    </a>
-                    <a href="login.php" class="login-btn">
-                        <i class="fas fa-sign-in-alt"></i> Login
-                    </a>
+                    <div class="mobile-install-slot">
+                        <button type="button" class="install-nav-btn" data-pwa-install>
+                            <i class="fas fa-download"></i> Install App
+                        </button>
+                    </div>
+                    <div class="mobile-auth-buttons">
+                        <a href="register.php" class="signup-btn">
+                            <i class="fas fa-user-plus"></i> Sign Up
+                        </a>
+                        <a href="login.php" class="login-btn">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </a>
+                    </div>
                 </div>
                 
                 <!-- Dark Mode Toggle -->
