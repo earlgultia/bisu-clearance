@@ -1,8 +1,4 @@
 (function () {
-  if (!("serviceWorker" in navigator)) {
-    return;
-  }
-
   function resolveAppRoot() {
     var manifestLink = document.querySelector('link[rel="manifest"]');
     if (!manifestLink) {
@@ -31,6 +27,7 @@
   var installBannerShown = false;
   var installBannerElement = null;
   var installBannerTimer = null;
+  var installDebugElement = null;
 
   function isStandaloneMode() {
     return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
@@ -99,6 +96,15 @@
   }
 
   function getInstallBannerCopy() {
+    if (!window.isSecureContext && !isIosDevice()) {
+      return {
+        title: "Install Needs HTTPS",
+        message: "Open this site over HTTPS to enable app installation in Android browsers.",
+        buttonLabel: "Got it",
+        mode: "https-help"
+      };
+    }
+
     if (isIosDevice() && isSafariBrowser()) {
       return {
         title: "Install on iPhone",
@@ -221,6 +227,75 @@
     return banner;
   }
 
+  function getInstallDebugState() {
+    if (isStandaloneMode()) {
+      return "Installed mode detected";
+    }
+
+    if (isIosDevice() && isSafariBrowser()) {
+      return "iPhone/iPad Safari: use Share > Add to Home Screen";
+    }
+
+    if (!window.isSecureContext && !isIosDevice()) {
+      return "Install blocked: HTTPS required";
+    }
+
+    if (deferredInstallPrompt) {
+      return "Android install prompt ready";
+    }
+
+    if (!("serviceWorker" in navigator)) {
+      return "Install limited: service workers unsupported";
+    }
+
+    if (isAndroidDevice()) {
+      return "Android detected: waiting for browser install eligibility";
+    }
+
+    return "Install availability depends on this browser";
+  }
+
+  function ensureInstallDebug() {
+    if (installDebugElement) {
+      return installDebugElement;
+    }
+
+    var debug = document.createElement("div");
+    debug.setAttribute("id", "bisuInstallDebug");
+    debug.setAttribute("aria-live", "polite");
+    debug.innerHTML =
+      '<span class="bisu-install-debug__label">Install status</span>' +
+      '<span class="bisu-install-debug__value"></span>';
+
+    var style = document.createElement("style");
+    style.textContent =
+      "#bisuInstallDebug{" +
+        "position:fixed;left:12px;right:12px;bottom:12px;z-index:99998;" +
+        "display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:14px;" +
+        "background:rgba(15,23,42,.88);color:#fff;font:12px/1.4 Arial,sans-serif;" +
+        "box-shadow:0 10px 24px rgba(0,0,0,.22);backdrop-filter:blur(8px);" +
+      "}" +
+      "#bisuInstallDebug .bisu-install-debug__label{" +
+        "text-transform:uppercase;letter-spacing:.08em;opacity:.7;font-size:10px;font-weight:700;" +
+      "}" +
+      "#bisuInstallDebug .bisu-install-debug__value{" +
+        "font-size:12px;font-weight:600;" +
+      "}" +
+      "@media (min-width:768px){" +
+        "#bisuInstallDebug{left:auto;right:16px;bottom:16px;max-width:320px;}" +
+      "}";
+
+    document.head.appendChild(style);
+    document.body.appendChild(debug);
+    installDebugElement = debug;
+    return debug;
+  }
+
+  function updateInstallDebug() {
+    var debug = ensureInstallDebug();
+    debug.querySelector(".bisu-install-debug__value").textContent = getInstallDebugState();
+  }
+
   function showInstallBanner() {
     var copy = getInstallBannerCopy();
     var banner;
@@ -233,6 +308,7 @@
     banner.querySelector(".bisu-install-banner__message").textContent = copy.message;
     banner.querySelector(".bisu-install-banner__primary").textContent = copy.buttonLabel;
     installBannerShown = true;
+    updateInstallDebug();
   }
 
   function triggerInstallExperience() {
@@ -278,6 +354,7 @@
       .finally(function () {
         deferredInstallPrompt = null;
         installPromptRequested = false;
+        updateInstallDebug();
         if (!isStandaloneMode()) {
           scheduleInstallBanner(1600);
         }
@@ -446,6 +523,7 @@
     event.preventDefault();
     deferredInstallPrompt = event;
     clearInstallDismissed();
+    updateInstallDebug();
     scheduleInstallBanner(1200);
   });
 
@@ -454,47 +532,55 @@
     installPromptRequested = false;
     clearInstallDismissed();
     dismissInstallBanner(false);
+    updateInstallDebug();
   });
 
   window.addEventListener("load", function () {
+    updateInstallDebug();
     if (!isStandaloneMode() && canAskForInstall()) {
       scheduleInstallBanner(isIosDevice() ? 1200 : 2400);
     }
 
-    navigator.serviceWorker
-      .register(swUrl, { scope: appRoot })
-      .then(function (registration) {
-        requestActivation(registration);
-        syncPushSubscription(registration);
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register(swUrl, { scope: appRoot })
+        .then(function (registration) {
+          requestActivation(registration);
+          syncPushSubscription(registration);
 
-        registration.addEventListener("updatefound", function () {
-          var newWorker = registration.installing;
-          if (!newWorker) {
-            return;
-          }
-
-          newWorker.addEventListener("statechange", function () {
-            if (newWorker.state === "installed") {
-              requestActivation(registration);
+          registration.addEventListener("updatefound", function () {
+            var newWorker = registration.installing;
+            if (!newWorker) {
+              return;
             }
+
+            newWorker.addEventListener("statechange", function () {
+              if (newWorker.state === "installed") {
+                requestActivation(registration);
+              }
+            });
           });
-        });
 
-        registration.update().catch(function () {
-          return null;
-        });
-
-        navigator.serviceWorker.ready
-          .then(function (readyRegistration) {
-            return syncPushSubscription(readyRegistration);
-          })
-          .catch(function () {
+          registration.update().catch(function () {
             return null;
           });
-      })
-      .catch(function (error) {
-        console.warn("Service worker registration failed:", error);
-      });
+
+          navigator.serviceWorker.ready
+            .then(function (readyRegistration) {
+              return syncPushSubscription(readyRegistration);
+            })
+            .catch(function () {
+              return null;
+            });
+        })
+        .catch(function (error) {
+          console.warn("Service worker registration failed:", error);
+          updateInstallDebug();
+        });
+    } else {
+      console.warn("Service workers are not available in this browser.");
+      updateInstallDebug();
+    }
   });
 
   document.addEventListener("click", function (event) {
@@ -505,6 +591,7 @@
 
     event.preventDefault();
     triggerInstallExperience();
+    updateInstallDebug();
   });
 
   window.BisuPwaInstall = {
