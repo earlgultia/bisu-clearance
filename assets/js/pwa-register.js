@@ -28,6 +28,7 @@
   var installBannerElement = null;
   var installBannerTimer = null;
   var installDebugElement = null;
+  var installTriggerBusy = false;
 
   function isStandaloneMode() {
     return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
@@ -322,6 +323,18 @@
     debug.querySelector(".bisu-install-debug__value").textContent = getInstallDebugState();
   }
 
+  function showEmergencyInstallMessage(copy) {
+    var message = copy && copy.message
+      ? copy.message
+      : "Install is not available right now in this browser.";
+
+    try {
+      window.alert(message);
+    } catch (error) {
+      console.warn("Install fallback message failed:", error);
+    }
+  }
+
   function showInstallBanner(ignoreDismissed) {
     var copy = getInstallBannerCopy();
     var banner;
@@ -329,24 +342,52 @@
       return;
     }
 
-    banner = ensureInstallBanner();
-    banner.querySelector(".bisu-install-banner__title").textContent = copy.title;
-    banner.querySelector(".bisu-install-banner__message").textContent = copy.message;
-    banner.querySelector(".bisu-install-banner__primary").textContent = copy.buttonLabel;
-    installBannerShown = true;
-    updateInstallDebug();
+    try {
+      banner = ensureInstallBanner();
+      banner.querySelector(".bisu-install-banner__title").textContent = copy.title;
+      banner.querySelector(".bisu-install-banner__message").textContent = copy.message;
+      banner.querySelector(".bisu-install-banner__primary").textContent = copy.buttonLabel;
+      installBannerShown = true;
+      updateInstallDebug();
+    } catch (error) {
+      console.warn("Install banner failed:", error);
+      showEmergencyInstallMessage(copy);
+    }
   }
 
   function triggerInstallExperience() {
-    clearInstallDismissed();
-
-    if (deferredInstallPrompt) {
-      showInstallPrompt(true);
+    var availableCopy;
+    if (installTriggerBusy) {
       return true;
     }
 
-    showInstallBanner(true);
-    return Boolean(getInstallBannerCopy());
+    installTriggerBusy = true;
+
+    try {
+      clearInstallDismissed();
+      availableCopy = getInstallBannerCopy();
+
+      if (deferredInstallPrompt) {
+        showInstallPrompt(true);
+        return true;
+      }
+
+      if (availableCopy) {
+        showInstallBanner(true);
+        return true;
+      }
+
+      showEmergencyInstallMessage(null);
+      return false;
+    } catch (error) {
+      console.warn("Install trigger failed:", error);
+      showEmergencyInstallMessage(availableCopy);
+      return false;
+    } finally {
+      window.setTimeout(function () {
+        installTriggerBusy = false;
+      }, 400);
+    }
   }
 
   function scheduleInstallBanner(delayMs) {
@@ -361,6 +402,7 @@
 
   function showInstallPrompt(ignoreDismissed) {
     if (!deferredInstallPrompt || installPromptRequested || !canAskForInstall(ignoreDismissed)) {
+      showInstallBanner(true);
       return;
     }
 
@@ -378,6 +420,7 @@
       })
       .catch(function () {
         markInstallDismissed();
+        showInstallBanner(true);
       })
       .finally(function () {
         deferredInstallPrompt = null;
@@ -611,16 +654,28 @@
     }
   });
 
-  document.addEventListener("click", function (event) {
-    var installTrigger = event.target.closest("[data-pwa-install]");
-    if (!installTrigger) {
-      return;
-    }
+  function bindInstallTriggers() {
+    var triggers = document.querySelectorAll("[data-pwa-install]");
 
-    event.preventDefault();
-    triggerInstallExperience();
-    updateInstallDebug();
-  });
+    for (var i = 0; i < triggers.length; i += 1) {
+      if (triggers[i].getAttribute("data-pwa-install-bound") === "1") {
+        continue;
+      }
+
+      triggers[i].setAttribute("data-pwa-install-bound", "1");
+      triggers[i].addEventListener("click", function (event) {
+        event.preventDefault();
+        triggerInstallExperience();
+        updateInstallDebug();
+      });
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindInstallTriggers);
+  } else {
+    bindInstallTriggers();
+  }
 
   window.BisuPwaInstall = {
     canPrompt: function () {

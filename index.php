@@ -2245,22 +2245,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             }
 
             .mobile-install-slot {
-                display: block;
+                display: flex;
+                justify-content: center;
+                order: 2;
             }
 
             .mobile-auth-buttons {
                 display: grid;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 10px;
+                order: 1;
             }
 
             .mobile-auth-row .install-nav-btn {
-                width: 100%;
+                width: auto;
+                min-width: 176px;
+                max-width: 220px;
                 justify-content: center;
-                padding: 12px 14px;
-                font-size: 0.95rem;
-                min-height: 46px;
-                border-radius: 16px;
+                padding: 10px 16px;
+                font-size: 0.88rem;
+                min-height: 42px;
+                border-radius: 999px;
+                box-shadow: none;
             }
 
             .mobile-auth-row .signup-btn,
@@ -2396,22 +2402,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             }
 
             .mobile-install-slot {
-                display: block;
+                display: flex;
+                justify-content: center;
+                order: 2;
             }
 
             .mobile-auth-buttons {
                 display: grid;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 10px;
+                order: 1;
             }
 
             .mobile-auth-row .install-nav-btn {
-                width: 100%;
+                width: auto;
+                min-width: 168px;
+                max-width: 210px;
                 justify-content: center;
-                padding: 12px 14px;
-                font-size: 0.95rem;
-                min-height: 46px;
-                border-radius: 16px;
+                padding: 10px 14px;
+                font-size: 0.86rem;
+                min-height: 40px;
+                border-radius: 999px;
+                box-shadow: none;
             }
 
             .mobile-auth-row .signup-btn,
@@ -2465,11 +2477,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             .hero-buttons {
                 flex-direction: column;
                 align-items: stretch;
+                gap: 12px;
             }
 
             .hero-buttons .btn {
                 width: 100%;
                 justify-content: center;
+            }
+
+            .hero-buttons .btn-install {
+                min-height: 48px;
+                padding: 13px 16px;
+                border-radius: 16px;
+                font-size: 0.96rem;
+                border-width: 1px;
+                background: linear-gradient(135deg, rgba(65, 40, 134, 0.08), rgba(31, 95, 153, 0.10));
             }
 
             .hero-highlights {
