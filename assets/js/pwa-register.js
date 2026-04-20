@@ -49,9 +49,17 @@
     return /android/i.test(window.navigator.userAgent || "");
   }
 
-  function canAskForInstall() {
+  function isDesktopDevice() {
+    return !isAndroidDevice() && !isIosDevice();
+  }
+
+  function canAskForInstall(ignoreDismissed) {
     if (isStandaloneMode()) {
       return false;
+    }
+
+    if (ignoreDismissed) {
+      return true;
     }
 
     try {
@@ -132,7 +140,21 @@
       };
     }
 
-    return null;
+    if (isDesktopDevice()) {
+      return {
+        title: "Install on Desktop",
+        message: 'In Chrome or Edge, click the install icon in the address bar or open the browser menu and choose "Install BISU Clearance".',
+        buttonLabel: "Got it",
+        mode: "desktop-help"
+      };
+    }
+
+    return {
+      title: "Install BISU Clearance",
+      message: "This browser does not currently expose a direct install prompt for this app.",
+      buttonLabel: "Got it",
+      mode: "unsupported-help"
+    };
   }
 
   function ensureInstallBanner() {
@@ -252,6 +274,10 @@
       return "Android detected: waiting for browser install eligibility";
     }
 
+    if (isDesktopDevice()) {
+      return "Desktop detected: use the install prompt or browser install menu";
+    }
+
     return "Install availability depends on this browser";
   }
 
@@ -296,10 +322,10 @@
     debug.querySelector(".bisu-install-debug__value").textContent = getInstallDebugState();
   }
 
-  function showInstallBanner() {
+  function showInstallBanner(ignoreDismissed) {
     var copy = getInstallBannerCopy();
     var banner;
-    if (!copy || !canAskForInstall()) {
+    if (!copy || !canAskForInstall(ignoreDismissed)) {
       return;
     }
 
@@ -312,12 +338,14 @@
   }
 
   function triggerInstallExperience() {
+    clearInstallDismissed();
+
     if (deferredInstallPrompt) {
-      showInstallPrompt();
+      showInstallPrompt(true);
       return true;
     }
 
-    showInstallBanner();
+    showInstallBanner(true);
     return Boolean(getInstallBannerCopy());
   }
 
@@ -331,8 +359,8 @@
     }, typeof delayMs === "number" ? delayMs : 900);
   }
 
-  function showInstallPrompt() {
-    if (!deferredInstallPrompt || installPromptRequested || !canAskForInstall()) {
+  function showInstallPrompt(ignoreDismissed) {
+    if (!deferredInstallPrompt || installPromptRequested || !canAskForInstall(ignoreDismissed)) {
       return;
     }
 
@@ -596,7 +624,7 @@
 
   window.BisuPwaInstall = {
     canPrompt: function () {
-      return canAskForInstall() && Boolean(getInstallBannerCopy());
+      return canAskForInstall(true) && Boolean(getInstallBannerCopy());
     },
     open: triggerInstallExperience
   };
