@@ -235,6 +235,16 @@
     installBannerShown = true;
   }
 
+  function triggerInstallExperience() {
+    if (deferredInstallPrompt) {
+      showInstallPrompt();
+      return true;
+    }
+
+    showInstallBanner();
+    return Boolean(getInstallBannerCopy());
+  }
+
   function scheduleInstallBanner(delayMs) {
     if (installBannerTimer) {
       window.clearTimeout(installBannerTimer);
@@ -486,4 +496,21 @@
         console.warn("Service worker registration failed:", error);
       });
   });
+
+  document.addEventListener("click", function (event) {
+    var installTrigger = event.target.closest("[data-pwa-install]");
+    if (!installTrigger) {
+      return;
+    }
+
+    event.preventDefault();
+    triggerInstallExperience();
+  });
+
+  window.BisuPwaInstall = {
+    canPrompt: function () {
+      return canAskForInstall() && Boolean(getInstallBannerCopy());
+    },
+    open: triggerInstallExperience
+  };
 })();

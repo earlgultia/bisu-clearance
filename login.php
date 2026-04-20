@@ -1004,6 +1004,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             text-decoration: underline;
         }
 
+        .secondary-actions {
+            display: flex;
+            justify-content: center;
+            margin-top: 16px;
+        }
+
+        .install-app-btn {
+            border: 1px solid rgba(65, 40, 134, 0.18);
+            background: rgba(65, 40, 134, 0.06);
+            color: var(--primary);
+            border-radius: 999px;
+            padding: 12px 18px;
+            min-height: 44px;
+            font-weight: 700;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .install-app-btn:hover {
+            background: rgba(65, 40, 134, 0.12);
+            transform: translateY(-1px);
+        }
+
         .back-home {
             text-align: center;
             margin-top: 20px;
@@ -1216,6 +1244,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="register-link">
                 Don't have an account? <a href="register.php">Register here</a>
+            </div>
+
+            <div class="secondary-actions">
+                <button type="button" class="install-app-btn" data-pwa-install>
+                    <i class="fas fa-mobile-alt"></i>
+                    Install App
+                </button>
             </div>
 
             <div class="back-home">

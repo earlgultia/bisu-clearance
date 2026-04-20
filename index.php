@@ -508,6 +508,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             gap: 12px;
         }
 
+        .install-nav-btn {
+            background: rgba(31, 95, 153, 0.08);
+            color: var(--primary) !important;
+            padding: 10px 18px;
+            border-radius: 999px;
+            font-weight: 600;
+            border: 2px solid rgba(31, 95, 153, 0.2);
+            transition: 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .install-nav-btn:hover {
+            background: rgba(31, 95, 153, 0.16);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(20, 59, 99, 0.18);
+        }
+
         .theme-toggle {
             flex-shrink: 0;
         }
@@ -867,6 +888,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         }
 
         .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+            transform: translateY(-3px);
+        }
+
+        .btn-install {
+            border: 2px solid rgba(65, 40, 134, 0.16);
+            color: var(--primary);
+            background: rgba(65, 40, 134, 0.06);
+        }
+
+        .btn-install:hover {
             background: var(--primary);
             color: white;
             transform: translateY(-3px);
@@ -2202,6 +2235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                 gap: 10px;
             }
 
+            .mobile-auth-row .install-nav-btn,
             .mobile-auth-row .signup-btn,
             .mobile-auth-row .login-btn {
                 width: 100%;
@@ -2334,6 +2368,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                 gap: 10px;
             }
 
+            .mobile-auth-row .install-nav-btn,
             .mobile-auth-row .signup-btn,
             .mobile-auth-row .login-btn {
                 width: 100%;
@@ -2556,6 +2591,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
 
                 <!-- Sign Up and Login Buttons Only -->
                 <div class="mobile-auth-row">
+                    <button type="button" class="install-nav-btn" data-pwa-install>
+                        <i class="fas fa-download"></i> Install App
+                    </button>
                     <a href="register.php" class="signup-btn">
                         <i class="fas fa-user-plus"></i> Sign Up
                     </a>
@@ -2623,6 +2661,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                     <a href="login.php" class="btn btn-outline">
                         <i class="fas fa-sign-in-alt"></i> Login
                     </a>
+                    <button type="button" class="btn btn-install" data-pwa-install>
+                        <i class="fas fa-mobile-alt"></i> Install App
+                    </button>
                 </div>
                 <div class="hero-highlights">
                     <span class="hero-chip"><i class="fas fa-check-circle"></i> Real-time updates</span>

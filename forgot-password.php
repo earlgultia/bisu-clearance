@@ -895,6 +895,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transform: translateY(-1px);
         }
 
+        .secondary-actions {
+            margin-top: 14px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .install-app-btn {
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 12px 18px;
+            background: #f8fafc;
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 0.92rem;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .install-app-btn:hover {
+            transform: translateY(-1px);
+            background: #eef2ff;
+        }
+
         .links {
             margin-top: 16px;
             text-align: center;
@@ -1043,6 +1071,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <div class="links">
+            <div class="secondary-actions">
+                <button type="button" class="install-app-btn" data-pwa-install>
+                    <i class="fas fa-mobile-alt"></i>
+                    Install App
+                </button>
+            </div>
             <a href="login.php"><i class="fas fa-arrow-left"></i> Back to Login</a>
         </div>
     </div>
