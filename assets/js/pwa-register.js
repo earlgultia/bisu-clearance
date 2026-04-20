@@ -29,6 +29,7 @@
   var installBannerTimer = null;
   var installDebugElement = null;
   var installTriggerBusy = false;
+  var installIntentPending = false;
 
   function isStandaloneMode() {
     return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
@@ -255,6 +256,10 @@
       return "Installed mode detected";
     }
 
+    if (installIntentPending && !deferredInstallPrompt) {
+      return "Preparing install prompt";
+    }
+
     if (isIosDevice() && isSafariBrowser()) {
       return "iPhone/iPad Safari: use Share > Add to Home Screen";
     }
@@ -362,6 +367,7 @@
     }
 
     installTriggerBusy = true;
+    installIntentPending = true;
 
     try {
       clearInstallDismissed();
@@ -374,12 +380,15 @@
 
       if (availableCopy) {
         showInstallBanner(true);
+        updateInstallDebug();
         return true;
       }
 
+      installIntentPending = false;
       showEmergencyInstallMessage(null);
       return false;
     } catch (error) {
+      installIntentPending = false;
       console.warn("Install trigger failed:", error);
       showEmergencyInstallMessage(availableCopy);
       return false;
@@ -406,6 +415,7 @@
       return;
     }
 
+    installIntentPending = false;
     installPromptRequested = true;
     deferredInstallPrompt.prompt();
 
@@ -423,6 +433,7 @@
         showInstallBanner(true);
       })
       .finally(function () {
+        installIntentPending = false;
         deferredInstallPrompt = null;
         installPromptRequested = false;
         updateInstallDebug();
@@ -595,12 +606,17 @@
     deferredInstallPrompt = event;
     clearInstallDismissed();
     updateInstallDebug();
+    if (installIntentPending) {
+      showInstallPrompt(true);
+      return;
+    }
     scheduleInstallBanner(1200);
   });
 
   window.addEventListener("appinstalled", function () {
     deferredInstallPrompt = null;
     installPromptRequested = false;
+    installIntentPending = false;
     clearInstallDismissed();
     dismissInstallBanner(false);
     updateInstallDebug();
