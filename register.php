@@ -1047,34 +1047,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             text-decoration: underline;
         }
 
-        .secondary-actions {
-            display: flex;
-            justify-content: center;
-            margin-top: 16px;
-        }
-
-        .install-app-btn {
-            border: 1px solid rgba(255, 255, 255, 0.22);
-            background: rgba(255, 255, 255, 0.08);
-            color: white;
-            border-radius: 999px;
-            padding: 12px 18px;
-            min-height: 44px;
-            font-weight: 700;
-            font-size: 0.95rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .install-app-btn:hover {
-            background: rgba(255, 255, 255, 0.16);
-            transform: translateY(-1px);
-        }
-
         .back-home {
             text-align: center;
             margin-top: 20px;
@@ -1423,12 +1395,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
                     Already have an account? <a href="login.php">Login here</a>
                 </div>
 
-                <div class="secondary-actions">
-                    <button type="button" class="install-app-btn" data-pwa-install>
-                        <i class="fas fa-mobile-alt" aria-hidden="true"></i>
-                        Install App
-                    </button>
-                </div>
             </form>
         </div>
         </div>

@@ -16,6 +16,7 @@
 
   var appRoot = resolveAppRoot();
   var swVersion = "20260420-1";
+  var useNativeInstallPromptOnly = true;
   var swUrl = appRoot + "service-worker.js?v=" + encodeURIComponent(swVersion);
   var pushConfigUrl = appRoot + "push_notifications.php?action=config";
   var pushSubscribeUrl = appRoot + "push_notifications.php?action=subscribe";
@@ -30,6 +31,23 @@
   var installDebugElement = null;
   var installTriggerBusy = false;
   var installIntentPending = false;
+
+  function isInstallDebugEnabled() {
+    return false;
+  }
+
+  function removeInstallDebug() {
+    if (installDebugElement && installDebugElement.parentNode) {
+      installDebugElement.parentNode.removeChild(installDebugElement);
+    }
+
+    installDebugElement = null;
+  }
+
+  function clearInstallUi(rememberChoice) {
+    dismissInstallBanner(rememberChoice);
+    removeInstallDebug();
+  }
 
   function isStandaloneMode() {
     return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
@@ -288,6 +306,10 @@
   }
 
   function ensureInstallDebug() {
+    if (!isInstallDebugEnabled()) {
+      return null;
+    }
+
     if (installDebugElement) {
       return installDebugElement;
     }
@@ -325,22 +347,22 @@
 
   function updateInstallDebug() {
     var debug = ensureInstallDebug();
+    if (!debug) {
+      return;
+    }
+
     debug.querySelector(".bisu-install-debug__value").textContent = getInstallDebugState();
   }
 
   function showEmergencyInstallMessage(copy) {
-    var message = copy && copy.message
-      ? copy.message
-      : "Install is not available right now in this browser.";
-
-    try {
-      window.alert(message);
-    } catch (error) {
-      console.warn("Install fallback message failed:", error);
-    }
+    return;
   }
 
   function showInstallBanner(ignoreDismissed) {
+    if (useNativeInstallPromptOnly) {
+      return;
+    }
+
     var copy = getInstallBannerCopy();
     var banner;
     if (!copy || !canAskForInstall(ignoreDismissed)) {
@@ -361,6 +383,10 @@
   }
 
   function triggerInstallExperience() {
+    if (useNativeInstallPromptOnly) {
+      return false;
+    }
+
     var availableCopy;
     if (installTriggerBusy) {
       return true;
@@ -400,6 +426,10 @@
   }
 
   function scheduleInstallBanner(delayMs) {
+    if (useNativeInstallPromptOnly) {
+      return;
+    }
+
     if (installBannerTimer) {
       window.clearTimeout(installBannerTimer);
     }
@@ -410,6 +440,10 @@
   }
 
   function showInstallPrompt(ignoreDismissed) {
+    if (useNativeInstallPromptOnly) {
+      return false;
+    }
+
     if (!deferredInstallPrompt || installPromptRequested || !canAskForInstall(ignoreDismissed)) {
       showInstallBanner(true);
       return;
@@ -602,6 +636,15 @@
   }
 
   window.addEventListener("beforeinstallprompt", function (event) {
+    if (useNativeInstallPromptOnly) {
+      deferredInstallPrompt = null;
+      installIntentPending = false;
+      installPromptRequested = false;
+      clearInstallUi(false);
+      clearInstallDismissed();
+      return;
+    }
+
     event.preventDefault();
     deferredInstallPrompt = event;
     clearInstallDismissed();
@@ -618,13 +661,12 @@
     installPromptRequested = false;
     installIntentPending = false;
     clearInstallDismissed();
-    dismissInstallBanner(false);
-    updateInstallDebug();
+    clearInstallUi(false);
   });
 
   window.addEventListener("load", function () {
-    updateInstallDebug();
-    if (!isStandaloneMode() && canAskForInstall()) {
+    clearInstallUi(false);
+    if (!useNativeInstallPromptOnly && !isStandaloneMode() && canAskForInstall()) {
       scheduleInstallBanner(isIosDevice() ? 1200 : 2400);
     }
 
@@ -662,11 +704,9 @@
         })
         .catch(function (error) {
           console.warn("Service worker registration failed:", error);
-          updateInstallDebug();
         });
     } else {
       console.warn("Service workers are not available in this browser.");
-      updateInstallDebug();
     }
   });
 
@@ -674,6 +714,13 @@
     var triggers = document.querySelectorAll("[data-pwa-install]");
 
     for (var i = 0; i < triggers.length; i += 1) {
+      if (useNativeInstallPromptOnly) {
+        if (triggers[i].parentNode) {
+          triggers[i].parentNode.removeChild(triggers[i]);
+        }
+        continue;
+      }
+
       if (triggers[i].getAttribute("data-pwa-install-bound") === "1") {
         continue;
       }
@@ -695,8 +742,14 @@
 
   window.BisuPwaInstall = {
     canPrompt: function () {
-      return canAskForInstall(true) && Boolean(getInstallBannerCopy());
+      return !useNativeInstallPromptOnly && canAskForInstall(true) && Boolean(getInstallBannerCopy());
     },
-    open: triggerInstallExperience
+    open: function () {
+      if (useNativeInstallPromptOnly) {
+        return false;
+      }
+
+      return triggerInstallExperience();
+    }
   };
 })();
