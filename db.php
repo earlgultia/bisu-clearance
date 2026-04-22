@@ -24,7 +24,7 @@ define('BASE_URL', 'http://localhost/clearance/');  // Change this to your actua
 // Site information
 define('SITE_NAME', 'BISU Student Online Clearance System');
 define('SITE_VERSION', 'BETA 1.5.0');
-define('ASSET_VERSION', '20260416-3');
+define('ASSET_VERSION', '20260422-2');
 define('DEBUG_MODE', file_exists(BASE_PATH . '/.env'));
 
 // Web push defaults (override in environment variables when deploying).

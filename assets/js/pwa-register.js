@@ -15,8 +15,8 @@
   }
 
   var appRoot = resolveAppRoot();
-  var swVersion = "20260420-1";
-  var useNativeInstallPromptOnly = true;
+  var swVersion = "20260422-2";
+  var useNativeInstallPromptOnly = isIosDevice();
   var swUrl = appRoot + "service-worker.js?v=" + encodeURIComponent(swVersion);
   var pushConfigUrl = appRoot + "push_notifications.php?action=config";
   var pushSubscribeUrl = appRoot + "push_notifications.php?action=subscribe";
@@ -28,20 +28,15 @@
   var installBannerShown = false;
   var installBannerElement = null;
   var installBannerTimer = null;
-  var installDebugElement = null;
   var installTriggerBusy = false;
   var installIntentPending = false;
 
-  function isInstallDebugEnabled() {
-    return false;
-  }
-
   function removeInstallDebug() {
-    if (installDebugElement && installDebugElement.parentNode) {
-      installDebugElement.parentNode.removeChild(installDebugElement);
-    }
+    var debug = document.getElementById("bisuInstallDebug");
 
-    installDebugElement = null;
+    if (debug && debug.parentNode) {
+      debug.parentNode.removeChild(debug);
+    }
   }
 
   function clearInstallUi(rememberChoice) {
@@ -213,7 +208,7 @@
         "font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.8;margin-bottom:8px;" +
       "}" +
       "#bisuInstallBanner .bisu-install-banner__title{" +
-        "margin:0 34px 8px 0;font-size:20px;line-height:1.2;" +
+        "margin:0 60px 8px 0;font-size:20px;line-height:1.2;" +
       "}" +
       "#bisuInstallBanner .bisu-install-banner__message{" +
         "margin:0;font-size:14px;line-height:1.5;opacity:.94;" +
@@ -232,8 +227,13 @@
         "background:rgba(255,255,255,.16);color:#fff;" +
       "}" +
       "#bisuInstallBanner .bisu-install-banner__close{" +
-        "position:absolute;top:10px;right:10px;width:32px;height:32px;border:0;border-radius:50%;" +
-        "background:rgba(255,255,255,.14);color:#fff;font-size:22px;line-height:1;cursor:pointer;" +
+        "position:absolute;top:8px;right:8px;width:44px;height:44px;padding:0;border:0;border-radius:50%;" +
+        "display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.16);" +
+        "color:#fff;font-size:26px;font-weight:700;line-height:1;cursor:pointer;z-index:2;touch-action:manipulation;" +
+      "}" +
+      "#bisuInstallBanner .bisu-install-banner__close:hover," +
+      "#bisuInstallBanner .bisu-install-banner__close:focus-visible{" +
+        "background:rgba(255,255,255,.28);outline:none;" +
       "}" +
       "@media (min-width: 768px){" +
         "#bisuInstallBanner{left:auto;right:24px;bottom:24px;max-width:380px;}" +
@@ -269,89 +269,8 @@
     return banner;
   }
 
-  function getInstallDebugState() {
-    if (isStandaloneMode()) {
-      return "Installed mode detected";
-    }
-
-    if (installIntentPending && !deferredInstallPrompt) {
-      return "Preparing install prompt";
-    }
-
-    if (isIosDevice() && isSafariBrowser()) {
-      return "iPhone/iPad Safari: use Share > Add to Home Screen";
-    }
-
-    if (!window.isSecureContext && !isIosDevice()) {
-      return "Install blocked: HTTPS required";
-    }
-
-    if (deferredInstallPrompt) {
-      return "Android install prompt ready";
-    }
-
-    if (!("serviceWorker" in navigator)) {
-      return "Install limited: service workers unsupported";
-    }
-
-    if (isAndroidDevice()) {
-      return "Android detected: waiting for browser install eligibility";
-    }
-
-    if (isDesktopDevice()) {
-      return "Desktop detected: use the install prompt or browser install menu";
-    }
-
-    return "Install availability depends on this browser";
-  }
-
-  function ensureInstallDebug() {
-    if (!isInstallDebugEnabled()) {
-      return null;
-    }
-
-    if (installDebugElement) {
-      return installDebugElement;
-    }
-
-    var debug = document.createElement("div");
-    debug.setAttribute("id", "bisuInstallDebug");
-    debug.setAttribute("aria-live", "polite");
-    debug.innerHTML =
-      '<span class="bisu-install-debug__label">Install status</span>' +
-      '<span class="bisu-install-debug__value"></span>';
-
-    var style = document.createElement("style");
-    style.textContent =
-      "#bisuInstallDebug{" +
-        "position:fixed;left:12px;right:12px;bottom:12px;z-index:99998;" +
-        "display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:14px;" +
-        "background:rgba(15,23,42,.88);color:#fff;font:12px/1.4 Arial,sans-serif;" +
-        "box-shadow:0 10px 24px rgba(0,0,0,.22);backdrop-filter:blur(8px);" +
-      "}" +
-      "#bisuInstallDebug .bisu-install-debug__label{" +
-        "text-transform:uppercase;letter-spacing:.08em;opacity:.7;font-size:10px;font-weight:700;" +
-      "}" +
-      "#bisuInstallDebug .bisu-install-debug__value{" +
-        "font-size:12px;font-weight:600;" +
-      "}" +
-      "@media (min-width:768px){" +
-        "#bisuInstallDebug{left:auto;right:16px;bottom:16px;max-width:320px;}" +
-      "}";
-
-    document.head.appendChild(style);
-    document.body.appendChild(debug);
-    installDebugElement = debug;
-    return debug;
-  }
-
   function updateInstallDebug() {
-    var debug = ensureInstallDebug();
-    if (!debug) {
-      return;
-    }
-
-    debug.querySelector(".bisu-install-debug__value").textContent = getInstallDebugState();
+    removeInstallDebug();
   }
 
   function showEmergencyInstallMessage(copy) {
@@ -365,7 +284,7 @@
 
     var copy = getInstallBannerCopy();
     var banner;
-    if (!copy || !canAskForInstall(ignoreDismissed)) {
+    if (!copy || !canAskForInstall(ignoreDismissed) || copy.mode !== "prompt") {
       return;
     }
 
@@ -387,7 +306,6 @@
       return false;
     }
 
-    var availableCopy;
     if (installTriggerBusy) {
       return true;
     }
@@ -397,26 +315,17 @@
 
     try {
       clearInstallDismissed();
-      availableCopy = getInstallBannerCopy();
 
       if (deferredInstallPrompt) {
         showInstallPrompt(true);
         return true;
       }
 
-      if (availableCopy) {
-        showInstallBanner(true);
-        updateInstallDebug();
-        return true;
-      }
-
       installIntentPending = false;
-      showEmergencyInstallMessage(null);
       return false;
     } catch (error) {
       installIntentPending = false;
       console.warn("Install trigger failed:", error);
-      showEmergencyInstallMessage(availableCopy);
       return false;
     } finally {
       window.setTimeout(function () {
@@ -742,7 +651,7 @@
 
   window.BisuPwaInstall = {
     canPrompt: function () {
-      return !useNativeInstallPromptOnly && canAskForInstall(true) && Boolean(getInstallBannerCopy());
+      return !useNativeInstallPromptOnly && canAskForInstall(true) && Boolean(deferredInstallPrompt);
     },
     open: function () {
       if (useNativeInstallPromptOnly) {
