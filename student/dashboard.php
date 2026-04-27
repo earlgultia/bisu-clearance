@@ -196,16 +196,6 @@ function saveOptimizedUploadedImage($sourcePath, $destinationPath, $mimeType, $m
         return false;
     }
 
-    $createFunctions = [
-        'image/jpeg' => 'imagecreatefromjpeg',
-        'image/jpg' => 'imagecreatefromjpeg',
-        'image/png' => 'imagecreatefrompng'
-    ];
-
-    if (!isset($createFunctions[$mimeType])) {
-        return false;
-    }
-
     $imageSize = @getimagesize($sourcePath);
     if (!$imageSize || empty($imageSize[0]) || empty($imageSize[1])) {
         return false;
@@ -222,12 +212,24 @@ function saveOptimizedUploadedImage($sourcePath, $destinationPath, $mimeType, $m
         return false;
     }
 
-    $createFunction = $createFunctions[$mimeType];
-    if (!function_exists($createFunction)) {
-        return false;
+    $createFunctions = [
+        'image/jpeg' => 'imagecreatefromjpeg',
+        'image/jpg' => 'imagecreatefromjpeg',
+        'image/png' => 'imagecreatefrompng',
+        'image/gif' => 'imagecreatefromgif',
+        'image/webp' => 'imagecreatefromwebp',
+        'image/bmp' => 'imagecreatefrombmp'
+    ];
+
+    $createFunction = $createFunctions[$mimeType] ?? null;
+    if ($createFunction !== null && function_exists($createFunction)) {
+        $sourceImage = @$createFunction($sourcePath);
+    } elseif (function_exists('imagecreatefromstring')) {
+        $sourceImage = @imagecreatefromstring((string) @file_get_contents($sourcePath));
+    } else {
+        $sourceImage = false;
     }
 
-    $sourceImage = @$createFunction($sourcePath);
     if (!$sourceImage) {
         return false;
     }
@@ -279,6 +281,8 @@ function saveOptimizedUploadedImage($sourcePath, $destinationPath, $mimeType, $m
         }
     } elseif ($mimeType === 'image/png' && function_exists('imagepng')) {
         $saved = imagepng($outputImage, $destinationPath, max(0, min(9, (int) $pngCompression)));
+    } elseif (function_exists('imagejpeg')) {
+        $saved = imagejpeg($outputImage, $destinationPath, max(55, min(90, (int) $jpegQuality)));
     }
 
     if ($outputImage !== $sourceImage) {
@@ -1490,35 +1494,78 @@ if (isset($_POST['send_message'])) {
                                         if (!file_exists($message_upload_dir) && !mkdir($message_upload_dir, 0777, true)) {
                                             $error = "Unable to prepare attachment upload folder.";
                                         } else {
-                                            $attachment_filename = 'msg_' . (int) $student_id . '_' . (int) $recipient_id . '_' . time() . '_' . mt_rand(1000, 9999) . '.' . $attachment_extension;
-                                            $attachment_target_path = $message_upload_dir . $attachment_filename;
-
-                                            if (!move_uploaded_file((string) ($attachment_upload['tmp_name'] ?? ''), $attachment_target_path)) {
-                                                $error = "Unable to upload attachment right now.";
-                                            } else {
-                                                $attachment_mime_type = strtolower((string) ($attachment_upload['type'] ?? ''));
-                                                if ($attachment_mime_type === '' && function_exists('finfo_open')) {
-                                                    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                                                    if ($finfo) {
-                                                        $detected_mime = finfo_file($finfo, $attachment_target_path);
-                                                        finfo_close($finfo);
-                                                        $attachment_mime_type = strtolower((string) ($detected_mime ?? ''));
+                                            $attachment_tmp_path = (string) ($attachment_upload['tmp_name'] ?? '');
+                                            $attachment_mime_type = detectUploadedMimeType($attachment_tmp_path);
+                                            if ($attachment_mime_type === '' && function_exists('finfo_open')) {
+                                                $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+                                                if ($finfo) {
+                                                    $detected_mime = @finfo_file($finfo, $attachment_tmp_path);
+                                                    @finfo_close($finfo);
+                                                    if (is_string($detected_mime) && $detected_mime !== '') {
+                                                        $attachment_mime_type = strtolower($detected_mime);
                                                     }
                                                 }
+                                            }
 
-                                                $image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
-                                                $audio_extensions = ['mp3', 'wav', 'ogg', 'm4a', 'aac'];
+                                            $image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+                                            $audio_extensions = ['mp3', 'wav', 'ogg', 'm4a', 'aac'];
+                                            $is_image_attachment = strpos($attachment_mime_type, 'image/') === 0 || in_array($attachment_extension, $image_extensions, true);
+                                            $is_audio_attachment = strpos($attachment_mime_type, 'audio/') === 0 || in_array($attachment_extension, $audio_extensions, true);
 
-                                                $message_attachment_type = 'file';
-                                                if (strpos($attachment_mime_type, 'image/') === 0 || in_array($attachment_extension, $image_extensions, true)) {
-                                                    $message_attachment_type = 'image';
-                                                } elseif (strpos($attachment_mime_type, 'audio/') === 0 || in_array($attachment_extension, $audio_extensions, true)) {
-                                                    $message_attachment_type = 'audio';
+                                            $message_attachment_type = 'file';
+                                            if ($is_image_attachment) {
+                                                $message_attachment_type = 'image';
+                                            } elseif ($is_audio_attachment) {
+                                                $message_attachment_type = 'audio';
+                                            }
+
+                                            $attachment_base_filename = 'msg_' . (int) $student_id . '_' . (int) $recipient_id . '_' . time() . '_' . mt_rand(1000, 9999);
+                                            $attachment_should_compress = $is_image_attachment && in_array($attachment_mime_type, ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'], true);
+                                            $attachment_extension_to_save = $attachment_should_compress
+                                                ? (($attachment_mime_type === 'image/png') ? 'png' : 'jpg')
+                                                : $attachment_extension;
+                                            $attachment_filename = $attachment_base_filename . '.' . $attachment_extension_to_save;
+                                            $attachment_target_path = $message_upload_dir . $attachment_filename;
+                                            $attachment_saved = false;
+
+                                            if ($attachment_should_compress) {
+                                                $attachment_saved = saveOptimizedUploadedImage(
+                                                    $attachment_tmp_path,
+                                                    $attachment_target_path,
+                                                    $attachment_mime_type,
+                                                    1600,
+                                                    78,
+                                                    6
+                                                );
+                                            }
+
+                                            if (!$attachment_saved) {
+                                                if ($attachment_should_compress && file_exists($attachment_target_path)) {
+                                                    @unlink($attachment_target_path);
                                                 }
 
+                                                $attachment_filename = $attachment_base_filename . '.' . $attachment_extension;
+                                                $attachment_target_path = $message_upload_dir . $attachment_filename;
+
+                                                if (!move_uploaded_file($attachment_tmp_path, $attachment_target_path)) {
+                                                    $error = "Unable to upload attachment right now.";
+                                                } else {
+                                                    $attachment_saved = true;
+                                                }
+                                            }
+
+                                            if ($attachment_saved) {
                                                 $message_attachment_file = 'uploads/messages/student/' . $attachment_filename;
                                                 $message_attachment_name = $original_attachment_name !== '' ? $original_attachment_name : ('attachment.' . $attachment_extension);
-                                                $message_attachment_size = $attachment_size_bytes;
+                                                $message_attachment_size = (int) (@filesize($attachment_target_path) ?: $attachment_size_bytes);
+
+                                                if ($message_attachment_size <= 0) {
+                                                    $message_attachment_size = $attachment_size_bytes;
+                                                }
+
+                                                if ($attachment_should_compress && $attachment_extension_to_save !== $attachment_extension && $message_attachment_name === ('attachment.' . $attachment_extension)) {
+                                                    $message_attachment_name = 'attachment.' . $attachment_extension_to_save;
+                                                }
                                             }
                                         }
                                     }
@@ -1661,6 +1708,67 @@ if (isset($_POST['upload_proof'])) {
                     throw new Exception("Unable to create proof upload directory");
                 }
 
+                $db = Database::getInstance();
+                ensureOrganizationProofColumns($db);
+                $is_org_upload = $upload_target_type === 'organization' && $org_clearance_id > 0;
+
+                if ($is_org_upload) {
+                    $db->query("SELECT oc.student_proof_file, so.org_name
+                                FROM organization_clearance oc
+                                JOIN clearance c ON oc.clearance_id = c.clearance_id
+                                JOIN student_organizations so ON oc.org_id = so.org_id
+                                WHERE oc.org_clearance_id = :org_clearance_id
+                                AND oc.clearance_id = :clearance_id
+                                AND c.users_id = :student_id
+                                LIMIT 1");
+                    $db->bind(':org_clearance_id', $org_clearance_id);
+                    $db->bind(':clearance_id', $clearance_id);
+                    $db->bind(':student_id', $student_id);
+                    $org_upload_target = $db->single();
+
+                    if (!$org_upload_target) {
+                        throw new Exception("Organization clearance not found");
+                    }
+
+                    if ($upload_target_name === '') {
+                        $upload_target_name = $org_upload_target['org_name'] ?? 'Organization';
+                    }
+
+                    if (!empty($org_upload_target['student_proof_file'])) {
+                        throw new Exception("Proof has already been uploaded for this organization clearance.");
+                    }
+                } else {
+                    // First, get the office_id from office_name
+                    $db->query("SELECT office_id FROM offices WHERE office_name = :office_name");
+                    $db->bind(':office_name', $office_name);
+                    $office_result = $db->single();
+
+                    if (!$office_result) {
+                        throw new Exception("Office not found");
+                    }
+
+                    $office_id = (int) $office_result['office_id'];
+
+                    $db->query("SELECT student_proof_file
+                                FROM clearance
+                                WHERE clearance_id = :id
+                                AND users_id = :student_id
+                                AND office_id = :office_id
+                                LIMIT 1");
+                    $db->bind(':id', $clearance_id);
+                    $db->bind(':student_id', $student_id);
+                    $db->bind(':office_id', $office_id);
+                    $existing_proof_row = $db->single();
+
+                    if (!$existing_proof_row) {
+                        throw new Exception("Clearance record not found");
+                    }
+
+                    if (!empty($existing_proof_row['student_proof_file'])) {
+                        throw new Exception("Proof has already been uploaded for this clearance item.");
+                    }
+                }
+
                 // Generate unique filename
                 $extension = $is_pdf_upload ? 'pdf' : $allowed_image_types[$detected_mime_type];
                 $filename = 'proof_student_' . $student_id . '_' . $clearance_id . '_' . time() . '.' . $extension;
@@ -1687,43 +1795,6 @@ if (isset($_POST['upload_proof'])) {
                 }
 
                 if ($upload_saved) {
-                    $db = Database::getInstance();
-                    ensureOrganizationProofColumns($db);
-                    $is_org_upload = $upload_target_type === 'organization' && $org_clearance_id > 0;
-
-                    if ($is_org_upload) {
-                        $db->query("SELECT oc.org_clearance_id, oc.clearance_id, so.org_name
-                                    FROM organization_clearance oc
-                                    JOIN clearance c ON oc.clearance_id = c.clearance_id
-                                    JOIN student_organizations so ON oc.org_id = so.org_id
-                                    WHERE oc.org_clearance_id = :org_clearance_id
-                                    AND oc.clearance_id = :clearance_id
-                                    AND c.users_id = :student_id");
-                        $db->bind(':org_clearance_id', $org_clearance_id);
-                        $db->bind(':clearance_id', $clearance_id);
-                        $db->bind(':student_id', $student_id);
-                        $org_upload_target = $db->single();
-
-                        if (!$org_upload_target) {
-                            throw new Exception("Organization clearance not found");
-                        }
-
-                        if ($upload_target_name === '') {
-                            $upload_target_name = $org_upload_target['org_name'] ?? 'Organization';
-                        }
-                    } else {
-                        // First, get the office_id from office_name
-                        $db->query("SELECT office_id FROM offices WHERE office_name = :office_name");
-                        $db->bind(':office_name', $office_name);
-                        $office_result = $db->single();
-
-                        if (!$office_result) {
-                            throw new Exception("Office not found");
-                        }
-
-                        $office_id = $office_result['office_id'];
-                    }
-
                     // Check if the columns exist
                     $column_exists = hasDatabaseColumn('clearance', 'student_proof_file');
 
@@ -9055,7 +9126,7 @@ function getOrganizationIcon($org_type)
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn-secondary" onclick="closeUploadModal()">Cancel</button>
-                    <button type="submit" name="upload_proof" class="btn-proof-upload">
+                    <button type="submit" name="upload_proof" class="btn-proof-upload" id="uploadProofBtn">
                         <i class="fas fa-upload"></i> Upload Proof
                     </button>
                 </div>
@@ -9230,8 +9301,12 @@ function getOrganizationIcon($org_type)
         const applyClearanceType = document.getElementById('applyClearanceType');
         const dashboardLogoutLinks = Array.from(document.querySelectorAll('a[href*="logout.php"]'));
         const dashboardBackGuardKey = '__studentDashboardBackGuard';
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadProofBtn = document.getElementById('uploadProofBtn');
+        const proofFileInput = document.getElementById('proofFile');
         let allowDashboardBackExit = false;
         let lastBackGuardToastAt = 0;
+        let proofUploadInProgress = false;
 
         function normalizeClearanceTypeValue(value) {
             return String(value || '')
@@ -9642,6 +9717,11 @@ function getOrganizationIcon($org_type)
 
         // Upload Modal
         function openUploadModal(clearanceId, officeName, targetType = 'office', orgClearanceId = 0) {
+            if (proofUploadInProgress) {
+                showToast('A proof upload is already in progress. Please wait for it to finish.', 'warning');
+                return;
+            }
+
             document.getElementById('uploadClearanceId').value = clearanceId;
             document.getElementById('uploadOfficeName').value = officeName;
             document.getElementById('uploadOrgClearanceId').value = orgClearanceId || '';
@@ -9654,6 +9734,10 @@ function getOrganizationIcon($org_type)
         }
 
         function closeUploadModal() {
+            if (proofUploadInProgress) {
+                return;
+            }
+
             document.getElementById('uploadModal').style.display = 'none';
             document.getElementById('proofFile').value = '';
             document.getElementById('proofRemarks').value = '';
@@ -9662,6 +9746,17 @@ function getOrganizationIcon($org_type)
             document.getElementById('uploadTargetName').value = '';
             document.getElementById('uploadTargetHelp').textContent = 'Upload proof that you have resolved the lacking items. This will be sent to the office for review.';
         }
+
+        uploadForm?.addEventListener('submit', () => {
+            proofUploadInProgress = true;
+            if (uploadProofBtn) {
+                uploadProofBtn.disabled = true;
+                uploadProofBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+            }
+            if (proofFileInput) {
+                proofFileInput.disabled = true;
+            }
+        });
 
         // Auto-hide toasts
         setTimeout(() => {
