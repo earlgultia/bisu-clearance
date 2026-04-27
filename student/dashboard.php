@@ -7177,7 +7177,7 @@ function getOrganizationIcon($org_type)
             .conversation-delete-alert-container.swal2-container {
                 align-items: center;
                 justify-content: flex-start;
-                padding-top: calc(var(--mobile-header-offset, 0px) + env(safe-area-inset-top) + 0.45rem);
+                padding-top: calc(var(--mobile-header-offset, 0px) + env(safe-area-inset-top) + 0.15rem);
                 padding-right: 0.7rem;
                 padding-bottom: max(0.7rem, env(safe-area-inset-bottom));
                 padding-left: 0.7rem;
@@ -7314,7 +7314,7 @@ function getOrganizationIcon($org_type)
             }
 
             .conversation-delete-alert-container.swal2-container {
-                padding-top: calc(var(--mobile-header-offset, 0px) + env(safe-area-inset-top) + 0.35rem);
+                padding-top: calc(var(--mobile-header-offset, 0px) + env(safe-area-inset-top) + 0.1rem);
                 padding-right: 0.5rem;
                 padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
                 padding-left: 0.5rem;
