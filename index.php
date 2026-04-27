@@ -2576,12 +2576,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                 <!-- Sign Up and Login Buttons Only -->
                 <div class="mobile-auth-row">
                     <div class="mobile-auth-buttons">
-                        <a href="register.php" class="signup-btn">
-                            <i class="fas fa-user-plus"></i> Sign Up
-                        </a>
-                        <a href="login.php" class="login-btn">
-                            <i class="fas fa-sign-in-alt"></i> Login
-                        </a>
+                        <a href="register.php" class="signup-btn">Sign Up</a>
+                        <a href="login.php" class="login-btn">Login</a>
                     </div>
                 </div>
                 
