@@ -655,6 +655,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             font-weight: 600;
             border: 2px solid var(--primary);
             transition: 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
         }
 
         .signup-btn:hover {
@@ -675,6 +679,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             border-radius: 999px;
             font-weight: 600;
             box-shadow: 0 4px 15px rgba(65, 40, 134, 0.3);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
         }
 
         .login-btn:hover {
