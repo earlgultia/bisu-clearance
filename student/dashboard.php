@@ -9264,7 +9264,9 @@ function getOrganizationIcon($org_type)
                         htmlContainer: 'graduating-alert-text',
                         confirmButton: 'graduating-alert-confirm'
                     },
-                    buttonsStyling: false
+                    buttonsStyling: false,
+                    heightAuto: false,
+                    scrollbarPadding: false
                 });
                 return;
             }
