@@ -1204,7 +1204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <button type="submit" class="login-btn" id="loginBtn">
-                    <span class="btn-text"><i class="fas fa-sign-in-alt"></i> Login to Your Account</span>
+                    <span class="btn-text">Login</span>
                     <span class="spinner"></span>
                 </button>
 
