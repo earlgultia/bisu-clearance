@@ -7918,8 +7918,7 @@ function getOrganizationIcon($org_type)
 
                         <?php if ($current_clearance['can_cancel']): ?>
                             <div style="text-align: right; margin-top: 1rem;">
-                                <form method="POST"
-                                    onsubmit="return confirm('Are you sure you want to cancel this application? This action cannot be undone.');">
+                                <form method="POST" class="cancel-application-form">
                                     <input type="hidden" name="semester" value="<?php echo $current_clearance['semester']; ?>">
                                     <input type="hidden" name="school_year"
                                         value="<?php echo $current_clearance['school_year']; ?>">
@@ -8411,8 +8410,7 @@ function getOrganizationIcon($org_type)
 
                                     <?php if (!empty($group['can_cancel'])): ?>
                                         <div style="text-align: right; margin-top: 1rem;">
-                                            <form method="POST"
-                                                onsubmit="return confirm('Are you sure you want to cancel this application? This action cannot be undone.');">
+                                            <form method="POST" class="cancel-application-form">
                                                 <input type="hidden" name="semester" value="<?php echo $group['semester']; ?>">
                                                 <input type="hidden" name="school_year" value="<?php echo $group['school_year']; ?>">
                                                 <button type="submit" name="cancel_application" class="cancel-btn">
@@ -9349,6 +9347,50 @@ function getOrganizationIcon($org_type)
             window.alert(`${title}\n${message}`);
         }
 
+        function confirmCancelApplication(formElement) {
+            if (!formElement) {
+                return false;
+            }
+
+            const submitForm = () => formElement.submit();
+            const warningText = 'This will cancel the current clearance application and cannot be undone.';
+
+            if (window.Swal && typeof window.Swal.fire === 'function') {
+                window.Swal.fire({
+                    icon: 'warning',
+                    title: 'Cancel Application?',
+                    text: warningText,
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, cancel it',
+                    cancelButtonText: 'Keep it',
+                    reverseButtons: true,
+                    customClass: {
+                        popup: 'conversation-delete-alert-popup',
+                        container: 'conversation-delete-alert-container',
+                        title: 'conversation-delete-alert-title',
+                        htmlContainer: 'conversation-delete-alert-text',
+                        confirmButton: 'conversation-delete-alert-confirm',
+                        cancelButton: 'conversation-delete-alert-cancel'
+                    },
+                    buttonsStyling: false,
+                    heightAuto: false,
+                    scrollbarPadding: false
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        submitForm();
+                    }
+                });
+
+                return false;
+            }
+
+            if (window.confirm(`${warningText}\n\nPress OK to continue.`)) {
+                submitForm();
+            }
+
+            return false;
+        }
+
         function enforceAvailableClearanceTypeSelection(selectElement) {
             if (!selectElement) {
                 return true;
@@ -9712,6 +9754,13 @@ function getOrganizationIcon($org_type)
                 if (tabName) {
                     switchTab(tabName);
                 }
+            });
+        });
+
+        document.querySelectorAll('.cancel-application-form').forEach((formElement) => {
+            formElement.addEventListener('submit', (event) => {
+                event.preventDefault();
+                confirmCancelApplication(formElement);
             });
         });
 
