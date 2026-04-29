@@ -3351,6 +3351,8 @@ function getActivityIcon($action)
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(versionedUrl('assets/img/favicon.png'), ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="manifest" href="<?php echo htmlspecialchars(versionedUrl('manifest.webmanifest'), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="theme-color" content="#412886">
+    <script src="../assets/js/theme-manager.js"></script>
+    <link rel="stylesheet" href="../assets/css/theme-performance.css">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BISU Clearance">
@@ -5103,20 +5105,6 @@ function getActivityIcon($action)
             themeIcon.classList.add('fa-sun');
         }
 
-        themeToggle.addEventListener('click', () => {
-            body.classList.toggle('dark-mode');
-
-            if (body.classList.contains('dark-mode')) {
-                localStorage.setItem('theme', 'dark');
-                themeIcon.classList.remove('fa-moon');
-                themeIcon.classList.add('fa-sun');
-            } else {
-                localStorage.setItem('theme', 'light');
-                themeIcon.classList.remove('fa-sun');
-                themeIcon.classList.add('fa-moon');
-            }
-        });
-
         function escapeHtml(value) {
             return String(value ?? '')
                 .replace(/&/g, '&amp;')
@@ -5920,18 +5908,30 @@ function getActivityIcon($action)
             setFilterFeedback(cards, 'studentsVisibleCount', 'studentsNoResults', 'students');
         }
 
+        const debounce = (callback, wait = 140) => {
+            let timeoutId = 0;
+            return (...args) => {
+                window.clearTimeout(timeoutId);
+                timeoutId = window.setTimeout(() => callback(...args), wait);
+            };
+        };
+
+        const debouncedFilterPending = debounce(filterPending, 140);
+        const debouncedFilterHistory = debounce(filterHistory, 140);
+        const debouncedFilterUndo = debounce(filterUndo, 140);
+        const debouncedSearchStudents = debounce(searchStudents, 140);
         document.getElementById('pendingTypeFilter')?.addEventListener('change', filterPending);
         document.getElementById('pendingStateFilter')?.addEventListener('change', filterPending);
-        document.getElementById('pendingSearch')?.addEventListener('input', filterPending);
+        document.getElementById('pendingSearch')?.addEventListener('input', debouncedFilterPending);
         document.getElementById('historySemesterFilter')?.addEventListener('change', filterHistory);
         document.getElementById('historyYearFilter')?.addEventListener('change', filterHistory);
         document.getElementById('historyTypeFilter')?.addEventListener('change', filterHistory);
         document.getElementById('historyStatusFilter')?.addEventListener('change', filterHistory);
-        document.getElementById('historySearch')?.addEventListener('input', filterHistory);
-        document.getElementById('undoSearch')?.addEventListener('input', filterUndo);
+        document.getElementById('historySearch')?.addEventListener('input', debouncedFilterHistory);
+        document.getElementById('undoSearch')?.addEventListener('input', debouncedFilterUndo);
         document.getElementById('undoTypeFilter')?.addEventListener('change', filterUndo);
         document.getElementById('undoStatusFilter')?.addEventListener('change', filterUndo);
-        document.getElementById('studentSearch')?.addEventListener('input', searchStudents);
+        document.getElementById('studentSearch')?.addEventListener('input', debouncedSearchStudents);
         document.getElementById('studentCourseFilter')?.addEventListener('change', searchStudents);
 
         filterPending();

@@ -529,6 +529,7 @@ $role_label_html = htmlspecialchars($role_label, ENT_QUOTES, 'UTF-8');
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(versionedUrl('assets/img/favicon.png'), ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="manifest" href="<?php echo htmlspecialchars(versionedUrl('manifest.webmanifest'), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="theme-color" content="#412886">
+    <link rel="stylesheet" href="assets/css/theme-performance.css">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BISU Clearance">

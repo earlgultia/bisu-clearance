@@ -1,0 +1,85 @@
+html {
+    color-scheme: light;
+}
+
+html.dark-mode {
+    color-scheme: dark;
+}
+
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after,
+body.theme-switching *,
+body.theme-switching *::before,
+body.theme-switching *::after {
+    transition: none !important;
+    animation: none !important;
+    backdrop-filter: none !important;
+    filter: none !important;
+}
+
+.theme-toggle,
+.theme-toggle i {
+    backface-visibility: hidden;
+}
+
+.section-card,
+.timeline-item,
+.office-card,
+.stat-card,
+.dashboard-shortcut-card,
+.student-card,
+.feature-card,
+.table-card,
+.pending-banner,
+.profile-card,
+.messenger-conversation-item {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 320px;
+}
+
+.theme-toggle,
+.theme-toggle i,
+button,
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-outline,
+.action-btn,
+.filter-btn,
+.clear-filter,
+.upload-btn,
+.cancel-btn,
+.hero-action,
+.nav-item,
+.stat-card,
+.dashboard-shortcut-card,
+.section-card,
+.office-card,
+.timeline-item,
+.feature-card,
+.card,
+.pending-banner,
+.profile-card,
+.shortcut-card,
+.step,
+.table-card,
+.summary-item,
+input,
+select,
+textarea {
+    transition-property: background-color, color, border-color, box-shadow, opacity, transform !important;
+    transition-duration: 0.18s !important;
+    transition-timing-function: ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

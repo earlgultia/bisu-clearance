@@ -1084,6 +1084,188 @@ function hasDatabaseColumn($tableName, $columnName, $cacheTtlSeconds = 21600)
 }
 
 /**
+ * Cached index-existence check to avoid repetitive metadata lookups.
+ */
+function hasDatabaseIndex($tableName, $indexName, $cacheTtlSeconds = 21600)
+{
+    static $requestCache = [];
+
+    $tableName = trim((string) $tableName);
+    $indexName = trim((string) $indexName);
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $tableName) || !preg_match('/^[A-Za-z0-9_]+$/', $indexName)) {
+        return false;
+    }
+
+    $cacheKey = strtolower($tableName . '.' . $indexName);
+    if (array_key_exists($cacheKey, $requestCache)) {
+        return $requestCache[$cacheKey];
+    }
+
+    $cacheTtlSeconds = max(60, (int) $cacheTtlSeconds);
+    $now = time();
+
+    $apcuEnabled = function_exists('apcu_fetch')
+        && function_exists('apcu_store')
+        && (bool) ini_get(PHP_SAPI === 'cli' ? 'apc.enable_cli' : 'apc.enabled');
+
+    if ($apcuEnabled) {
+        $apcuKey = 'clearance:index_exists:' . $cacheKey;
+        $success = false;
+        $cached = call_user_func('apcu_fetch', $apcuKey, $success);
+        if ($success) {
+            $requestCache[$cacheKey] = (bool) $cached;
+            return $requestCache[$cacheKey];
+        }
+    } elseif (session_status() === PHP_SESSION_ACTIVE) {
+        if (!isset($_SESSION['_schema_index_cache']) || !is_array($_SESSION['_schema_index_cache'])) {
+            $_SESSION['_schema_index_cache'] = [];
+        }
+
+        if (isset($_SESSION['_schema_index_cache'][$cacheKey])) {
+            $entry = $_SESSION['_schema_index_cache'][$cacheKey];
+            $expiresAt = (int) ($entry['expires_at'] ?? 0);
+            if ($expiresAt >= $now) {
+                $requestCache[$cacheKey] = (bool) ($entry['value'] ?? false);
+                return $requestCache[$cacheKey];
+            }
+        }
+    }
+
+    $db = Database::getInstance();
+    try {
+        $db->query("SELECT COUNT(*) AS index_count
+                    FROM information_schema.STATISTICS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = '{$tableName}'
+                      AND INDEX_NAME = '{$indexName}'
+                    LIMIT 1");
+        $indexCheckRow = $db->single();
+        $exists = ((int) ($indexCheckRow['index_count'] ?? 0)) > 0;
+    } catch (Exception $e) {
+        error_log('Schema index check error for ' . $tableName . '.' . $indexName . ': ' . $e->getMessage());
+        $exists = false;
+    }
+
+    $requestCache[$cacheKey] = $exists;
+
+    if ($apcuEnabled) {
+        call_user_func('apcu_store', 'clearance:index_exists:' . $cacheKey, $exists, $cacheTtlSeconds);
+    } elseif (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['_schema_index_cache'][$cacheKey] = [
+            'value' => $exists,
+            'expires_at' => $now + $cacheTtlSeconds
+        ];
+    }
+
+    return $exists;
+}
+
+/**
+ * Ensure a performance index exists on a table.
+ */
+function ensureDatabaseIndex($db, $tableName, $indexName, array $columns)
+{
+    $tableName = trim((string) $tableName);
+    $indexName = trim((string) $indexName);
+
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $tableName) || !preg_match('/^[A-Za-z0-9_]+$/', $indexName)) {
+        return false;
+    }
+
+    if (empty($columns)) {
+        return false;
+    }
+
+    $quotedColumns = [];
+    foreach ($columns as $columnName) {
+        $columnName = trim((string) $columnName);
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $columnName)) {
+            return false;
+        }
+        $quotedColumns[] = '`' . $columnName . '`';
+    }
+
+    if (hasDatabaseIndex($tableName, $indexName)) {
+        return true;
+    }
+
+    try {
+        $db->query("ALTER TABLE `{$tableName}` ADD INDEX `{$indexName}` (" . implode(', ', $quotedColumns) . ")");
+        $created = $db->execute();
+
+        if ($created) {
+            $cacheKey = strtolower($tableName . '.' . $indexName);
+            $cacheTtlSeconds = 21600;
+            $now = time();
+            $apcuEnabled = function_exists('apcu_fetch')
+                && function_exists('apcu_store')
+                && (bool) ini_get(PHP_SAPI === 'cli' ? 'apc.enable_cli' : 'apc.enabled');
+
+            if ($apcuEnabled) {
+                call_user_func('apcu_store', 'clearance:index_exists:' . $cacheKey, true, $cacheTtlSeconds);
+            } elseif (session_status() === PHP_SESSION_ACTIVE) {
+                if (!isset($_SESSION['_schema_index_cache']) || !is_array($_SESSION['_schema_index_cache'])) {
+                    $_SESSION['_schema_index_cache'] = [];
+                }
+
+                $_SESSION['_schema_index_cache'][$cacheKey] = [
+                    'value' => true,
+                    'expires_at' => $now + $cacheTtlSeconds
+                ];
+            }
+        }
+
+        return $created;
+    } catch (Exception $e) {
+        error_log("Error ensuring index {$indexName} on {$tableName}: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Add missing indexes that speed up common dashboard and polling queries.
+ */
+function ensureSystemPerformanceIndexes()
+{
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    if (!shouldRunMaintenanceTask('system_performance_indexes', 21600)) {
+        return;
+    }
+
+    try {
+        $db = Database::getInstance();
+
+        $indexes = [
+            ['table' => 'clearance', 'name' => 'idx_clearance_user_term_status_order', 'columns' => ['users_id', 'semester', 'school_year', 'status', 'office_order']],
+            ['table' => 'clearance', 'name' => 'idx_clearance_office_status_term_user', 'columns' => ['office_id', 'status', 'semester', 'school_year', 'users_id']],
+            ['table' => 'clearance', 'name' => 'idx_clearance_user_comment_time', 'columns' => ['users_id', 'lacking_comment_at']],
+            ['table' => 'organization_clearance', 'name' => 'idx_org_clearance_status_org', 'columns' => ['clearance_id', 'status', 'org_id']],
+            ['table' => 'organization_clearance', 'name' => 'idx_org_org_status_clearance', 'columns' => ['org_id', 'status', 'clearance_id']],
+            ['table' => 'student_friendships', 'name' => 'idx_friendship_user_one_status', 'columns' => ['user_one_id', 'status']],
+            ['table' => 'student_friendships', 'name' => 'idx_friendship_user_two_status', 'columns' => ['user_two_id', 'status']]
+        ];
+
+        foreach ($indexes as $indexConfig) {
+            ensureDatabaseIndex(
+                $db,
+                $indexConfig['table'],
+                $indexConfig['name'],
+                $indexConfig['columns']
+            );
+        }
+    } catch (Exception $e) {
+        error_log('System performance index maintenance error: ' . $e->getMessage());
+    }
+}
+
+/**
  * Base64URL encode helper.
  */
 function base64UrlEncodeSafe($binary)
@@ -2164,6 +2346,7 @@ function basePath($path = '')
 
 // Start session
 initSession();
+ensureSystemPerformanceIndexes();
 
 // Test database connection (uncomment for debugging)
 /*

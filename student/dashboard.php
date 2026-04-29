@@ -719,6 +719,7 @@ try {
 // Lightweight JSON endpoint for live message notifications.
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'message_notifications') {
     header('Content-Type: application/json');
+    $include_presence = (($_GET['include_presence'] ?? '') === '1');
 
     $response = [
         'success' => true,
@@ -867,7 +868,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'message_notifications') {
             error_log("Organization comment notification metadata error: " . $e->getMessage());
         }
 
-        if ($user_presence_columns_available) {
+        if ($include_presence && $user_presence_columns_available) {
             try {
                 $db->query("SELECT u.users_id,
                                    COALESCE(u.is_online, 0) AS is_online_flag,
@@ -7608,6 +7609,8 @@ function getOrganizationIcon($org_type)
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(versionedUrl('assets/img/favicon.png'), ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="manifest" href="<?php echo htmlspecialchars(versionedUrl('manifest.webmanifest'), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="theme-color" content="#412886">
+    <script src="../assets/js/theme-manager.js"></script>
+    <link rel="stylesheet" href="../assets/css/theme-performance.css">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BISU Clearance">
@@ -9524,19 +9527,6 @@ function getOrganizationIcon($org_type)
             themeIcon.classList.add('fa-sun');
         }
 
-        themeToggle.addEventListener('click', () => {
-            body.classList.toggle('dark-mode');
-            if (body.classList.contains('dark-mode')) {
-                localStorage.setItem('theme', 'dark');
-                themeIcon.classList.remove('fa-moon');
-                themeIcon.classList.add('fa-sun');
-            } else {
-                localStorage.setItem('theme', 'light');
-                themeIcon.classList.remove('fa-sun');
-                themeIcon.classList.add('fa-moon');
-            }
-        });
-
         // Tab switching
         function switchTab(tabName) {
             if (tabName === 'messages') {
@@ -9566,6 +9556,11 @@ function getOrganizationIcon($org_type)
             window.history.pushState({}, '', url);
 
             closeMobileNav();
+
+            if (typeof getNotificationPollIntervalMs === 'function' && typeof scheduleNotificationPolling === 'function') {
+                messagePollIntervalMs = getNotificationPollIntervalMs();
+                scheduleNotificationPolling(600);
+            }
         }
 
         function setDashboardExitAllowed(value) {
@@ -10257,10 +10252,31 @@ function getOrganizationIcon($org_type)
         let hasNotificationBaseline = false;
         let messagePollTimer = null;
         let messagePollInFlight = false;
-        let messagePollIntervalMs = 12000;
+        let messagePollIntervalMs = 25000;
 
         function isMessagesTabOpen() {
             return !!(messagesTabContent && messagesTabContent.classList.contains('active'));
+        }
+
+        function getNotificationPollIntervalMs() {
+            if (document.visibilityState !== 'visible') {
+                return 45000;
+            }
+
+            return isMessagesTabOpen() ? 12000 : 25000;
+        }
+
+        function buildNotificationPollUrl() {
+            const pollUrl = new URL(window.location.href);
+            pollUrl.searchParams.set('ajax', 'message_notifications');
+
+            if (document.visibilityState === 'visible' && isMessagesTabOpen()) {
+                pollUrl.searchParams.set('include_presence', '1');
+            } else {
+                pollUrl.searchParams.delete('include_presence');
+            }
+
+            return pollUrl.pathname + pollUrl.search;
         }
 
         function updateMessageBadge(count) {
@@ -10331,7 +10347,7 @@ function getOrganizationIcon($org_type)
 
             messagePollInFlight = true;
             try {
-                const response = await fetch('dashboard.php?ajax=message_notifications', {
+                const response = await fetch(buildNotificationPollUrl(), {
                     method: 'GET',
                     cache: 'no-store'
                 });
@@ -10358,37 +10374,27 @@ function getOrganizationIcon($org_type)
                 const pendingRequests = Number(data.pending_request_count || 0);
                 const totalNotifications = Number(data.notification_count || (unread + pendingRequests));
                 updateMessageBadge(totalNotifications);
-                applyFriendPresenceMap(data.friend_presence || {});
+                if (data.friend_presence && typeof data.friend_presence === 'object') {
+                    applyFriendPresenceMap(data.friend_presence);
+                }
 
                 const hasNewUnread = unread > lastUnreadCount;
                 const isNewMessageMarker = data.latest_sent_at && data.latest_sent_at !== lastLatestSentAt;
                 if (hasNewUnread && isNewMessageMarker) {
                     const messageInput = document.getElementById('messengerMessageInput');
                     const hasDraftMessage = !!(messageInput && String(messageInput.value || '').trim() !== '');
-                    if (isMessagesTabOpen() && !hasDraftMessage) {
-                        const refreshUrl = new URL(window.location.href);
-                        refreshUrl.searchParams.set('tab', 'messages');
-                        window.location.href = refreshUrl.pathname + refreshUrl.search;
-                        return;
-                    }
-
                     const sender = data.latest_sender || 'a student';
                     const preview = data.latest_message ? `: ${data.latest_message}` : '';
-                    showToast(`New message from ${sender}${preview}`, 'info');
+                    const refreshHint = isMessagesTabOpen() && !hasDraftMessage
+                        ? ' Open Messages again to refresh the thread.'
+                        : '';
+                    showToast(`New message from ${sender}${preview}${refreshHint}`, 'info');
                     notifyBrowser('New student message', `From ${sender}`);
                 }
 
                 if (pendingRequests > lastPendingRequestCount) {
                     showToast('You received a new friend request.', 'info');
                     notifyBrowser('New friend request', 'Open Messages to accept the request.');
-
-                    // Refresh server-rendered friend request list when user is already viewing Messages.
-                    if (isMessagesTabOpen()) {
-                        const refreshUrl = new URL(window.location.href);
-                        refreshUrl.searchParams.set('tab', 'messages');
-                        window.location.href = refreshUrl.pathname + refreshUrl.search;
-                        return;
-                    }
                 }
 
                 const hasNewOfficeComment = data.latest_office_comment_at
@@ -10413,11 +10419,10 @@ function getOrganizationIcon($org_type)
                 lastLatestOfficeCommentAt = data.latest_office_comment_at || lastLatestOfficeCommentAt;
                 lastLatestOrgCommentAt = data.latest_org_comment_at || lastLatestOrgCommentAt;
 
-                const isTabVisible = document.visibilityState === 'visible';
-                messagePollIntervalMs = isTabVisible ? 12000 : 25000;
+                messagePollIntervalMs = getNotificationPollIntervalMs();
             } catch (err) {
                 // Keep silent to avoid noisy UI during transient network errors.
-                messagePollIntervalMs = 30000;
+                messagePollIntervalMs = Math.max(getNotificationPollIntervalMs(), 30000);
             } finally {
                 messagePollInFlight = false;
             }
@@ -10436,11 +10441,12 @@ function getOrganizationIcon($org_type)
         }
 
         updateMessageBadge(lastUnreadCount + lastPendingRequestCount);
+        messagePollIntervalMs = getNotificationPollIntervalMs();
         pollMessageNotifications();
-        scheduleNotificationPolling(12000);
+        scheduleNotificationPolling(messagePollIntervalMs);
 
         document.addEventListener('visibilitychange', () => {
-            messagePollIntervalMs = document.visibilityState === 'visible' ? 12000 : 25000;
+            messagePollIntervalMs = getNotificationPollIntervalMs();
             scheduleNotificationPolling(600);
         });
 

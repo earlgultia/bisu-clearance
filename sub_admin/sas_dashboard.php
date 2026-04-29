@@ -2970,6 +2970,8 @@ function getOrgTypeBadge($type)
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(versionedUrl('assets/img/favicon.png'), ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="manifest" href="<?php echo htmlspecialchars(versionedUrl('manifest.webmanifest'), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="theme-color" content="#412886">
+    <script src="../assets/js/theme-manager.js"></script>
+    <link rel="stylesheet" href="../assets/css/theme-performance.css">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BISU Clearance">
@@ -3884,19 +3886,6 @@ function getOrgTypeBadge($type)
             themeIcon.classList.remove('fa-moon');
             themeIcon.classList.add('fa-sun');
         }
-
-        themeToggle.addEventListener('click', () => {
-            body.classList.toggle('dark-mode');
-            if (body.classList.contains('dark-mode')) {
-                localStorage.setItem('theme', 'dark');
-                themeIcon.classList.remove('fa-moon');
-                themeIcon.classList.add('fa-sun');
-            } else {
-                localStorage.setItem('theme', 'light');
-                themeIcon.classList.remove('fa-sun');
-                themeIcon.classList.add('fa-moon');
-            }
-        });
 
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebarMenu');

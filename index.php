@@ -2539,6 +2539,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
     </style>
     <link rel="manifest" href="<?php echo htmlspecialchars(versionedUrl('manifest.webmanifest'), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="theme-color" content="#412886">
+    <script src="assets/js/theme-manager.js"></script>
+    <link rel="stylesheet" href="assets/css/theme-performance.css">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BISU Clearance">
@@ -3174,15 +3176,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
             });
         });
 
-        // Scroll to top button
-        window.addEventListener('scroll', function () {
-            const scrollTop = document.getElementById('scrollTop');
-            if (window.scrollY > 300) {
-                scrollTop.classList.add('show');
-            } else {
-                scrollTop.classList.remove('show');
+        const scrollTopButton = document.getElementById('scrollTop');
+        const header = document.getElementById('header');
+        let landingScrollFramePending = false;
+
+        const syncLandingScrollUi = () => {
+            const currentScrollY = window.scrollY || window.pageYOffset || 0;
+
+            if (scrollTopButton) {
+                scrollTopButton.classList.toggle('show', currentScrollY > 300);
             }
-        });
+
+            if (header) {
+                header.style.boxShadow = currentScrollY > 100
+                    ? '0 4px 30px rgba(65, 40, 134, 0.15)'
+                    : '0 2px 20px rgba(65, 40, 134, 0.08)';
+            }
+
+            landingScrollFramePending = false;
+        };
+
+        const requestLandingScrollUiSync = () => {
+            if (landingScrollFramePending) {
+                return;
+            }
+
+            landingScrollFramePending = true;
+            window.requestAnimationFrame(syncLandingScrollUi);
+        };
+
+        window.addEventListener('scroll', requestLandingScrollUiSync, { passive: true });
+        requestLandingScrollUiSync();
 
         function scrollToTop() {
             window.scrollTo({
@@ -3190,16 +3214,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
                 behavior: 'smooth'
             });
         }
-
-        // Header scroll effect
-        window.addEventListener('scroll', function () {
-            const header = document.getElementById('header');
-            if (window.scrollY > 100) {
-                header.style.boxShadow = '0 4px 30px rgba(65, 40, 134, 0.15)';
-            } else {
-                header.style.boxShadow = '0 2px 20px rgba(65, 40, 134, 0.08)';
-            }
-        });
 
         // Dark Mode Toggle
         const themeToggle = document.getElementById('themeToggle');
@@ -3210,17 +3224,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['contact_submit'])) {
         if (savedTheme === 'dark') {
             body.classList.add('dark-mode');
         }
-
-        themeToggle.addEventListener('click', () => {
-            body.classList.toggle('dark-mode');
-            
-            // Save theme preference
-            if (body.classList.contains('dark-mode')) {
-                localStorage.setItem('theme', 'dark');
-            } else {
-                localStorage.setItem('theme', 'light');
-            }
-        });
 
         // Auto-hide alerts after 5 seconds
         setTimeout(() => {

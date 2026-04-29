@@ -1209,6 +1209,8 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(versionedUrl('assets/img/favicon.png'), ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="manifest" href="<?php echo htmlspecialchars(versionedUrl('manifest.webmanifest'), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="theme-color" content="#412886">
+    <script src="assets/js/theme-manager.js"></script>
+    <link rel="stylesheet" href="assets/css/theme-performance.css">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BISU Clearance">
@@ -1529,19 +1531,6 @@ if (isset($_GET['get_courses']) && isset($_GET['college_id'])) {
             themeToggle.setAttribute('aria-label', label);
             themeToggle.setAttribute('title', label);
         }
-
-        themeToggle.addEventListener('click', () => {
-            document.body.classList.toggle('dark-mode');
-            
-            // Save theme preference
-            if (document.body.classList.contains('dark-mode')) {
-                localStorage.setItem('theme', 'dark');
-            } else {
-                localStorage.setItem('theme', 'light');
-            }
-
-            updateThemeToggleText();
-        });
 
         // Toggle password/ID visibility
         function toggleFieldVisibility(inputId, toggleId) {

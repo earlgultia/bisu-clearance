@@ -1109,6 +1109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(versionedUrl('assets/img/favicon.png'), ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="manifest" href="<?php echo htmlspecialchars(versionedUrl('manifest.webmanifest'), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="theme-color" content="#412886">
+    <script src="assets/js/theme-manager.js"></script>
+    <link rel="stylesheet" href="assets/css/theme-performance.css">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BISU Clearance">
@@ -1294,17 +1296,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (savedTheme === 'dark') {
                 body.classList.add('dark-mode');
             }
-
-            themeToggle.addEventListener('click', () => {
-                body.classList.toggle('dark-mode');
-                
-                // Save theme preference
-                if (body.classList.contains('dark-mode')) {
-                    localStorage.setItem('theme', 'dark');
-                } else {
-                    localStorage.setItem('theme', 'light');
-                }
-            });
 
             // Auto-focus username field
             document.getElementById('username').focus();
