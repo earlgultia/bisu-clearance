@@ -688,46 +688,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $email = $user['emails'] ?? 'Unknown';
                 $name = ($user['fname'] ?? '') . ' ' . ($user['lname'] ?? '');
 
-                // Check if user has related records
+                // Check if user has clearance records to inform messaging.
                 $db->query("SELECT COUNT(*) as count FROM clearance WHERE users_id = :user_id");
                 $db->bind(':user_id', $user_id);
                 $result = $db->single();
-                $clearance_count = $result['count'] ?? 0;
+                $clearance_count = (int) ($result['count'] ?? 0);
+                $had_clearance_records = $clearance_count > 0;
 
-                if ($clearance_count > 0) {
-                    $error = "Cannot delete user with existing clearance records. Deactivate instead.";
+                // Delete from related tables first
+                $db->query("DELETE FROM sub_admin_offices WHERE users_id = :user_id");
+                $db->bind(':user_id', $user_id);
+                $db->execute();
+
+                $db->query("DELETE FROM department_chairpersons WHERE users_id = :user_id");
+                $db->bind(':user_id', $user_id);
+                $db->execute();
+
+                $db->query("DELETE FROM clinic_records WHERE users_id = :user_id");
+                $db->bind(':user_id', $user_id);
+                $db->execute();
+
+                // Delete activity logs (set to NULL)
+                $db->query("UPDATE activity_logs SET users_id = NULL WHERE users_id = :user_id");
+                $db->bind(':user_id', $user_id);
+                $db->execute();
+
+                // Delete user (clearance records cascade via FK constraints when present)
+                $db->query("DELETE FROM users WHERE users_id = :user_id");
+                $db->bind(':user_id', $user_id);
+
+                if ($db->execute()) {
+                    // Log activity
+                    $logModel = new ActivityLogModel();
+                    $logModel->log($admin_id, 'DELETE_USER', "Deleted user: $email ($name)");
+
+                    $success = $had_clearance_records
+                        ? "User deleted successfully along with related clearance records."
+                        : "User deleted successfully!";
                 } else {
-                    // Delete from related tables first
-                    $db->query("DELETE FROM sub_admin_offices WHERE users_id = :user_id");
-                    $db->bind(':user_id', $user_id);
-                    $db->execute();
-
-                    $db->query("DELETE FROM department_chairpersons WHERE users_id = :user_id");
-                    $db->bind(':user_id', $user_id);
-                    $db->execute();
-
-                    $db->query("DELETE FROM clinic_records WHERE users_id = :user_id");
-                    $db->bind(':user_id', $user_id);
-                    $db->execute();
-
-                    // Delete activity logs (set to NULL)
-                    $db->query("UPDATE activity_logs SET users_id = NULL WHERE users_id = :user_id");
-                    $db->bind(':user_id', $user_id);
-                    $db->execute();
-
-                    // Delete user
-                    $db->query("DELETE FROM users WHERE users_id = :user_id");
-                    $db->bind(':user_id', $user_id);
-
-                    if ($db->execute()) {
-                        // Log activity
-                        $logModel = new ActivityLogModel();
-                        $logModel->log($admin_id, 'DELETE_USER', "Deleted user: $email ($name)");
-
-                        $success = "User deleted successfully!";
-                    } else {
-                        $error = "Failed to delete user.";
-                    }
+                    $error = "Failed to delete user.";
                 }
             } catch (Exception $e) {
                 $error = "Database error: " . $e->getMessage();
