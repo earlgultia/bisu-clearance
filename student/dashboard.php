@@ -2073,60 +2073,107 @@ if (isset($_POST['apply_clearance'])) {
 }
 
 // Handle cancel application
-if (isset($_POST['cancel_application'])) {
-    $semester = $_POST['semester'] ?? '';
-    $school_year = $_POST['school_year'] ?? '';
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST'
+    && (
+        isset($_POST['cancel_application'])
+        || (($_POST['form_action'] ?? '') === 'cancel_application')
+    )
+) {
+    $semester = trim((string) ($_POST['semester'] ?? ''));
+    $school_year = trim((string) ($_POST['school_year'] ?? ''));
 
-    try {
-        $db->beginTransaction();
+    if ($semester === '' || $school_year === '') {
+        $error = "Missing application details. Please try again.";
+    } else {
+        try {
+            $db->beginTransaction();
 
-        // Verify this application is still in progress before cancelling.
-        $db->query("SELECT 
-                        COUNT(*) as total_count,
-                        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count
-                    FROM clearance
-                    WHERE users_id = :user_id
-                    AND semester = :semester
-                    AND school_year = :school_year");
-        $db->bind(':user_id', $student_id);
-        $db->bind(':semester', $semester);
-        $db->bind(':school_year', $school_year);
-        $app_state = $db->single();
+            // Verify this application belongs to the student and is still in progress.
+            $db->query("SELECT 
+                            COUNT(*) as total_count,
+                            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count
+                        FROM clearance
+                        WHERE users_id = :user_id
+                          AND semester = :semester
+                          AND school_year = :school_year");
+            $db->bind(':user_id', $student_id);
+            $db->bind(':semester', $semester);
+            $db->bind(':school_year', $school_year);
+            $office_state = $db->single();
 
-        if (!$app_state || (int) ($app_state['total_count'] ?? 0) === 0) {
-            throw new Exception("No matching clearance application found.");
+            if (!$office_state || (int) ($office_state['total_count'] ?? 0) === 0) {
+                throw new Exception("No matching clearance application found.");
+            }
+
+            $db->query("SELECT
+                            COUNT(*) as total_count,
+                            SUM(CASE WHEN oc.status = 'pending' THEN 1 ELSE 0 END) as pending_count
+                        FROM organization_clearance oc
+                        INNER JOIN clearance c ON oc.clearance_id = c.clearance_id
+                        WHERE c.users_id = :user_id
+                          AND c.semester = :semester
+                          AND c.school_year = :school_year");
+            $db->bind(':user_id', $student_id);
+            $db->bind(':semester', $semester);
+            $db->bind(':school_year', $school_year);
+            $organization_state = $db->single() ?: [];
+
+            $pending_office_count = (int) ($office_state['pending_count'] ?? 0);
+            $pending_organization_count = (int) ($organization_state['pending_count'] ?? 0);
+
+            if ($pending_office_count === 0 && $pending_organization_count === 0) {
+                throw new Exception("This clearance is already completed and cannot be cancelled.");
+            }
+
+            // Remove linked organization approvals first for older databases that may not have cascade rules.
+            $db->query("DELETE oc
+                        FROM organization_clearance oc
+                        INNER JOIN clearance c ON oc.clearance_id = c.clearance_id
+                        WHERE c.users_id = :user_id
+                          AND c.semester = :semester
+                          AND c.school_year = :school_year");
+            $db->bind(':user_id', $student_id);
+            $db->bind(':semester', $semester);
+            $db->bind(':school_year', $school_year);
+            if ($db->execute() === false) {
+                throw new Exception("Failed to delete linked organization clearance records.");
+            }
+
+            // Delete the whole in-progress clearance cycle so the student can re-apply cleanly.
+            $db->query("DELETE FROM clearance
+                        WHERE users_id = :user_id
+                          AND semester = :semester
+                          AND school_year = :school_year");
+            $db->bind(':user_id', $student_id);
+            $db->bind(':semester', $semester);
+            $db->bind(':school_year', $school_year);
+            if ($db->execute() === false) {
+                throw new Exception("Failed to delete clearance records.");
+            }
+
+            if ((int) $db->rowCount() === 0) {
+                throw new Exception("No clearance records were deleted.");
+            }
+
+            $db->commit();
+
+            // Log activity
+            if (class_exists('ActivityLogModel')) {
+                $logModel = new ActivityLogModel();
+                $logModel->log($student_id, 'CANCEL_CLEARANCE', "Cancelled clearance application for $semester $school_year");
+            }
+
+            $_SESSION['success_message'] = "Clearance application cancelled successfully.";
+            header("Location: dashboard.php?tab=status");
+            exit();
+        } catch (Exception $e) {
+            if ($db->getConnection()->inTransaction()) {
+                $db->rollback();
+            }
+            error_log("Cancel clearance error: " . $e->getMessage());
+            $error = "Failed to cancel application. Please try again.";
         }
-
-        if ((int) ($app_state['pending_count'] ?? 0) === 0) {
-            throw new Exception("This clearance is already completed and cannot be cancelled.");
-        }
-
-        // Delete the whole in-progress clearance cycle so student can re-apply cleanly.
-        $db->query("DELETE FROM clearance 
-                    WHERE users_id = :user_id 
-                    AND semester = :semester 
-                    AND school_year = :school_year");
-        $db->bind(':user_id', $student_id);
-        $db->bind(':semester', $semester);
-        $db->bind(':school_year', $school_year);
-        $db->execute();
-
-        $db->commit();
-
-        // Log activity
-        if (class_exists('ActivityLogModel')) {
-            $logModel = new ActivityLogModel();
-            $logModel->log($student_id, 'CANCEL_CLEARANCE', "Cancelled clearance application for $semester $school_year");
-        }
-
-        $_SESSION['success_message'] = "Clearance application cancelled successfully.";
-        header("Location: dashboard.php?tab=status");
-        exit();
-
-    } catch (Exception $e) {
-        $db->rollback();
-        error_log("Cancel clearance error: " . $e->getMessage());
-        $error = "Failed to cancel application. Please try again.";
     }
 }
 
@@ -7919,6 +7966,7 @@ function getOrganizationIcon($org_type)
                         <?php if ($current_clearance['can_cancel']): ?>
                             <div style="text-align: right; margin-top: 1rem;">
                                 <form method="POST" class="cancel-application-form">
+                                    <input type="hidden" name="form_action" value="cancel_application">
                                     <input type="hidden" name="semester" value="<?php echo $current_clearance['semester']; ?>">
                                     <input type="hidden" name="school_year"
                                         value="<?php echo $current_clearance['school_year']; ?>">
@@ -8006,9 +8054,8 @@ function getOrganizationIcon($org_type)
                                     <i class="fas fa-home"></i> Dashboard
                                 </button>
                                 <?php if ($current_clearance['can_cancel']): ?>
-                                    <form method="POST"
-                                        onsubmit="return confirm('Are you sure you want to cancel this application? This action cannot be undone.');"
-                                        style="display: inline-flex;">
+                                    <form method="POST" class="cancel-application-form" style="display: inline-flex;">
+                                        <input type="hidden" name="form_action" value="cancel_application">
                                         <input type="hidden" name="semester" value="<?php echo $current_clearance['semester']; ?>">
                                         <input type="hidden" name="school_year"
                                             value="<?php echo $current_clearance['school_year']; ?>">
@@ -8411,6 +8458,7 @@ function getOrganizationIcon($org_type)
                                     <?php if (!empty($group['can_cancel'])): ?>
                                         <div style="text-align: right; margin-top: 1rem;">
                                             <form method="POST" class="cancel-application-form">
+                                                <input type="hidden" name="form_action" value="cancel_application">
                                                 <input type="hidden" name="semester" value="<?php echo $group['semester']; ?>">
                                                 <input type="hidden" name="school_year" value="<?php echo $group['school_year']; ?>">
                                                 <button type="submit" name="cancel_application" class="cancel-btn">
