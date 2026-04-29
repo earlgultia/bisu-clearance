@@ -7222,6 +7222,11 @@ function getOrganizationIcon($org_type)
                 overflow-y: auto;
             }
 
+            .cancel-application-alert-popup {
+                position: relative;
+                top: -8px;
+            }
+
             .conversation-delete-alert-container.swal2-container {
                 align-items: center;
                 justify-content: flex-start;
@@ -7359,6 +7364,10 @@ function getOrganizationIcon($org_type)
                 border-radius: 14px;
                 padding: 0.8rem 0.72rem 0.7rem;
                 max-height: calc(100dvh - var(--mobile-header-offset, 0px) - env(safe-area-inset-top) - 0.95rem);
+            }
+
+            .cancel-application-alert-popup {
+                top: -6px;
             }
 
             .conversation-delete-alert-container.swal2-container {
@@ -9416,7 +9425,7 @@ function getOrganizationIcon($org_type)
                     cancelButtonText: 'Keep it',
                     reverseButtons: true,
                     customClass: {
-                        popup: 'conversation-delete-alert-popup',
+                        popup: 'conversation-delete-alert-popup cancel-application-alert-popup',
                         container: 'conversation-delete-alert-container',
                         title: 'conversation-delete-alert-title',
                         htmlContainer: 'conversation-delete-alert-text',
