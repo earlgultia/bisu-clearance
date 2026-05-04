@@ -4761,8 +4761,8 @@ function getActivityIcon($action)
                                                 ?>
                                                 <tr data-type="<?php echo $clearance['clearance_type']; ?>"
                                                     data-state="<?php echo $pending_state; ?>"
-                                                    data-name="<?php echo strtolower($clearance['fname'] . ' ' . $clearance['lname']); ?>"
-                                                    data-id="<?php echo strtolower($clearance['ismis_id']); ?>"
+                                                    data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                                    data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>"
                                                     class="<?php echo trim($pending_row_class . ' ' . ($resolved_lacking ? 'resolved-lacking-row' : '')); ?>">
                                                     <td>
                                                         <input type="checkbox" class="select-checkbox clearance-checkbox"
@@ -4994,8 +4994,8 @@ function getActivityIcon($action)
                                         ?>
                                         <div class="undo-item" data-type="<?php echo $approval['clearance_type']; ?>"
                                             data-status="<?php echo $approval['status']; ?>"
-                                            data-name="<?php echo strtolower($approval['fname'] . ' ' . $approval['lname']); ?>"
-                                            data-id="<?php echo strtolower($approval['ismis_id']); ?>">
+                                            data-name="<?php echo htmlspecialchars(strtolower(trim(($approval['fname'] ?? '') . ' ' . ($approval['lname'] ?? '') . ' ' . ($approval['lname'] ?? '') . ' ' . ($approval['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-id="<?php echo htmlspecialchars(strtolower((string) ($approval['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                             <div class="undo-top">
                                                 <div class="undo-info">
                                                     <h4>
@@ -5171,8 +5171,8 @@ function getActivityIcon($action)
                                                     data-year="<?php echo $clearance['school_year']; ?>"
                                                     data-type="<?php echo $clearance['clearance_type']; ?>"
                                                     data-status="<?php echo $clearance['status']; ?>"
-                                                    data-name="<?php echo strtolower($clearance['fname'] . ' ' . $clearance['lname']); ?>"
-                                                    data-id="<?php echo strtolower($clearance['ismis_id']); ?>">
+                                                    data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                                    data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                                     <td><strong>
                                                             <?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>
                                                         </strong>
@@ -5340,8 +5340,8 @@ function getActivityIcon($action)
                         <?php if (!empty($students)): ?>
                                 <?php foreach ($students as $student): ?>
                                         <div class="student-card"
-                                            data-name="<?php echo strtolower($student['fname'] . ' ' . $student['lname']); ?>"
-                                            data-id="<?php echo strtolower($student['ismis_id']); ?>">
+                                            data-name="<?php echo htmlspecialchars(strtolower(trim(($student['fname'] ?? '') . ' ' . ($student['lname'] ?? '') . ' ' . ($student['lname'] ?? '') . ' ' . ($student['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-id="<?php echo htmlspecialchars(strtolower((string) ($student['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                             <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                                                 <div class="student-avatar">
                                                     <?php if (!empty($student['profile_picture']) && file_exists('../' . $student['profile_picture'])): ?>
@@ -6508,7 +6508,7 @@ function getActivityIcon($action)
 
         // Student search functions
         function searchStudents() {
-            const search = document.getElementById('studentSearch').value.toLowerCase();
+            const search = document.getElementById('studentSearch').value.toLowerCase().trim().replace(/\s+/g, ' ');
             const cards = document.querySelectorAll('.student-card');
 
             cards.forEach(card => {

@@ -3989,8 +3989,8 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
                                                 ?>
                                                 <tr data-type="<?php echo $clearance['clearance_type']; ?>" 
                                                     data-state="<?php echo $pending_state; ?>"
-                                                    data-name="<?php echo strtolower($clearance['fname'] . ' ' . $clearance['lname']); ?>"
-                                                    data-id="<?php echo strtolower($clearance['ismis_id']); ?>"
+                                                    data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                                    data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>"
                                                     class="<?php echo $eligible_for_approval ? 'pending-row-ready' : 'pending-row-blocked'; ?>">
                                                     <td>
                                                         <input type="checkbox" class="select-checkbox clearance-checkbox" value="<?php echo $clearance['clearance_id']; ?>"
@@ -4221,8 +4221,8 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
                                         ?>
                                         <div class="undo-item" data-type="<?php echo $approval['clearance_type']; ?>"
                                             data-status="<?php echo $approval['status']; ?>"
-                                            data-name="<?php echo strtolower($approval['fname'] . ' ' . $approval['lname']); ?>"
-                                            data-id="<?php echo strtolower($approval['ismis_id']); ?>">
+                                            data-name="<?php echo htmlspecialchars(strtolower(trim(($approval['fname'] ?? '') . ' ' . ($approval['lname'] ?? '') . ' ' . ($approval['lname'] ?? '') . ' ' . ($approval['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-id="<?php echo htmlspecialchars(strtolower((string) ($approval['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                             <div class="undo-top">
                                                 <div class="undo-info">
                                                     <h4>
@@ -4374,8 +4374,8 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
                                                     data-year="<?php echo $clearance['school_year']; ?>"
                                                     data-type="<?php echo $clearance['clearance_type']; ?>"
                                                     data-status="<?php echo $clearance['status']; ?>"
-                                                    data-name="<?php echo strtolower($clearance['fname'] . ' ' . $clearance['lname']); ?>"
-                                                    data-id="<?php echo strtolower($clearance['ismis_id']); ?>">
+                                                    data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                                    data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                                     <td><strong><?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?></strong></td>
                                                     <td><?php echo htmlspecialchars($clearance['ismis_id']); ?></td>
                                                     <td><?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?></td>
@@ -4474,8 +4474,8 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
                         <?php if (!empty($students)): ?>
                                 <?php foreach ($students as $student): ?>
                                         <div class="student-card"
-                                            data-name="<?php echo strtolower($student['fname'] . ' ' . $student['lname']); ?>"
-                                            data-id="<?php echo strtolower($student['ismis_id']); ?>"
+                                            data-name="<?php echo htmlspecialchars(strtolower(trim(($student['fname'] ?? '') . ' ' . ($student['lname'] ?? '') . ' ' . ($student['lname'] ?? '') . ' ' . ($student['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-id="<?php echo htmlspecialchars(strtolower((string) ($student['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>"
                                             data-course="<?php echo (int) ($student['course_id'] ?? 0); ?>">
                                             <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                                                 <div class="student-avatar">
@@ -5509,7 +5509,7 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
         }
 
         function searchStudents() {
-            const search = document.getElementById('studentSearch')?.value.toLowerCase() || '';
+            const search = document.getElementById('studentSearch')?.value.toLowerCase().trim().replace(/\s+/g, ' ') || '';
             const selectedCourse = document.getElementById('studentCourseFilter')?.value || '';
             const cards = document.querySelectorAll('.student-card');
 

@@ -2710,8 +2710,8 @@ function getStatusClass($status)
                                 <tbody>
                                     <?php foreach ($pending_clearances as $clearance): ?>
                                         <tr data-semester="<?php echo $clearance['semester']; ?>"
-                                            data-name="<?php echo strtolower($clearance['fname'] . ' ' . $clearance['lname']); ?>"
-                                            data-id="<?php echo strtolower($clearance['ismis_id']); ?>">
+                                            data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                             <td>
                                                 <input type="checkbox" class="select-checkbox clearance-checkbox"
                                                     value="<?php echo $clearance['org_clearance_id']; ?>">
@@ -2860,8 +2860,8 @@ function getStatusClass($status)
                                         <tr data-semester="<?php echo $clearance['semester']; ?>"
                                             data-year="<?php echo $clearance['school_year']; ?>"
                                             data-status="<?php echo $clearance['status']; ?>"
-                                            data-name="<?php echo strtolower($clearance['fname'] . ' ' . $clearance['lname']); ?>"
-                                            data-id="<?php echo strtolower($clearance['ismis_id']); ?>">
+                                            data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                             <td><strong>
                                                     <?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>
                                                 </strong></td>
@@ -2983,8 +2983,8 @@ function getStatusClass($status)
                     <div class="students-grid" id="studentsGrid">
                         <?php foreach ($students as $student): ?>
                             <div class="student-card"
-                                data-name="<?php echo strtolower($student['fname'] . ' ' . $student['lname']); ?>"
-                                data-id="<?php echo strtolower($student['ismis_id']); ?>">
+                                data-name="<?php echo htmlspecialchars(strtolower(trim(($student['fname'] ?? '') . ' ' . ($student['lname'] ?? '') . ' ' . ($student['lname'] ?? '') . ' ' . ($student['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                data-id="<?php echo htmlspecialchars(strtolower((string) ($student['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                 <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                                     <div class="student-avatar">
                                         <i class="fas fa-user-graduate"></i>
@@ -3730,7 +3730,7 @@ function getStatusClass($status)
         }
 
         function searchStudents() {
-            const search = document.getElementById('studentSearch').value.toLowerCase();
+            const search = document.getElementById('studentSearch').value.toLowerCase().trim().replace(/\s+/g, ' ');
             const cards = document.querySelectorAll('.student-card');
 
             cards.forEach(card => {
@@ -3763,8 +3763,8 @@ function getStatusClass($status)
 
             const resultsDiv = document.getElementById('quickSearchResults');
             const matches = clinicStudents.filter(student => {
-                const fullName = `${student.fname || ''} ${student.lname || ''}`.toLowerCase();
-                const id = String(student.ismis_id || '').toLowerCase();
+                const fullName = `${student.fname || ''} ${student.lname || ''} ${student.lname || ''} ${student.fname || ''}`.toLowerCase().trim().replace(/\s+/g, ' ');
+                const id = String(student.ismis_id || '').toLowerCase().trim();
                 return fullName.includes(search) || id.includes(search);
             }).slice(0, 8);
 

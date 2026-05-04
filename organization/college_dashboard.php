@@ -3131,8 +3131,8 @@ function getYearLevelBadge($year_level)
                                                     data-year="<?php echo $clearance['year_level']; ?>"
                                                     data-semester="<?php echo $clearance['semester']; ?>"
                                                     data-school-year="<?php echo $clearance['school_year']; ?>"
-                                                    data-name="<?php echo strtolower($clearance['fname'] . ' ' . $clearance['lname']); ?>"
-                                                    data-id="<?php echo strtolower($clearance['ismis_id']); ?>">
+                                                    data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                                    data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                                     <td>
                                                         <input type="checkbox" class="select-checkbox clearance-checkbox"
                                                             value="<?php echo $clearance['org_clearance_id']; ?>">
@@ -3350,8 +3350,8 @@ function getYearLevelBadge($year_level)
                                                 <tr data-course="<?php echo $clearance['course_id']; ?>"
                                                     data-year="<?php echo $clearance['year_level']; ?>"
                                                     data-status="<?php echo $clearance['status']; ?>"
-                                                    data-name="<?php echo strtolower($clearance['fname'] . ' ' . $clearance['lname']); ?>"
-                                                    data-id="<?php echo strtolower($clearance['ismis_id']); ?>">
+                                                    data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                                    data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                                     <td>
                                                         <div class="student-cell">
                                                             <div class="student-avatar-small">
@@ -3446,8 +3446,8 @@ function getYearLevelBadge($year_level)
                                 <div class="student-card"
                                     data-course="<?php echo $student['course_id']; ?>"
                                     data-year="<?php echo $student['year_level']; ?>"
-                                    data-name="<?php echo strtolower($student['fname'] . ' ' . $student['lname']); ?>"
-                                    data-id="<?php echo strtolower($student['ismis_id']); ?>">
+                                    data-name="<?php echo htmlspecialchars(strtolower(trim(($student['fname'] ?? '') . ' ' . ($student['lname'] ?? '') . ' ' . ($student['lname'] ?? '') . ' ' . ($student['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                    data-id="<?php echo htmlspecialchars(strtolower((string) ($student['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                     <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                                         <div class="student-avatar">
                                             <?php if (!empty($student['profile_picture'])): ?>
@@ -3509,8 +3509,8 @@ function getYearLevelBadge($year_level)
                             <div class="undo-grid" id="undoGrid">
                                 <?php foreach ($approvals_to_undo as $approval): ?>
                                         <div class="undo-item"
-                                            data-name="<?php echo strtolower($approval['fname'] . ' ' . $approval['lname']); ?>"
-                                            data-id="<?php echo strtolower($approval['ismis_id']); ?>">
+                                            data-name="<?php echo htmlspecialchars(strtolower(trim(($approval['fname'] ?? '') . ' ' . ($approval['lname'] ?? '') . ' ' . ($approval['lname'] ?? '') . ' ' . ($approval['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-id="<?php echo htmlspecialchars(strtolower((string) ($approval['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                             <div class="undo-info">
                                                 <h4><?php echo htmlspecialchars($approval['fname'] . ' ' . $approval['lname']); ?></h4>
                                                 <p>
@@ -4182,7 +4182,7 @@ function getYearLevelBadge($year_level)
         function filterStudents() {
             const course = document.getElementById('studentCourseFilter').value;
             const year = document.getElementById('studentYearFilter').value;
-            const search = document.getElementById('studentSearch').value.toLowerCase();
+            const search = document.getElementById('studentSearch').value.toLowerCase().trim().replace(/\s+/g, ' ');
             const cards = document.querySelectorAll('.student-card');
 
             cards.forEach(card => {

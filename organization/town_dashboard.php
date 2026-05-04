@@ -3109,8 +3109,8 @@ function timeAgo($datetime)
                                         <tr data-barangay="<?php echo htmlspecialchars($clearance['barangay'] ?? formatBarangay($clearance['address'] ?? '')); ?>"
                                             data-semester="<?php echo $clearance['semester']; ?>"
                                             data-school-year="<?php echo $clearance['school_year']; ?>"
-                                            data-name="<?php echo strtolower($clearance['fname'] . ' ' . $clearance['lname']); ?>"
-                                            data-id="<?php echo strtolower($clearance['ismis_id']); ?>">
+                                            data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                             <td>
                                                 <input type="checkbox" class="select-checkbox clearance-checkbox"
                                                     value="<?php echo $clearance['org_clearance_id']; ?>">
@@ -3341,8 +3341,8 @@ function timeAgo($datetime)
                                         <tr data-barangay="<?php echo htmlspecialchars(formatBarangay($clearance['address'] ?? '')); ?>"
                                             data-semester="<?php echo $clearance['semester']; ?>"
                                             data-status="<?php echo $clearance['status']; ?>"
-                                            data-name="<?php echo strtolower($clearance['fname'] . ' ' . $clearance['lname']); ?>"
-                                            data-id="<?php echo strtolower($clearance['ismis_id']); ?>">
+                                            data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                             <td>
                                                 <div class="student-cell">
                                                     <div class="student-avatar-small">
@@ -3433,8 +3433,8 @@ function timeAgo($datetime)
                         <?php foreach ($students as $student): ?>
                             <div class="student-card"
                                 data-barangay="<?php echo htmlspecialchars(formatBarangay($student['address'] ?? '')); ?>"
-                                data-name="<?php echo strtolower($student['fname'] . ' ' . $student['lname']); ?>"
-                                data-id="<?php echo strtolower($student['ismis_id']); ?>">
+                                data-name="<?php echo htmlspecialchars(strtolower(trim(($student['fname'] ?? '') . ' ' . ($student['lname'] ?? '') . ' ' . ($student['lname'] ?? '') . ' ' . ($student['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                data-id="<?php echo htmlspecialchars(strtolower((string) ($student['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                 <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                                     <div class="student-avatar">
                                         <?php if (!empty($student['profile_picture'])): ?>
@@ -3494,8 +3494,8 @@ function timeAgo($datetime)
                         <div class="undo-grid" id="undoGrid">
                             <?php foreach ($approvals_to_undo as $approval): ?>
                                 <div class="undo-item"
-                                    data-name="<?php echo strtolower($approval['fname'] . ' ' . $approval['lname']); ?>"
-                                    data-id="<?php echo strtolower($approval['ismis_id']); ?>">
+                                    data-name="<?php echo htmlspecialchars(strtolower(trim(($approval['fname'] ?? '') . ' ' . ($approval['lname'] ?? '') . ' ' . ($approval['lname'] ?? '') . ' ' . ($approval['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                    data-id="<?php echo htmlspecialchars(strtolower((string) ($approval['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                     <div class="undo-info">
                                         <h4><?php echo htmlspecialchars($approval['fname'] . ' ' . $approval['lname']); ?></h4>
                                         <p>
@@ -4202,7 +4202,7 @@ function timeAgo($datetime)
 
         function filterStudents() {
             const barangay = document.getElementById('studentBarangayFilter').value;
-            const search = document.getElementById('studentSearch').value.toLowerCase();
+            const search = document.getElementById('studentSearch').value.toLowerCase().trim().replace(/\s+/g, ' ');
             const cards = document.querySelectorAll('.student-card');
 
             cards.forEach(card => {

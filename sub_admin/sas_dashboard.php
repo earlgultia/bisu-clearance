@@ -3242,8 +3242,8 @@ function getOrgTypeBadge($type)
                                         ?>
                                         <tr data-type="<?php echo $clearance['clearance_type']; ?>"
                                             data-semester="<?php echo $clearance['semester']; ?>"
-                                            data-name="<?php echo strtolower($clearance['fname'] . ' ' . $clearance['lname']); ?>"
-                                            data-id="<?php echo strtolower($clearance['ismis_id']); ?>"
+                                            data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>"
                                             data-course="<?php echo strtolower($clearance['course_name'] ?? ''); ?>">
                                             <td><strong><?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($clearance['ismis_id']); ?></td>
@@ -3344,8 +3344,8 @@ function getOrgTypeBadge($type)
                                 <tbody>
                                     <?php foreach ($stats['clearance_history'] as $clearance): ?>
                                         <tr data-status="<?php echo $clearance['status']; ?>"
-                                            data-name="<?php echo strtolower($clearance['fname'] . ' ' . $clearance['lname']); ?>"
-                                            data-id="<?php echo strtolower($clearance['ismis_id']); ?>">
+                                            data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
                                             <td><strong><?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($clearance['ismis_id']); ?></td>
                                             <td><?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?></td>
