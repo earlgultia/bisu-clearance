@@ -5222,7 +5222,7 @@ function getActivityIcon($action)
                                                         <?php if (!empty($clearance['registrar_student_proof_file'])): ?>
                                                                 <?php
                                                                 $file_ext = strtolower(pathinfo($clearance['registrar_student_proof_file'], PATHINFO_EXTENSION));
-                                                                $is_image = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif']);
+                                                                $is_image = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
                                                                 ?>
                                                                 <?php if ($is_image): ?>
                                                                     <img src="<?php echo htmlspecialchars('serve_proof.php?file=' . rawurlencode(ltrim((string) preg_replace('#^(?:\.\./|\./)+#', '', str_replace('\\', '/', (string) ($clearance['registrar_student_proof_file'] ?? ''))), '/')), ENT_QUOTES, 'UTF-8'); ?>"
@@ -5242,7 +5242,7 @@ function getActivityIcon($action)
                                                         <?php if (!empty($clearance['proof_file'])): ?>
                                                                 <?php
                                                                 $file_ext = strtolower(pathinfo($clearance['proof_file'], PATHINFO_EXTENSION));
-                                                                $is_image = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif']);
+                                                                $is_image = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
                                                                 ?>
                                                                 <?php if ($is_image): ?>
                                                                     <img src="<?php echo htmlspecialchars('serve_proof.php?file=' . rawurlencode(ltrim((string) preg_replace('#^(?:\.\./|\./)+#', '', str_replace('\\', '/', (string) ($clearance['proof_file'] ?? ''))), '/')), ENT_QUOTES, 'UTF-8'); ?>"
