@@ -64,6 +64,7 @@ class Database
     private static $instance = null;
     private $stmt;
     private $error;
+    private $lastErrorInfo = null;
     private $queryCount = 0;
     private $queries = [];
 
@@ -176,12 +177,22 @@ class Database
     public function execute()
     {
         try {
+            $this->lastErrorInfo = null;
             return $this->stmt->execute();
         } catch (PDOException $e) {
+            $this->lastErrorInfo = $this->stmt ? $this->stmt->errorInfo() : null;
             error_log("Query Execution Error: " . $e->getMessage());
             error_log("Failed Query: " . ($this->stmt->queryString ?? 'Unknown'));
             return false;
         }
+    }
+
+    /**
+     * Get the last PDO statement error info, if any.
+     */
+    public function getLastErrorInfo()
+    {
+        return $this->lastErrorInfo;
     }
 
     /**

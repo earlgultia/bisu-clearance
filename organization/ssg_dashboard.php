@@ -269,7 +269,10 @@ if (isset($_POST['process_clearance'])) {
                 exit();
             } else {
                 $db->rollback();
-                $error = "Failed to process clearance.";
+                $dbError = $db->getLastErrorInfo();
+                $dbErrorText = is_array($dbError) ? implode(' | ', array_filter($dbError)) : '';
+                error_log("SSG approval failed: " . ($dbErrorText !== '' ? $dbErrorText : 'unknown database error'));
+                $error = $dbErrorText !== '' ? "Failed to process clearance: " . $dbErrorText : "Failed to process clearance.";
             }
         } catch (Exception $e) {
             $db->rollback();
