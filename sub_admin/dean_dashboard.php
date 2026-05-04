@@ -703,14 +703,7 @@ try {
         $params[':type'] = $filter_type;
     }
 
-    $query .= " ORDER BY 
-                CASE 
-                    WHEN c.lacking_comment IS NOT NULL AND c.student_proof_file IS NOT NULL THEN 1  -- Students who have submitted proof after lacking comment
-                    WHEN c.lacking_comment IS NOT NULL THEN 2  -- Students with lacking comment
-                    WHEN c.student_proof_file IS NOT NULL THEN 3  -- Students with proof but no lacking comment
-                    ELSE 4  -- Regular pending
-                END,
-                c.created_at ASC";
+    $query .= " ORDER BY c.created_at DESC, c.clearance_id DESC";
 
     $db->query($query);
     foreach ($params as $key => $value) {

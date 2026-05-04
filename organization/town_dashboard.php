@@ -538,7 +538,7 @@ try {
         $params[':school_year'] = $filter_school_year;
     }
 
-    $query .= " ORDER BY oc.created_at ASC";
+    $query .= " ORDER BY oc.created_at DESC, oc.org_clearance_id DESC";
 
     $db->query($query);
     foreach ($params as $key => $value) {

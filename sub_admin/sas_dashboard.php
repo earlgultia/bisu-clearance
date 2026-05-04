@@ -1179,7 +1179,7 @@ try {
                 LEFT JOIN college col ON u.college_id = col.college_id
                 LEFT JOIN clearance_type ct ON c.clearance_type_id = ct.clearance_type_id
                 WHERE c.office_id = :office_id AND c.status = 'pending'
-                ORDER BY c.created_at ASC");
+                ORDER BY c.created_at DESC, c.clearance_id DESC");
     $db->bind(':office_id', $sas_office_id);
     $stats['pending_clearances'] = $db->resultSet();
 

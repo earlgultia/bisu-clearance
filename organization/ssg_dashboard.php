@@ -569,15 +569,7 @@ try {
         $params[':school_year'] = $filter_school_year;
     }
 
-    $query .= " ORDER BY 
-                CASE 
-                    WHEN u.year_level = '4th Year' THEN 1
-                    WHEN u.year_level = '3rd Year' THEN 2
-                    WHEN u.year_level = '2nd Year' THEN 3
-                    WHEN u.year_level = '1st Year' THEN 4
-                    ELSE 5
-                END,
-                oc.created_at ASC";
+    $query .= " ORDER BY oc.created_at DESC, oc.org_clearance_id DESC";
 
     $db->query($query);
     foreach ($params as $key => $value) {

@@ -1042,21 +1042,7 @@ try {
         $params[':type'] = $filter_type;
     }
 
-    $query .= " ORDER BY 
-                CASE 
-                    WHEN c.lacking_comment IS NOT NULL
-                         AND c.student_proof_file IS NOT NULL
-                         AND (c.student_proof_remarks IS NULL
-                              OR (c.student_proof_remarks NOT LIKE '%[ORG_PROOF]%'
-                                  AND c.student_proof_remarks NOT LIKE '%Submitted for %')) THEN 1
-                    WHEN c.lacking_comment IS NOT NULL THEN 2
-                    WHEN c.student_proof_file IS NOT NULL
-                         AND (c.student_proof_remarks IS NULL
-                              OR (c.student_proof_remarks NOT LIKE '%[ORG_PROOF]%'
-                                  AND c.student_proof_remarks NOT LIKE '%Submitted for %')) THEN 3
-                    ELSE 4
-                END,
-                c.created_at ASC";
+    $query .= " ORDER BY c.created_at DESC, c.clearance_id DESC";
 
     $db->query($query);
     foreach ($params as $key => $value) {
