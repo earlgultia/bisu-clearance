@@ -1592,21 +1592,29 @@ function getStatusClass($status)
         }
 
         .action-btns {
-            display: flex;
-            gap: 6px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(44px, 44px));
+            gap: 8px;
+            align-items: center;
+            justify-content: start;
+            max-width: 200px;
         }
 
         .action-btn {
-            width: 32px;
-            height: 32px;
-            border: none;
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
+            border: 1px solid var(--border-color, rgba(148, 163, 184, 0.35));
             border-radius: 8px;
             cursor: pointer;
-            transition: 0.3s;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             font-size: 0.95rem;
+            line-height: 1;
+            flex: 0 0 44px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
         }
 
         .action-btn.approve {
@@ -1635,12 +1643,16 @@ function getStatusClass($status)
         }
 
         .action-btn:hover {
-            transform: translateY(-2px);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+            border-color: rgba(15, 23, 42, 0.18);
         }
 
         .action-btn:disabled {
-            opacity: 0.5;
+            opacity: 0.45;
             cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .select-checkbox {
@@ -2318,7 +2330,8 @@ function getStatusClass($status)
             }
 
             .action-btns {
-                flex-wrap: wrap;
+                grid-template-columns: repeat(3, 44px);
+                max-width: 200px;
             }
 
             .student-info-grid {

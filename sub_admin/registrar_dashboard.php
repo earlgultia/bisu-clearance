@@ -2770,7 +2770,9 @@ function getActivityIcon($action)
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
-            min-width: 220px;
+            align-items: center;
+            min-width: 210px;
+            max-width: 280px;
         }
 
         .pending-action-form {
@@ -2781,21 +2783,27 @@ function getActivityIcon($action)
             border: 1px solid var(--border-color);
             background: var(--bg-secondary);
             color: var(--text-primary);
-            border-radius: 999px;
+            border-radius: 8px;
+            min-height: 44px;
             padding: 8px 12px;
             font-size: 0.82rem;
             font-weight: 700;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            justify-content: center;
+            gap: 7px;
             cursor: pointer;
-            transition: 0.2s ease;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
             white-space: nowrap;
+            flex: 1 1 116px;
+            max-width: 136px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
         }
 
         .pending-action-btn:hover {
             transform: translateY(-1px);
-            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+            border-color: rgba(15, 23, 42, 0.18);
         }
 
         .pending-action-btn.approve {
@@ -3076,21 +3084,29 @@ function getActivityIcon($action)
         }
 
         .action-btns {
-            display: flex;
-            gap: 6px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(44px, 44px));
+            gap: 8px;
+            align-items: center;
+            justify-content: start;
+            max-width: 200px;
         }
 
         .action-btn {
-            width: 35px;
-            height: 35px;
-            border: none;
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
+            border: 1px solid var(--border-color, rgba(148, 163, 184, 0.35));
             border-radius: 8px;
             cursor: pointer;
-            transition: 0.3s;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 1rem;
+            font-size: 0.95rem;
+            line-height: 1;
+            flex: 0 0 44px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
         }
 
         .action-btn.approve {
@@ -3129,12 +3145,16 @@ function getActivityIcon($action)
         }
 
         .action-btn:hover {
-            transform: translateY(-2px);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+            border-color: rgba(15, 23, 42, 0.18);
         }
 
         .action-btn:disabled {
-            opacity: 0.5;
+            opacity: 0.45;
             cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .select-checkbox {
@@ -3879,7 +3899,8 @@ function getActivityIcon($action)
             }
 
             .action-btns {
-                flex-wrap: wrap;
+                grid-template-columns: repeat(3, 44px);
+                max-width: 200px;
             }
 
             .student-info-grid {
@@ -3910,9 +3931,14 @@ function getActivityIcon($action)
                 min-width: 940px;
             }
 
-            .pending-action-stack {
-                min-width: 180px;
-            }
+        .pending-action-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            min-width: 210px;
+            max-width: 280px;
+        }
         }
 
         @media (max-width: 480px) {
