@@ -1671,6 +1671,7 @@ if (isset($_POST['send_message'])) {
 // ============================================
 if (isset($_POST['upload_proof'])) {
     $clearance_id = (int) ($_POST['clearance_id'] ?? 0);
+    $posted_office_id = (int) ($_POST['office_id'] ?? 0);
     $office_name = trim($_POST['office_name'] ?? '');
     $org_clearance_id = (int) ($_POST['org_clearance_id'] ?? 0);
     $upload_target_type = trim($_POST['upload_target_type'] ?? 'office');
@@ -1739,22 +1740,25 @@ if (isset($_POST['upload_proof'])) {
                         throw new Exception("Proof has already been uploaded for this organization clearance.");
                     }
                 } else {
-                    // First, get the office_id from office_name
-                    $db->query("SELECT office_id FROM offices WHERE office_name = :office_name");
-                    $db->bind(':office_name', $office_name);
-                    $office_result = $db->single();
+                    $office_id = $posted_office_id;
 
-                    if (!$office_result) {
+                    if ($office_id <= 0 && $office_name !== '') {
+                        $db->query("SELECT office_id FROM offices WHERE office_name = :office_name");
+                        $db->bind(':office_name', $office_name);
+                        $office_result = $db->single();
+                        $office_id = (int) ($office_result['office_id'] ?? 0);
+                    }
+
+                    if ($office_id <= 0) {
                         throw new Exception("Office not found");
                     }
 
-                    $office_id = (int) $office_result['office_id'];
-
-                    $db->query("SELECT student_proof_file
-                                FROM clearance
-                                WHERE clearance_id = :id
-                                AND users_id = :student_id
-                                AND office_id = :office_id
+                    $db->query("SELECT c.student_proof_file, o.office_name
+                                FROM clearance c
+                                JOIN offices o ON c.office_id = o.office_id
+                                WHERE c.clearance_id = :id
+                                AND c.users_id = :student_id
+                                AND c.office_id = :office_id
                                 LIMIT 1");
                     $db->bind(':id', $clearance_id);
                     $db->bind(':student_id', $student_id);
@@ -1763,6 +1767,14 @@ if (isset($_POST['upload_proof'])) {
 
                     if (!$existing_proof_row) {
                         throw new Exception("Clearance record not found");
+                    }
+
+                    if ($office_name === '') {
+                        $office_name = $existing_proof_row['office_name'] ?? '';
+                    }
+
+                    if ($upload_target_name === '') {
+                        $upload_target_name = $office_name;
                     }
 
                     if (!empty($existing_proof_row['student_proof_file'])) {
@@ -8287,7 +8299,7 @@ function getOrganizationIcon($org_type)
 
                                                         <?php if (empty($app['student_proof_file'])): ?>
                                                             <button class="upload-btn"
-                                                                onclick="event.stopPropagation(); openUploadModal(<?php echo $app['clearance_id']; ?>, '<?php echo $app['office_name']; ?>')">
+                                                                onclick="event.stopPropagation(); openUploadModal(<?php echo (int) $app['clearance_id']; ?>, <?php echo htmlspecialchars(json_encode($app['office_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, 'office', 0, <?php echo (int) ($app['office_id'] ?? 0); ?>)">
                                                                 <i class="fas fa-upload"></i> Upload Proof
                                                             </button>
                                                         <?php else: ?>
@@ -8340,7 +8352,7 @@ function getOrganizationIcon($org_type)
 
                                                             <?php if (empty($orgApp['student_proof_file'])): ?>
                                                                 <button class="upload-btn"
-                                                                    onclick="event.stopPropagation(); openUploadModal(<?php echo (int) $orgApp['clearance_id']; ?>, '<?php echo htmlspecialchars($orgApp['display_name'] ?? $orgApp['org_name'] ?? 'Organization', ENT_QUOTES); ?>', 'organization', <?php echo (int) $orgApp['org_clearance_id']; ?>)">
+                                                                    onclick="event.stopPropagation(); openUploadModal(<?php echo (int) $orgApp['clearance_id']; ?>, <?php echo htmlspecialchars(json_encode($orgApp['display_name'] ?? $orgApp['org_name'] ?? 'Organization'), ENT_QUOTES, 'UTF-8'); ?>, 'organization', <?php echo (int) $orgApp['org_clearance_id']; ?>)">
                                                                     <i class="fas fa-upload"></i> Upload Proof
                                                                 </button>
                                                             <?php else: ?>
@@ -9157,6 +9169,7 @@ function getOrganizationIcon($org_type)
             <form method="POST" action="" enctype="multipart/form-data" id="uploadForm">
                 <div class="modal-body">
                     <input type="hidden" name="clearance_id" id="uploadClearanceId">
+                    <input type="hidden" name="office_id" id="uploadOfficeId">
                     <input type="hidden" name="office_name" id="uploadOfficeName">
                     <input type="hidden" name="org_clearance_id" id="uploadOrgClearanceId">
                     <input type="hidden" name="upload_target_type" id="uploadTargetType" value="office">
@@ -9817,13 +9830,14 @@ function getOrganizationIcon($org_type)
         });
 
         // Upload Modal
-        function openUploadModal(clearanceId, officeName, targetType = 'office', orgClearanceId = 0) {
+        function openUploadModal(clearanceId, officeName, targetType = 'office', orgClearanceId = 0, officeId = 0) {
             if (proofUploadInProgress) {
                 showToast('A proof upload is already in progress. Please wait for it to finish.', 'warning');
                 return;
             }
 
             document.getElementById('uploadClearanceId').value = clearanceId;
+            document.getElementById('uploadOfficeId').value = targetType === 'office' ? (officeId || '') : '';
             document.getElementById('uploadOfficeName').value = officeName;
             document.getElementById('uploadOrgClearanceId').value = orgClearanceId || '';
             document.getElementById('uploadTargetType').value = targetType;
@@ -9842,6 +9856,8 @@ function getOrganizationIcon($org_type)
             document.getElementById('uploadModal').style.display = 'none';
             document.getElementById('proofFile').value = '';
             document.getElementById('proofRemarks').value = '';
+            document.getElementById('uploadOfficeId').value = '';
+            document.getElementById('uploadOfficeName').value = '';
             document.getElementById('uploadOrgClearanceId').value = '';
             document.getElementById('uploadTargetType').value = 'office';
             document.getElementById('uploadTargetName').value = '';
@@ -9988,6 +10004,11 @@ function getOrganizationIcon($org_type)
             const displayName = isOrganization ? (item.display_name || item.org_name || 'Organization') : (item.office_name ? item.office_name.replace('_', ' ') : 'N/A');
             const targetLabel = isOrganization ? 'Organization' : 'Office';
             const safeDisplayNameForHandler = String(displayName || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const uploadButtonHtml = item.student_proof_file
+                ? ''
+                : (isOrganization
+                    ? '<div style="margin-top: 0.75rem;"><button class="upload-btn" onclick="openUploadModal(' + Number(item.clearance_id || 0) + ', \'' + safeDisplayNameForHandler + '\', \'organization\', ' + Number(item.org_clearance_id || 0) + '); closeDetailsModal();"><i class="fas fa-upload"></i> Upload Proof for ' + displayName + '</button></div>'
+                    : '<div style="margin-top: 0.75rem;"><button class="upload-btn" onclick="openUploadModal(' + Number(item.clearance_id || 0) + ', \'' + safeDisplayNameForHandler + '\', \'office\', 0, ' + Number(item.office_id || 0) + '); closeDetailsModal();"><i class="fas fa-upload"></i> Upload Proof for ' + displayName + '</button></div>');
 
             let lackingHtml = '';
             if (item.lacking_comment) {
@@ -9998,7 +10019,7 @@ function getOrganizationIcon($org_type)
                         </h4>
                         <p>${item.lacking_comment}</p>
                         ${item.lacking_comment_at ? '<small>Since: ' + new Date(item.lacking_comment_at).toLocaleString() + '</small>' : ''}
-                        ${isOrganization ? '<div style="margin-top: 0.75rem;"><button class="upload-btn" onclick="openUploadModal(' + Number(item.clearance_id || 0) + ', \'' + safeDisplayNameForHandler + '\', \'organization\', ' + Number(item.org_clearance_id || 0) + '); closeDetailsModal();"><i class="fas fa-upload"></i> Upload Proof for ' + displayName + '</button></div>' : ''}
+                        ${uploadButtonHtml}
                     </div>
                 `;
             }
