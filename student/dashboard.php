@@ -7986,7 +7986,7 @@ function getOrganizationIcon($org_type)
                     </div>
                     <div class="stat-card dashboard-tap-card" data-switch-tab="history" role="button" tabindex="0">
                         <div class="stat-icon completed">
-                            <i class="fas fa-check-double"></i>
+                            <i class="fas fa-shield-check"></i>
                         </div>
                         <div class="stat-details">
                             <h3>
