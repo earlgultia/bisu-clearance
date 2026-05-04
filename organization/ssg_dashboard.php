@@ -204,6 +204,13 @@ if (isset($_POST['process_clearance'])) {
         try {
             $db->beginTransaction();
 
+            $processed_by = null;
+            $db->query("SELECT users_id FROM users WHERE users_id = :users_id LIMIT 1");
+            $db->bind(':users_id', $org_id);
+            if ($db->single()) {
+                $processed_by = $org_id;
+            }
+
             // Get current clearance info
             $db->query("SELECT oc.*, c.users_id, u.fname, u.lname, u.ismis_id, u.course_id, u.address, u.year_level
                        FROM organization_clearance oc
@@ -228,17 +235,24 @@ if (isset($_POST['process_clearance'])) {
                 throw new Exception("This clearance has an active lacking comment. Wait for the student proof before approving.");
             }
 
+            $updated_remarks = trim((string) ($current['remarks'] ?? ''));
+            if ($remarks !== '') {
+                $updated_remarks = $updated_remarks !== ''
+                    ? $updated_remarks . ' | SSG: ' . $remarks
+                    : 'SSG: ' . $remarks;
+            }
+
             // Update the organization clearance
             $db->query("UPDATE organization_clearance SET 
                         status = :status, 
-                        remarks = CONCAT(IFNULL(remarks, ''), ' | SSG: ', :remarks),
+                        remarks = :remarks,
                         processed_by = :processed_by, 
                         processed_date = NOW(),
                         updated_at = NOW()
                         WHERE org_clearance_id = :id AND org_id = :org_id");
             $db->bind(':status', $status);
-            $db->bind(':remarks', $remarks);
-            $db->bind(':processed_by', $org_id);
+            $db->bind(':remarks', $updated_remarks);
+            $db->bind(':processed_by', $processed_by);
             $db->bind(':id', $org_clearance_id);
             $db->bind(':org_id', $org_id);
 
