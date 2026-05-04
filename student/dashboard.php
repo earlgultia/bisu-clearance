@@ -45,6 +45,51 @@ $db = Database::getInstance();
 ensurePushInfrastructure($db);
 $runStudentSchemaMaintenance = shouldRunMaintenanceTask('student_dashboard_schema_migrations', 21600);
 
+function freshDatabaseColumnExists($db, $tableName, $columnName)
+{
+    try {
+        $db->query("SELECT COUNT(*) AS column_count
+                    FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                    AND TABLE_NAME = :table_name
+                    AND COLUMN_NAME = :column_name
+                    LIMIT 1");
+        $db->bind(':table_name', $tableName);
+        $db->bind(':column_name', $columnName);
+        $row = $db->single();
+        return ((int) ($row['column_count'] ?? 0)) > 0;
+    } catch (Exception $e) {
+        error_log("Fresh schema check failed for {$tableName}.{$columnName}: " . $e->getMessage());
+        return false;
+    }
+}
+
+function rememberDatabaseColumnExists($tableName, $columnName)
+{
+    $cacheKey = strtolower(trim((string) $tableName) . '.' . trim((string) $columnName));
+    if ($cacheKey === '.') {
+        return;
+    }
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        if (!isset($_SESSION['_schema_cache']) || !is_array($_SESSION['_schema_cache'])) {
+            $_SESSION['_schema_cache'] = [];
+        }
+
+        $_SESSION['_schema_cache'][$cacheKey] = [
+            'value' => true,
+            'expires_at' => time() + 21600
+        ];
+    }
+
+    $apcuEnabled = function_exists('apcu_store')
+        && (bool) ini_get(PHP_SAPI === 'cli' ? 'apc.enable_cli' : 'apc.enabled');
+
+    if ($apcuEnabled) {
+        call_user_func('apcu_store', 'clearance:column_exists:' . $cacheKey, true, 21600);
+    }
+}
+
 function ensureOrganizationProofColumns($db)
 {
     static $checked = false;
@@ -60,18 +105,70 @@ function ensureOrganizationProofColumns($db)
     }
 
     try {
-        if (!hasDatabaseColumn('organization_clearance', 'student_proof_file')) {
+        if (!freshDatabaseColumnExists($db, 'organization_clearance', 'student_proof_file')) {
             $db->query("ALTER TABLE organization_clearance
-                        ADD COLUMN student_proof_file VARCHAR(255) NULL AFTER remarks,
-                        ADD COLUMN student_proof_remarks TEXT NULL AFTER student_proof_file,
-                        ADD COLUMN student_proof_uploaded_at DATETIME NULL AFTER student_proof_remarks");
+                        ADD COLUMN student_proof_file VARCHAR(255) NULL");
             $db->execute();
         }
+
+        if (!freshDatabaseColumnExists($db, 'organization_clearance', 'student_proof_remarks')) {
+            $db->query("ALTER TABLE organization_clearance
+                        ADD COLUMN student_proof_remarks TEXT NULL");
+            $db->execute();
+        }
+
+        if (!freshDatabaseColumnExists($db, 'organization_clearance', 'student_proof_uploaded_at')) {
+            $db->query("ALTER TABLE organization_clearance
+                        ADD COLUMN student_proof_uploaded_at DATETIME NULL");
+            $db->execute();
+        }
+
+        rememberDatabaseColumnExists('organization_clearance', 'student_proof_file');
+        rememberDatabaseColumnExists('organization_clearance', 'student_proof_remarks');
+        rememberDatabaseColumnExists('organization_clearance', 'student_proof_uploaded_at');
     } catch (Exception $e) {
         error_log("Error ensuring organization proof columns: " . $e->getMessage());
     }
 }
 
+function ensureClearanceProofColumns($db)
+{
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    try {
+        if (!freshDatabaseColumnExists($db, 'clearance', 'student_proof_file')) {
+            $db->query("ALTER TABLE clearance
+                        ADD COLUMN student_proof_file VARCHAR(255) NULL");
+            $db->execute();
+        }
+
+        if (!freshDatabaseColumnExists($db, 'clearance', 'student_proof_remarks')) {
+            $db->query("ALTER TABLE clearance
+                        ADD COLUMN student_proof_remarks TEXT NULL");
+            $db->execute();
+        }
+
+        if (!freshDatabaseColumnExists($db, 'clearance', 'student_proof_uploaded_at')) {
+            $db->query("ALTER TABLE clearance
+                        ADD COLUMN student_proof_uploaded_at DATETIME NULL");
+            $db->execute();
+        }
+
+        rememberDatabaseColumnExists('clearance', 'student_proof_file');
+        rememberDatabaseColumnExists('clearance', 'student_proof_remarks');
+        rememberDatabaseColumnExists('clearance', 'student_proof_uploaded_at');
+    } catch (Exception $e) {
+        error_log("Error ensuring clearance proof columns: " . $e->getMessage());
+    }
+}
+
+ensureClearanceProofColumns($db);
 ensureOrganizationProofColumns($db);
 
 // Get student information from session
@@ -1671,7 +1768,6 @@ if (isset($_POST['send_message'])) {
 // ============================================
 if (isset($_POST['upload_proof'])) {
     $clearance_id = (int) ($_POST['clearance_id'] ?? 0);
-    $posted_office_id = (int) ($_POST['office_id'] ?? 0);
     $office_name = trim($_POST['office_name'] ?? '');
     $org_clearance_id = (int) ($_POST['org_clearance_id'] ?? 0);
     $upload_target_type = trim($_POST['upload_target_type'] ?? 'office');
@@ -1687,7 +1783,9 @@ if (isset($_POST['upload_proof'])) {
         $allowed_image_types = [
             'image/jpeg' => 'jpg',
             'image/jpg' => 'jpg',
-            'image/png' => 'png'
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp'
         ];
 
         $is_image_upload = isset($allowed_image_types[$detected_mime_type]);
@@ -1697,7 +1795,7 @@ if (isset($_POST['upload_proof'])) {
         $max_pdf_size = 5 * 1024 * 1024; // Keep PDF limit strict
 
         if (!$is_image_upload && !$is_pdf_upload) {
-            $error = "Only PDF, JPG, and PNG files are allowed.";
+            $error = "Only PDF, JPG, PNG, GIF, and WEBP files are allowed.";
         } elseif ($is_image_upload && $file_size > $max_image_upload_size) {
             $error = "Image size must be less than 20MB before compression.";
         } elseif ($is_pdf_upload && $file_size > $max_pdf_size) {
@@ -1711,6 +1809,7 @@ if (isset($_POST['upload_proof'])) {
                 }
 
                 $db = Database::getInstance();
+                ensureClearanceProofColumns($db);
                 ensureOrganizationProofColumns($db);
                 $is_org_upload = $upload_target_type === 'organization' && $org_clearance_id > 0;
 
@@ -1740,34 +1839,21 @@ if (isset($_POST['upload_proof'])) {
                         throw new Exception("Proof has already been uploaded for this organization clearance.");
                     }
                 } else {
-                    $office_id = $posted_office_id;
-
-                    if ($office_id <= 0 && $office_name !== '') {
-                        $db->query("SELECT office_id FROM offices WHERE office_name = :office_name");
-                        $db->bind(':office_name', $office_name);
-                        $office_result = $db->single();
-                        $office_id = (int) ($office_result['office_id'] ?? 0);
-                    }
-
-                    if ($office_id <= 0) {
-                        throw new Exception("Office not found");
-                    }
-
-                    $db->query("SELECT c.student_proof_file, o.office_name
+                    $db->query("SELECT c.clearance_id, c.office_id, c.student_proof_file, o.office_name
                                 FROM clearance c
-                                JOIN offices o ON c.office_id = o.office_id
+                                LEFT JOIN offices o ON c.office_id = o.office_id
                                 WHERE c.clearance_id = :id
                                 AND c.users_id = :student_id
-                                AND c.office_id = :office_id
                                 LIMIT 1");
                     $db->bind(':id', $clearance_id);
                     $db->bind(':student_id', $student_id);
-                    $db->bind(':office_id', $office_id);
                     $existing_proof_row = $db->single();
 
                     if (!$existing_proof_row) {
                         throw new Exception("Clearance record not found");
                     }
+
+                    $office_id = (int) ($existing_proof_row['office_id'] ?? 0);
 
                     if ($office_name === '') {
                         $office_name = $existing_proof_row['office_name'] ?? '';
@@ -1789,7 +1875,7 @@ if (isset($_POST['upload_proof'])) {
                 $destination_path = $upload_dir . $filename;
 
                 $upload_saved = false;
-                if ($is_image_upload) {
+                if ($is_image_upload && in_array($detected_mime_type, ['image/jpeg', 'image/jpg', 'image/png'], true)) {
                     $upload_saved = saveOptimizedUploadedImage(
                         $tmp_file_path,
                         $destination_path,
@@ -1808,8 +1894,8 @@ if (isset($_POST['upload_proof'])) {
                 }
 
                 if ($upload_saved) {
-                    // Check if the columns exist
-                    $column_exists = hasDatabaseColumn('clearance', 'student_proof_file');
+                    // The upload path requires these columns; ensureClearanceProofColumns() creates them for older databases.
+                    $column_exists = true;
 
                     if ($column_exists) {
                         $proof_remarks_value = $remarks;
@@ -1840,13 +1926,11 @@ if (isset($_POST['upload_proof'])) {
                                         student_proof_uploaded_at = NOW(),
                                         updated_at = NOW()
                                         WHERE clearance_id = :id
-                                        AND users_id = :student_id
-                                        AND office_id = :office_id");
+                                        AND users_id = :student_id");
                             $db->bind(':proof_file', $filepath);
                             $db->bind(':remarks', $remarks);
                             $db->bind(':id', $clearance_id);
                             $db->bind(':student_id', $student_id);
-                            $db->bind(':office_id', $office_id);
                         }
                     } else {
                         $proof_remarks_value = $is_org_upload && $upload_target_name !== ''
@@ -1872,17 +1956,15 @@ if (isset($_POST['upload_proof'])) {
                                         remarks = CONCAT(IFNULL(remarks, ''), ' | STUDENT PROOF UPLOADED: ', :remarks, ' - File: ', :proof_file),
                                         updated_at = NOW()
                                         WHERE clearance_id = :id
-                                        AND users_id = :student_id
-                                        AND office_id = :office_id");
+                                        AND users_id = :student_id");
                             $db->bind(':proof_file', $filename);
                             $db->bind(':remarks', $remarks);
                             $db->bind(':id', $clearance_id);
                             $db->bind(':student_id', $student_id);
-                            $db->bind(':office_id', $office_id);
                         }
                     }
 
-                    if ($db->execute()) {
+                    if ($db->execute() && $db->rowCount() > 0) {
                         // Log the activity
                         if (class_exists('ActivityLogModel')) {
                             $logModel = new ActivityLogModel();
@@ -9185,8 +9267,8 @@ function getOrganizationIcon($org_type)
                     <div class="form-group">
                         <label><i class="fas fa-file"></i> Select File <span class="required">*</span></label>
                         <input type="file" name="proof_file" id="proofFile" class="form-control"
-                            accept=".pdf,.jpg,.jpeg,.png" required>
-                        <small style="color: var(--text-light);">Allowed: PDF, JPG, PNG (Max 5MB)</small>
+                            accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" required>
+                        <small style="color: var(--text-light);">Allowed: PDF, JPG, PNG, GIF, WEBP (PDF max 5MB, images max 20MB)</small>
                     </div>
 
                     <div class="form-group">
