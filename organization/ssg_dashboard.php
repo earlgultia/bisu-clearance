@@ -189,7 +189,7 @@ if (isset($_POST['add_lacking_comment'])) {
 // HANDLE CLEARANCE APPROVAL/REJECTION
 // ============================================
 if (isset($_POST['process_clearance'])) {
-    $org_clearance_id = (int) ($_POST['org_clearance_id'] ?? 0);
+    $org_clearance_id = $_POST['org_clearance_id'] ?? '';
     $status_input = strtolower(trim($_POST['status'] ?? ''));
     $status_map = [
         'approve' => 'approved',
@@ -200,13 +200,12 @@ if (isset($_POST['process_clearance'])) {
     $status = $status_map[$status_input] ?? '';
     $remarks = trim($_POST['remarks'] ?? '');
 
-    if ($org_clearance_id > 0 && $status) {
+    if ($org_clearance_id && $status) {
         try {
             $db->beginTransaction();
 
             // Get current clearance info
-            $db->query("SELECT oc.org_clearance_id, oc.clearance_id, oc.org_id, oc.status, oc.remarks, oc.student_proof_file,
-                               c.users_id, u.fname, u.lname, u.ismis_id, u.course_id, u.college_id, u.address, u.year_level
+            $db->query("SELECT oc.*, c.users_id, u.fname, u.lname, u.ismis_id, u.course_id, u.address, u.year_level
                        FROM organization_clearance oc
                        JOIN clearance c ON oc.clearance_id = c.clearance_id
                        JOIN users u ON c.users_id = u.users_id
@@ -229,28 +228,17 @@ if (isset($_POST['process_clearance'])) {
                 throw new Exception("This clearance has an active lacking comment. Wait for the student proof before approving.");
             }
 
-            $db->query("SELECT users_id FROM users WHERE users_id = :org_id LIMIT 1");
-            $db->bind(':org_id', $org_id);
-            $processor_user = $db->single();
-            $processed_by = !empty($processor_user['users_id']) ? (int) $processor_user['users_id'] : null;
-
-            $remarks_sql = '';
-            if ($remarks !== '') {
-                $remarks_sql = ",\n                        remarks = CONCAT(IFNULL(remarks, ''), CASE WHEN IFNULL(remarks, '') = '' THEN '' ELSE ' | ' END, 'SSG: ', :remarks)";
-            }
-
             // Update the organization clearance
             $db->query("UPDATE organization_clearance SET 
                         status = :status, 
+                        remarks = CONCAT(IFNULL(remarks, ''), ' | SSG: ', :remarks),
                         processed_by = :processed_by, 
                         processed_date = NOW(),
-                        updated_at = NOW(){$remarks_sql}
+                        updated_at = NOW()
                         WHERE org_clearance_id = :id AND org_id = :org_id");
             $db->bind(':status', $status);
-            if ($remarks !== '') {
-                $db->bind(':remarks', $remarks);
-            }
-            $db->bind(':processed_by', $processed_by, $processed_by === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $db->bind(':remarks', $remarks);
+            $db->bind(':processed_by', $org_id);
             $db->bind(':id', $org_clearance_id);
             $db->bind(':org_id', $org_id);
 
