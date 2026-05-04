@@ -1766,7 +1766,12 @@ if (isset($_POST['send_message'])) {
 // ============================================
 // HANDLE PROOF UPLOAD
 // ============================================
-if (isset($_POST['upload_proof'])) {
+$isProofUploadRequest = $_SERVER['REQUEST_METHOD'] === 'POST'
+    && isset($_POST['clearance_id'])
+    && isset($_POST['upload_target_type'])
+    && isset($_FILES['proof_file']);
+
+if ($isProofUploadRequest) {
     $clearance_id = (int) ($_POST['clearance_id'] ?? 0);
     $office_name = trim($_POST['office_name'] ?? '');
     $org_clearance_id = (int) ($_POST['org_clearance_id'] ?? 0);
@@ -9944,6 +9949,11 @@ function getOrganizationIcon($org_type)
         }
 
         uploadForm?.addEventListener('submit', (event) => {
+            if (proofUploadInProgress) {
+                event.preventDefault();
+                return;
+            }
+
             const selectedProofFile = proofFileInput?.files?.[0] || null;
             const maxProofUploadSize = 20 * 1024 * 1024;
 
@@ -9955,11 +9965,7 @@ function getOrganizationIcon($org_type)
 
             proofUploadInProgress = true;
             if (uploadProofBtn) {
-                uploadProofBtn.disabled = true;
                 uploadProofBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
-            }
-            if (proofFileInput) {
-                proofFileInput.disabled = true;
             }
         });
 
