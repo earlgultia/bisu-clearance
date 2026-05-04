@@ -1791,15 +1791,12 @@ if (isset($_POST['upload_proof'])) {
         $is_image_upload = isset($allowed_image_types[$detected_mime_type]);
         $is_pdf_upload = $detected_mime_type === 'application/pdf';
 
-        $max_image_upload_size = 20 * 1024 * 1024; // 20MB original image before compression
-        $max_pdf_size = 5 * 1024 * 1024; // Keep PDF limit strict
+        $max_proof_upload_size = 20 * 1024 * 1024; // 20MB original file before image compression
 
         if (!$is_image_upload && !$is_pdf_upload) {
             $error = "Only PDF, JPG, PNG, GIF, and WEBP files are allowed.";
-        } elseif ($is_image_upload && $file_size > $max_image_upload_size) {
-            $error = "Image size must be less than 20MB before compression.";
-        } elseif ($is_pdf_upload && $file_size > $max_pdf_size) {
-            $error = "PDF size must be less than 5MB.";
+        } elseif ($file_size > $max_proof_upload_size) {
+            $error = "Proof file size must be less than 20MB.";
         } else {
             try {
                 // Create upload directory if it doesn't exist
@@ -1880,9 +1877,9 @@ if (isset($_POST['upload_proof'])) {
                         $tmp_file_path,
                         $destination_path,
                         $detected_mime_type,
-                        1920,
-                        82,
-                        7
+                        1600,
+                        72,
+                        8
                     );
 
                     // Fallback to raw save if image optimization is unavailable.
@@ -9268,7 +9265,7 @@ function getOrganizationIcon($org_type)
                         <label><i class="fas fa-file"></i> Select File <span class="required">*</span></label>
                         <input type="file" name="proof_file" id="proofFile" class="form-control"
                             accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" required>
-                        <small style="color: var(--text-light);">Allowed: PDF, JPG, PNG, GIF, WEBP (PDF max 5MB, images max 20MB)</small>
+                        <small style="color: var(--text-light);">Allowed: PDF, JPG, PNG, GIF, WEBP (max 20MB; images are compressed before saving)</small>
                     </div>
 
                     <div class="form-group">
@@ -9946,7 +9943,16 @@ function getOrganizationIcon($org_type)
             document.getElementById('uploadTargetHelp').textContent = 'Upload proof that you have resolved the lacking items. This will be sent to the office for review.';
         }
 
-        uploadForm?.addEventListener('submit', () => {
+        uploadForm?.addEventListener('submit', (event) => {
+            const selectedProofFile = proofFileInput?.files?.[0] || null;
+            const maxProofUploadSize = 20 * 1024 * 1024;
+
+            if (selectedProofFile && selectedProofFile.size > maxProofUploadSize) {
+                event.preventDefault();
+                showToast('Proof file must be 20MB or smaller.', 'error');
+                return;
+            }
+
             proofUploadInProgress = true;
             if (uploadProofBtn) {
                 uploadProofBtn.disabled = true;
