@@ -7009,8 +7009,7 @@ function getOrganizationIcon($org_type)
             }
 
             .hero-actions,
-            .hero-panel-grid,
-            .spotlight-metrics {
+            .hero-panel-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -7616,10 +7615,6 @@ function getOrganizationIcon($org_type)
                 text-align: center;
             }
 
-            .spotlight-card,
-            .profile-highlight-card {
-                padding: 1rem;
-            }
         }
 
         @keyframes mobileDropdownIn {
