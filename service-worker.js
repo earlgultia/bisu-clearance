@@ -1,4 +1,4 @@
-const CACHE_VERSION = "bisu-clearance-v15";
+const CACHE_VERSION = "bisu-clearance-v16";
 const CORE_CACHE = `${CACHE_VERSION}-core`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const APP_ASSET_VERSION = "20260422-2";
@@ -118,10 +118,7 @@ self.addEventListener("pushsubscriptionchange", (event) => {
 
 async function handleNavigation(request) {
   try {
-    const networkResponse = await fetch(request);
-    const cache = await caches.open(RUNTIME_CACHE);
-    cache.put(request, networkResponse.clone());
-    return networkResponse;
+    return await fetch(request, { cache: "no-store" });
   } catch (error) {
     const cachedResponse = await caches.match(request);
     if (cachedResponse) {
