@@ -773,6 +773,25 @@ try {
         }
     }
 
+    $clearance_sections = [
+        'pending' => [],
+        'approved' => [],
+        'rejected' => []
+    ];
+
+    foreach ($clearance_history as $history_item) {
+        $status_key = strtolower(trim((string) ($history_item['status'] ?? 'pending')));
+        if (isset($clearance_sections[$status_key])) {
+            $clearance_sections[$status_key][] = $history_item;
+        }
+    }
+
+    $clearance_section_counts = [
+        'pending' => count($clearance_sections['pending']),
+        'approved' => count($clearance_sections['approved']),
+        'rejected' => count($clearance_sections['rejected'])
+    ];
+
     foreach ($students as $student) {
         $student_summary['total']++;
 
@@ -1970,6 +1989,148 @@ function getActivityIcon($action)
             grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
             gap: 14px;
             margin: 18px 0 22px;
+        }
+
+        .clearance-accordion {
+            display: grid;
+            gap: 14px;
+            margin-top: 18px;
+        }
+
+        .clearance-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            box-shadow: var(--card-shadow);
+            overflow: hidden;
+        }
+
+        .clearance-section summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 20px;
+        }
+
+        .clearance-section summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .clearance-section-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+        }
+
+        .clearance-section-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            color: white;
+        }
+
+        .clearance-section-icon.pending {
+            background: linear-gradient(135deg, var(--warning), #f59e0b);
+        }
+
+        .clearance-section-icon.approved {
+            background: linear-gradient(135deg, var(--success), #16a34a);
+        }
+
+        .clearance-section-icon.rejected {
+            background: linear-gradient(135deg, var(--danger), #dc2626);
+        }
+
+        .clearance-section-title {
+            color: var(--text-primary);
+            font-size: 1.05rem;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        .clearance-section-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            margin-top: 4px;
+        }
+
+        .clearance-section-meta {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .clearance-section-count {
+            padding: 7px 12px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .clearance-section-chevron {
+            color: var(--text-secondary);
+            transition: transform 0.2s ease;
+        }
+
+        .clearance-section[open] .clearance-section-chevron {
+            transform: rotate(180deg);
+        }
+
+        .clearance-section-content {
+            padding: 0 20px 20px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .clearance-compact-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .clearance-compact-item {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 16px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .clearance-compact-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .clearance-compact-name {
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .clearance-compact-meta {
+            color: var(--text-secondary);
+            font-size: 0.86rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 12px;
+        }
+
+        .clearance-compact-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
         }
 
         .summary-card {
@@ -3452,7 +3613,7 @@ function getActivityIcon($action)
                 </button>
                 <button class="nav-item <?php echo $active_tab == 'pending' ? 'active' : ''; ?>"
                     onclick="switchTab('pending')">
-                    <i class="fas fa-clock"></i> Pending Clearances
+                    <i class="fas fa-clock"></i> Clearances
                     <?php if (($stats['pending'] ?? 0) > 0): ?>
                         <span
                             style="margin-left: auto; background: var(--warning); color: white; padding: 2px 8px; border-radius: 20px; font-size: 0.8rem;">
@@ -3931,7 +4092,7 @@ function getActivityIcon($action)
                             <h3>
                                 <?php echo $stats['pending'] ?? 0; ?>
                             </h3>
-                            <p>Pending Clearances</p>
+                            <p>Clearances Pending</p>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -4056,309 +4217,442 @@ function getActivityIcon($action)
                 </div>
             </div>
 
-            <!-- Pending Clearances Tab -->
+            <!-- Clearances Tab -->
             <div id="pending" class="tab-content <?php echo $active_tab == 'pending' ? 'active' : ''; ?>">
                 <div class="section-card">
                     <div class="section-header">
-                        <h2><i class="fas fa-clock"></i> Pending Clearances</h2>
-                        <span>Found:
-                            <?php echo count($pending_clearances); ?> pending
-                        </span>
+                        <h2><i class="fas fa-clock"></i> Clearances</h2>
+                        <span>Found: <?php echo count($clearance_history); ?> total</span>
                     </div>
 
-                    <div class="summary-grid">
-                        <div class="summary-card">
-                            <div class="label">Total Pending</div>
-                            <div class="value"><?php echo $pending_summary['total']; ?></div>
-                            <div class="meta">Current library requests waiting in the queue</div>
-                        </div>
-                        <div class="summary-card">
-                            <div class="label">Needs Review</div>
-                            <div class="value"><?php echo $pending_summary['needs_review']; ?></div>
-                            <div class="meta">Fresh submissions with no lacking comment yet</div>
-                        </div>
-                        <div class="summary-card">
-                            <div class="label">Awaiting Student</div>
-                            <div class="value"><?php echo $pending_summary['awaiting_student']; ?></div>
-                            <div class="meta">Locked until the student submits proof</div>
-                        </div>
-                        <div class="summary-card">
-                            <div class="label">Proof Submitted</div>
-                            <div class="value"><?php echo $pending_summary['proof_submitted']; ?></div>
-                            <div class="meta">Rows with uploaded student proof ready to inspect</div>
-                        </div>
-                        <div class="summary-card">
-                            <div class="label">Complied</div>
-                            <div class="value"><?php echo $pending_summary['complied']; ?></div>
-                            <div class="meta">Students who answered a lacking requirement</div>
-                        </div>
-                    </div>
-
-                    <!-- Filter Bar -->
-                    <div class="filter-bar">
-                        <select class="filter-select" id="pendingTypeFilter">
-                            <option value="">All Types</option>
-                            <?php foreach ($stats['clearance_types'] ?? [] as $type): ?>
-                                <option value="<?php echo $type['clearance_name']; ?>">
-                                    <?php echo ucfirst($type['clearance_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <select class="filter-select" id="pendingStateFilter">
-                            <option value="">All Queue States</option>
-                            <option value="needs-review">Needs Review</option>
-                            <option value="awaiting-student">Awaiting Student</option>
-                            <option value="proof-submitted">Proof Submitted</option>
-                            <option value="complied">Complied</option>
-                        </select>
-                        <input type="text" class="filter-input" id="pendingSearch"
-                            placeholder="Search by student name or ID...">
-                        <button class="filter-btn" onclick="filterPending()"><i class="fas fa-filter"></i>
-                            Filter</button>
-                        <button class="clear-filter" onclick="clearPendingFilters()"><i class="fas fa-times"></i>
-                            Clear</button>
-                    </div>
-
-                    <div class="section-tools">
-                        <div class="filter-meta" id="pendingVisibleCount">Showing <?php echo count($pending_clearances); ?>
-                            of <?php echo count($pending_clearances); ?> pending clearances</div>
-                        <div class="filter-meta">Use queue states to separate new reviews, follow-ups, and complied
-                            submissions.</div>
-                    </div>
-
-                    <!-- Bulk Actions -->
-                    <?php if (!empty($pending_clearances)): ?>
-                        <div class="pending-bulk-panel">
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <input type="checkbox" id="selectAll" class="select-checkbox">
-                                <label for="selectAll" style="color: var(--text-primary);">Select Ready Rows</label>
-                            </div>
-                            <div style="flex: 1; min-width: 250px;">
-                                <div style="color: var(--text-primary); font-weight: 700;">Bulk approve without
-                                    remarks</div>
-                                <div class="muted-inline">
-                                    <?php echo $pending_summary['ready_for_bulk']; ?> row(s) are ready now. Unresolved
-                                    lacking items stay locked until proof is uploaded.
+                    <div class="clearance-accordion">
+                        <details class="clearance-section" open>
+                            <summary>
+                                <div class="clearance-section-header">
+                                    <div class="clearance-section-icon pending">
+                                        <i class="fas fa-clock"></i>
+                                    </div>
+                                    <div>
+                                        <div class="clearance-section-title">Pending</div>
+                                        <div class="clearance-section-subtitle">Requests still waiting for review or proof.</div>
+                                    </div>
                                 </div>
+                                <div class="clearance-section-meta">
+                                    <span class="status-badge status-pending clearance-section-count"><?php echo $clearance_section_counts['pending']; ?> items</span>
+                                    <i class="fas fa-chevron-down clearance-section-chevron"></i>
+                                </div>
+                            </summary>
+                            <div class="clearance-section-content">
+                                <div class="filter-bar">
+                                    <select class="filter-select" id="pendingTypeFilter">
+                                        <option value="">All Types</option>
+                                        <?php foreach ($stats['clearance_types'] ?? [] as $type): ?>
+                                            <option value="<?php echo $type['clearance_name']; ?>">
+                                                <?php echo ucfirst($type['clearance_name']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <select class="filter-select" id="pendingStateFilter">
+                                        <option value="">All Queue States</option>
+                                        <option value="needs-review">Needs Review</option>
+                                        <option value="awaiting-student">Awaiting Student</option>
+                                        <option value="proof-submitted">Proof Submitted</option>
+                                        <option value="complied">Complied</option>
+                                    </select>
+                                    <input type="text" class="filter-input" id="pendingSearch"
+                                        placeholder="Search by student name or ID...">
+                                    <button class="filter-btn" onclick="filterPending()"><i class="fas fa-filter"></i>
+                                        Filter</button>
+                                    <button class="clear-filter" onclick="clearPendingFilters()"><i class="fas fa-times"></i>
+                                        Clear</button>
+                                </div>
+
+                                <div class="section-tools">
+                                    <div class="filter-meta" id="pendingVisibleCount">Showing <?php echo count($pending_clearances); ?>
+                                        of <?php echo count($pending_clearances); ?> pending clearances</div>
+                                    <div class="filter-meta">Use queue states to separate new reviews, follow-ups, and complied
+                                        submissions.</div>
+                                </div>
+
+                                <?php if (!empty($pending_clearances)): ?>
+                                    <div class="pending-bulk-panel">
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <input type="checkbox" id="selectAll" class="select-checkbox">
+                                            <label for="selectAll" style="color: var(--text-primary);">Select Ready Rows</label>
+                                        </div>
+                                        <div style="flex: 1; min-width: 250px;">
+                                            <div style="color: var(--text-primary); font-weight: 700;">Bulk approve without
+                                                remarks</div>
+                                            <div class="muted-inline">
+                                                <?php echo $pending_summary['ready_for_bulk']; ?> row(s) are ready now. Unresolved
+                                                lacking items stay locked until proof is uploaded.
+                                            </div>
+                                        </div>
+                                        <div class="pending-selection-chip" id="pendingSelectionCount">0 selected</div>
+                                        <div style="display: flex; gap: 10px;">
+                                            <button class="btn btn-success" onclick="bulkApprove()"><i class="fas fa-check-circle"></i>
+                                                Approve Selected</button>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+
+                                <?php if (empty($pending_clearances)): ?>
+                                    <div class="empty-state">
+                                        <i class="fas fa-check-circle"></i>
+                                        <h3>No pending clearances</h3>
+                                        <p>All clearances have been processed.</p>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="table-responsive">
+                                        <table id="pendingTable" class="pending-table">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 40px;">Select</th>
+                                                    <th>Student</th>
+                                                    <th>Clearance Details</th>
+                                                    <th>Queue Status</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($pending_clearances as $clearance): ?>
+                                                    <?php
+                                                    $has_lacking = !empty($clearance['lacking_comment']);
+                                                    $has_student_proof = !empty($clearance['student_proof_file']);
+                                                    $is_selectable = !$has_lacking || $has_student_proof;
+                                                    $resolved_lacking = $has_lacking && $has_student_proof;
+                                                    $pending_state = 'needs-review';
+                                                    $pending_state_label = 'Needs Review';
+                                                    $pending_state_class = 'review';
+                                                    $pending_row_class = 'pending-row-review';
+                                                    $pending_state_meta = 'No issues flagged yet. Review the request and decide the next action.';
+
+                                                    if ($has_lacking && $has_student_proof) {
+                                                        $pending_state = 'complied';
+                                                        $pending_state_label = 'Complied';
+                                                        $pending_state_class = 'complied';
+                                                        $pending_row_class = 'pending-row-complied';
+                                                        $pending_state_meta = 'The student responded to the lacking notice and is ready for your follow-up.';
+                                                    } elseif ($has_lacking) {
+                                                        $pending_state = 'awaiting-student';
+                                                        $pending_state_label = 'Awaiting Student';
+                                                        $pending_state_class = 'awaiting';
+                                                        $pending_row_class = 'pending-row-awaiting';
+                                                        $pending_state_meta = 'Approval is locked until the student uploads the required proof.';
+                                                    } elseif ($has_student_proof) {
+                                                        $pending_state = 'proof-submitted';
+                                                        $pending_state_label = 'Proof Submitted';
+                                                        $pending_state_class = 'proof';
+                                                        $pending_row_class = 'pending-row-proof';
+                                                        $pending_state_meta = 'Student proof is attached and ready for checking.';
+                                                    }
+
+                                                    if (!empty($clearance['student_proof_uploaded_at'])) {
+                                                        $pending_activity_text = 'Latest proof uploaded ' . date('M d, Y h:i A', strtotime($clearance['student_proof_uploaded_at']));
+                                                    } elseif (!empty($clearance['lacking_comment_at'])) {
+                                                        $pending_activity_text = 'Marked lacking ' . date('M d, Y h:i A', strtotime($clearance['lacking_comment_at']));
+                                                    } elseif (!empty($clearance['created_at'])) {
+                                                        $pending_activity_text = 'Submitted ' . date('M d, Y h:i A', strtotime($clearance['created_at']));
+                                                    } else {
+                                                        $pending_activity_text = 'Recently submitted';
+                                                    }
+
+                                                    $remaining_steps = max(0, ((int) ($clearance['total_count'] ?? 0)) - ((int) ($clearance['approved_count'] ?? 0)));
+                                                    $remaining_steps_text = $remaining_steps === 1
+                                                        ? '1 office still pending in this clearance period'
+                                                        : $remaining_steps . ' offices still pending in this clearance period';
+                                                    $period_label = trim(($clearance['semester'] ?? '') . ' ' . ($clearance['school_year'] ?? ''));
+                                                    $approved_offices_text = !empty($clearance['approved_offices'])
+                                                        ? 'Approved offices: ' . $clearance['approved_offices']
+                                                        : 'No offices approved yet for this period';
+                                                    $proof_meta_text = !empty($clearance['student_proof_uploaded_at'])
+                                                        ? 'Uploaded ' . date('M d, Y h:i A', strtotime($clearance['student_proof_uploaded_at']))
+                                                        : 'Student proof is attached';
+                                                    $action_hint = $is_selectable
+                                                        ? 'This request is eligible for approval after review.'
+                                                        : 'Bulk approval stays disabled until the student submits proof.';
+                                                    ?>
+                                                    <tr data-type="<?php echo $clearance['clearance_type']; ?>"
+                                                        data-state="<?php echo $pending_state; ?>"
+                                                        data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
+                                                        data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>"
+                                                        class="<?php echo trim($pending_row_class . ' ' . ($resolved_lacking ? 'resolved-lacking-row' : '')); ?>">
+                                                        <td>
+                                                            <input type="checkbox" class="select-checkbox clearance-checkbox"
+                                                                value="<?php echo $clearance['clearance_id']; ?>" <?php echo !$is_selectable ? 'disabled' : ''; ?>>
+                                                        </td>
+                                                        <td>
+                                                            <div class="pending-student-cell">
+                                                                <div class="pending-student-name">
+                                                                    <?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>
+                                                                </div>
+                                                                <div class="pending-subline">
+                                                                    <span><i class="fas fa-id-card"></i>
+                                                                        <?php echo htmlspecialchars($clearance['ismis_id']); ?></span>
+                                                                    <span><i class="fas fa-book"></i>
+                                                                        <?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?></span>
+                                                                    <?php if (!empty($clearance['college_name'])): ?>
+                                                                        <span><i class="fas fa-building"></i>
+                                                                            <?php echo htmlspecialchars($clearance['college_name']); ?></span>
+                                                                    <?php endif; ?>
+                                                                </div>
+                                                                <div class="pending-meta"><?php echo htmlspecialchars($pending_activity_text); ?></div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="pending-detail-stack">
+                                                                <div class="pending-chip-row">
+                                                                    <span class="type-badge">
+                                                                        <?php echo ucfirst($clearance['clearance_type']); ?>
+                                                                    </span>
+                                                                    <?php if (!empty($period_label)): ?>
+                                                                        <span class="period-badge"><?php echo htmlspecialchars($period_label); ?></span>
+                                                                    <?php endif; ?>
+                                                                    <span class="progress-badge"
+                                                                        title="<?php echo htmlspecialchars($approved_offices_text); ?>">
+                                                                        <?php echo ($clearance['approved_count'] ?? 0) . '/' . ($clearance['total_count'] ?? 5); ?>
+                                                                        Approved
+                                                                    </span>
+                                                                </div>
+                                                                <div class="pending-meta"><?php echo htmlspecialchars($remaining_steps_text); ?></div>
+                                                                <div class="pending-meta"><?php echo htmlspecialchars($approved_offices_text); ?></div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="pending-detail-stack">
+                                                                <div class="pending-status-stack">
+                                                                    <span
+                                                                        class="pending-state-badge <?php echo $pending_state_class; ?>"><?php echo $pending_state_label; ?></span>
+                                                                </div>
+                                                                <div class="pending-meta"><?php echo htmlspecialchars($pending_state_meta); ?></div>
+                                                                <div class="pending-link-row">
+                                                                    <?php if ($has_lacking): ?>
+                                                                        <button type="button" class="lacking-badge"
+                                                                            title="<?php echo htmlspecialchars($clearance['lacking_comment']); ?>"
+                                                                            onclick="viewLackingComment('<?php echo htmlspecialchars(addslashes($clearance['lacking_comment'])); ?>', '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo htmlspecialchars(($clearance['lacking_by_fname'] ?? '') . ' ' . ($clearance['lacking_by_lname'] ?? '')); ?>', '<?php echo $clearance['lacking_comment_at']; ?>')">
+                                                                            <i class="fas fa-exclamation-triangle"></i> View Lacking
+                                                                        </button>
+                                                                    <?php endif; ?>
+                                                                    <?php if ($has_student_proof): ?>
+                                                                        <button type="button" class="proof-badge"
+                                                                            onclick="viewStudentProof('<?php echo $clearance['clearance_id']; ?>', '<?php echo $clearance['student_proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['student_proof_remarks'] ?? '')); ?>')">
+                                                                            <i class="fas fa-paperclip"></i> View Proof
+                                                                        </button>
+                                                                    <?php endif; ?>
+                                                                </div>
+                                                                <?php if ($has_student_proof): ?>
+                                                                    <div class="pending-meta"><?php echo htmlspecialchars($proof_meta_text); ?></div>
+                                                                <?php elseif ($has_lacking): ?>
+                                                                    <div class="pending-meta">Waiting on the student response before this row can move forward.</div>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="pending-action-stack">
+                                                                <?php if ($resolved_lacking || !$has_lacking): ?>
+                                                                    <button type="button" class="pending-action-btn approve"
+                                                                        onclick="approveClearance(<?php echo $clearance['clearance_id']; ?>)"
+                                                                        title="<?php echo $resolved_lacking ? 'Student has complied - Approve' : 'Approve'; ?>">
+                                                                        <i class="fas fa-check"></i> Approve
+                                                                    </button>
+                                                                <?php endif; ?>
+
+                                                                <button type="button" class="pending-action-btn lacking"
+                                                                    onclick="openLackingModal(<?php echo $clearance['clearance_id']; ?>)"
+                                                                    title="Mark as Lacking">
+                                                                    <i class="fas fa-exclamation-circle"></i> Mark Lacking
+                                                                </button>
+
+                                                                <?php if ($has_lacking && $has_student_proof): ?>
+                                                                    <form method="POST" class="pending-action-form">
+                                                                        <input type="hidden" name="clearance_id"
+                                                                            value="<?php echo $clearance['clearance_id']; ?>">
+                                                                        <button type="submit" name="clear_lacking_comment"
+                                                                            class="pending-action-btn resolve"
+                                                                            title="Clear lacking comment (student has complied)"
+                                                                            onclick="return confirm('Mark this lacking requirement as resolved? The student can now be approved.')">
+                                                                            <i class="fas fa-check-double"></i> Clear Lacking
+                                                                        </button>
+                                                                    </form>
+                                                                <?php endif; ?>
+
+                                                                <button type="button" class="pending-action-btn neutral"
+                                                                    onclick="viewStudentProgress(<?php echo $clearance['users_id']; ?>, '<?php echo $clearance['semester']; ?>', '<?php echo $clearance['school_year']; ?>', '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo $clearance['ismis_id']; ?>', '<?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?>', '<?php echo htmlspecialchars($clearance['college_name'] ?? 'N/A'); ?>', '<?php echo $clearance['address'] ?? ''; ?>', '<?php echo $clearance['contacts'] ?? ''; ?>', '<?php echo $clearance['age'] ?? ''; ?>')">
+                                                                    <i class="fas fa-eye"></i> Progress
+                                                                </button>
+                                                            </div>
+                                                            <div class="pending-meta"><?php echo htmlspecialchars($action_hint); ?></div>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="filter-empty-state" id="pendingNoResults">
+                                        <i class="fas fa-filter"></i>
+                                        <h4>No pending clearances match the current filters</h4>
+                                        <p>Try a different queue state, clearance type, or search term to bring matching requests
+                                            back into view.</p>
+                                    </div>
+
+                                    <div style="margin-top: 20px; padding: 15px; background: var(--success-soft); border-radius: 12px;">
+                                        <p style="color: var(--success);">
+                                            <i class="fas fa-info-circle"></i>
+                                            <strong>Note:</strong> Use <span class="pending-state-badge complied">Complied</span>
+                                            to spot students who answered a lacking comment, and <span
+                                                class="pending-state-badge awaiting">Awaiting Student</span> for requests that are
+                                            still locked until proof arrives.
+                                        </p>
+                                    </div>
+                                <?php endif; ?>
                             </div>
-                            <div class="pending-selection-chip" id="pendingSelectionCount">0 selected</div>
-                            <div style="display: flex; gap: 10px;">
-                                <button class="btn btn-success" onclick="bulkApprove()"><i class="fas fa-check-circle"></i>
-                                    Approve Selected</button>
-                            </div>
-                        </div>
-                    <?php endif; ?>
+                        </details>
 
-                    <?php if (empty($pending_clearances)): ?>
-                        <div class="empty-state">
-                            <i class="fas fa-check-circle"></i>
-                            <h3>No pending clearances</h3>
-                            <p>All clearances have been processed.</p>
-                        </div>
-                    <?php else: ?>
-                        <div class="table-responsive">
-                            <table id="pendingTable" class="pending-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 40px;">Select</th>
-                                        <th>Student</th>
-                                        <th>Clearance Details</th>
-                                        <th>Queue Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($pending_clearances as $clearance): ?>
-                                        <?php
-                                        $has_lacking = !empty($clearance['lacking_comment']);
-                                        $has_student_proof = !empty($clearance['student_proof_file']);
-                                        $is_selectable = !$has_lacking || $has_student_proof;
-                                        $resolved_lacking = $has_lacking && $has_student_proof;
-                                        $pending_state = 'needs-review';
-                                        $pending_state_label = 'Needs Review';
-                                        $pending_state_class = 'review';
-                                        $pending_row_class = 'pending-row-review';
-                                        $pending_state_meta = 'No issues flagged yet. Review the request and decide the next action.';
-
-                                        if ($has_lacking && $has_student_proof) {
-                                            $pending_state = 'complied';
-                                            $pending_state_label = 'Complied';
-                                            $pending_state_class = 'complied';
-                                            $pending_row_class = 'pending-row-complied';
-                                            $pending_state_meta = 'The student responded to the lacking notice and is ready for your follow-up.';
-                                        } elseif ($has_lacking) {
-                                            $pending_state = 'awaiting-student';
-                                            $pending_state_label = 'Awaiting Student';
-                                            $pending_state_class = 'awaiting';
-                                            $pending_row_class = 'pending-row-awaiting';
-                                            $pending_state_meta = 'Approval is locked until the student uploads the required proof.';
-                                        } elseif ($has_student_proof) {
-                                            $pending_state = 'proof-submitted';
-                                            $pending_state_label = 'Proof Submitted';
-                                            $pending_state_class = 'proof';
-                                            $pending_row_class = 'pending-row-proof';
-                                            $pending_state_meta = 'Student proof is attached and ready for checking.';
-                                        }
-
-                                        if (!empty($clearance['student_proof_uploaded_at'])) {
-                                            $pending_activity_text = 'Latest proof uploaded ' . date('M d, Y h:i A', strtotime($clearance['student_proof_uploaded_at']));
-                                        } elseif (!empty($clearance['lacking_comment_at'])) {
-                                            $pending_activity_text = 'Marked lacking ' . date('M d, Y h:i A', strtotime($clearance['lacking_comment_at']));
-                                        } elseif (!empty($clearance['created_at'])) {
-                                            $pending_activity_text = 'Submitted ' . date('M d, Y h:i A', strtotime($clearance['created_at']));
-                                        } else {
-                                            $pending_activity_text = 'Recently submitted';
-                                        }
-
-                                        $remaining_steps = max(0, ((int) ($clearance['total_count'] ?? 0)) - ((int) ($clearance['approved_count'] ?? 0)));
-                                        $remaining_steps_text = $remaining_steps === 1
-                                            ? '1 office still pending in this clearance period'
-                                            : $remaining_steps . ' offices still pending in this clearance period';
-                                        $period_label = trim(($clearance['semester'] ?? '') . ' ' . ($clearance['school_year'] ?? ''));
-                                        $approved_offices_text = !empty($clearance['approved_offices'])
-                                            ? 'Approved offices: ' . $clearance['approved_offices']
-                                            : 'No offices approved yet for this period';
-                                        $proof_meta_text = !empty($clearance['student_proof_uploaded_at'])
-                                            ? 'Uploaded ' . date('M d, Y h:i A', strtotime($clearance['student_proof_uploaded_at']))
-                                            : 'Student proof is attached';
-                                        $action_hint = $is_selectable
-                                            ? 'This request is eligible for approval after review.'
-                                            : 'Bulk approval stays disabled until the student submits proof.';
-                                        ?>
-                                        <tr data-type="<?php echo $clearance['clearance_type']; ?>"
-                                            data-state="<?php echo $pending_state; ?>"
-                                            data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['lname'] ?? '') . ' ' . ($clearance['fname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
-                                            data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>"
-                                            class="<?php echo trim($pending_row_class . ' ' . ($resolved_lacking ? 'resolved-lacking-row' : '')); ?>">
-                                            <td>
-                                                <input type="checkbox" class="select-checkbox clearance-checkbox"
-                                                    value="<?php echo $clearance['clearance_id']; ?>" <?php echo !$is_selectable ? 'disabled' : ''; ?>>
-                                            </td>
-                                            <td>
-                                                <div class="pending-student-cell">
-                                                    <div class="pending-student-name">
-                                                        <?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>
+                        <details class="clearance-section">
+                            <summary>
+                                <div class="clearance-section-header">
+                                    <div class="clearance-section-icon approved">
+                                        <i class="fas fa-check-circle"></i>
+                                    </div>
+                                    <div>
+                                        <div class="clearance-section-title">Approved</div>
+                                        <div class="clearance-section-subtitle">Clearances already completed for the selected filters.</div>
+                                    </div>
+                                </div>
+                                <div class="clearance-section-meta">
+                                    <span class="status-badge status-approved clearance-section-count"><?php echo $clearance_section_counts['approved']; ?> items</span>
+                                    <i class="fas fa-chevron-down clearance-section-chevron"></i>
+                                </div>
+                            </summary>
+                            <div class="clearance-section-content">
+                                <?php if (empty($clearance_sections['approved'])): ?>
+                                    <div class="empty-state">
+                                        <i class="fas fa-check-circle"></i>
+                                        <h3>No approved clearances</h3>
+                                        <p>Approved records will appear here once they are processed.</p>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="clearance-compact-grid">
+                                        <?php foreach ($clearance_sections['approved'] as $clearance): ?>
+                                            <?php
+                                            $approved_period_label = trim(($clearance['semester'] ?? '') . ' ' . ($clearance['school_year'] ?? ''));
+                                            $approved_processed_at = !empty($clearance['processed_date'])
+                                                ? date('M d, Y h:i A', strtotime($clearance['processed_date']))
+                                                : (!empty($clearance['updated_at'])
+                                                    ? date('M d, Y h:i A', strtotime($clearance['updated_at']))
+                                                    : 'Recently processed');
+                                            ?>
+                                            <div class="clearance-compact-item">
+                                                <div class="clearance-compact-top">
+                                                    <div>
+                                                        <div class="clearance-compact-name">
+                                                            <?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>
+                                                        </div>
+                                                        <div class="clearance-compact-meta">
+                                                            <span><i class="fas fa-id-card"></i>
+                                                                <?php echo htmlspecialchars($clearance['ismis_id']); ?></span>
+                                                            <span><i class="fas fa-book"></i>
+                                                                <?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?></span>
+                                                            <?php if (!empty($clearance['college_name'])): ?>
+                                                                <span><i class="fas fa-building"></i>
+                                                                    <?php echo htmlspecialchars($clearance['college_name']); ?></span>
+                                                            <?php endif; ?>
+                                                        </div>
                                                     </div>
-                                                    <div class="pending-subline">
-                                                        <span><i class="fas fa-id-card"></i>
-                                                            <?php echo htmlspecialchars($clearance['ismis_id']); ?></span>
-                                                        <span><i class="fas fa-book"></i>
-                                                            <?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?></span>
-                                                        <?php if (!empty($clearance['college_name'])): ?>
-                                                            <span><i class="fas fa-building"></i>
-                                                                <?php echo htmlspecialchars($clearance['college_name']); ?></span>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                    <div class="pending-meta"><?php echo htmlspecialchars($pending_activity_text); ?></div>
+                                                    <span class="status-badge status-approved">Approved</span>
                                                 </div>
-                                            </td>
-                                            <td>
-                                                <div class="pending-detail-stack">
-                                                    <div class="pending-chip-row">
-                                                        <span class="type-badge">
-                                                            <?php echo ucfirst($clearance['clearance_type']); ?>
-                                                        </span>
-                                                        <?php if (!empty($period_label)): ?>
-                                                            <span class="period-badge"><?php echo htmlspecialchars($period_label); ?></span>
-                                                        <?php endif; ?>
-                                                        <span class="progress-badge"
-                                                            title="<?php echo htmlspecialchars($approved_offices_text); ?>">
-                                                            <?php echo ($clearance['approved_count'] ?? 0) . '/' . ($clearance['total_count'] ?? 5); ?>
-                                                            Approved
-                                                        </span>
-                                                    </div>
-                                                    <div class="pending-meta"><?php echo htmlspecialchars($remaining_steps_text); ?></div>
-                                                    <div class="pending-meta"><?php echo htmlspecialchars($approved_offices_text); ?></div>
+                                                <div class="clearance-compact-meta">
+                                                    <span><i class="fas fa-calendar-alt"></i>
+                                                        <?php echo htmlspecialchars($approved_period_label ?: 'No period recorded'); ?></span>
+                                                    <span><i class="fas fa-clock"></i>
+                                                        <?php echo htmlspecialchars($approved_processed_at); ?></span>
                                                 </div>
-                                            </td>
-                                            <td>
-                                                <div class="pending-detail-stack">
-                                                    <div class="pending-status-stack">
-                                                        <span
-                                                            class="pending-state-badge <?php echo $pending_state_class; ?>"><?php echo $pending_state_label; ?></span>
-                                                    </div>
-                                                    <div class="pending-meta"><?php echo htmlspecialchars($pending_state_meta); ?></div>
-                                                    <div class="pending-link-row">
-                                                        <?php if ($has_lacking): ?>
-                                                            <button type="button" class="lacking-badge"
-                                                                title="<?php echo htmlspecialchars($clearance['lacking_comment']); ?>"
-                                                                onclick="viewLackingComment('<?php echo htmlspecialchars(addslashes($clearance['lacking_comment'])); ?>', '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo htmlspecialchars(($clearance['lacking_by_fname'] ?? '') . ' ' . ($clearance['lacking_by_lname'] ?? '')); ?>', '<?php echo $clearance['lacking_comment_at']; ?>')">
-                                                                <i class="fas fa-exclamation-triangle"></i> View Lacking
-                                                            </button>
-                                                        <?php endif; ?>
-                                                        <?php if ($has_student_proof): ?>
-                                                            <button type="button" class="proof-badge"
-                                                                onclick="viewStudentProof('<?php echo $clearance['clearance_id']; ?>', '<?php echo $clearance['student_proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['student_proof_remarks'] ?? '')); ?>')">
-                                                                <i class="fas fa-paperclip"></i> View Proof
-                                                            </button>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                    <?php if ($has_student_proof): ?>
-                                                        <div class="pending-meta"><?php echo htmlspecialchars($proof_meta_text); ?></div>
-                                                    <?php elseif ($has_lacking): ?>
-                                                        <div class="pending-meta">Waiting on the student response before this row can move forward.</div>
-                                                    <?php endif; ?>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div class="pending-action-stack">
-                                                    <?php if ($resolved_lacking || !$has_lacking): ?>
-                                                        <button type="button" class="pending-action-btn approve"
-                                                            onclick="approveClearance(<?php echo $clearance['clearance_id']; ?>)"
-                                                            title="<?php echo $resolved_lacking ? 'Student has complied - Approve' : 'Approve'; ?>">
-                                                            <i class="fas fa-check"></i> Approve
-                                                        </button>
-                                                    <?php endif; ?>
-
-                                                    <button type="button" class="pending-action-btn lacking"
-                                                        onclick="openLackingModal(<?php echo $clearance['clearance_id']; ?>)"
-                                                        title="Mark as Lacking">
-                                                        <i class="fas fa-exclamation-circle"></i> Mark Lacking
-                                                    </button>
-
-                                                    <?php if ($has_lacking && $has_student_proof): ?>
-                                                        <form method="POST" class="pending-action-form">
-                                                            <input type="hidden" name="clearance_id"
-                                                                value="<?php echo $clearance['clearance_id']; ?>">
-                                                            <button type="submit" name="clear_lacking_comment"
-                                                                class="pending-action-btn resolve"
-                                                                title="Clear lacking comment (student has complied)"
-                                                                onclick="return confirm('Mark this lacking requirement as resolved? The student can now be approved.')">
-                                                                <i class="fas fa-check-double"></i> Clear Lacking
-                                                            </button>
-                                                        </form>
-                                                    <?php endif; ?>
-
+                                                <div class="clearance-compact-actions">
                                                     <button type="button" class="pending-action-btn neutral"
                                                         onclick="viewStudentProgress(<?php echo $clearance['users_id']; ?>, '<?php echo $clearance['semester']; ?>', '<?php echo $clearance['school_year']; ?>', '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo $clearance['ismis_id']; ?>', '<?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?>', '<?php echo htmlspecialchars($clearance['college_name'] ?? 'N/A'); ?>', '<?php echo $clearance['address'] ?? ''; ?>', '<?php echo $clearance['contacts'] ?? ''; ?>', '<?php echo $clearance['age'] ?? ''; ?>')">
-                                                        <i class="fas fa-eye"></i> Progress
+                                                        <i class="fas fa-eye"></i> View Progress
                                                     </button>
                                                 </div>
-                                                <div class="pending-meta"><?php echo htmlspecialchars($action_hint); ?></div>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </details>
 
-                        <div class="filter-empty-state" id="pendingNoResults">
-                            <i class="fas fa-filter"></i>
-                            <h4>No pending clearances match the current filters</h4>
-                            <p>Try a different queue state, clearance type, or search term to bring matching requests
-                                back into view.</p>
-                        </div>
-
-                        <div style="margin-top: 20px; padding: 15px; background: var(--success-soft); border-radius: 12px;">
-                            <p style="color: var(--success);">
-                                <i class="fas fa-info-circle"></i>
-                                <strong>Note:</strong> Use <span class="pending-state-badge complied">Complied</span>
-                                to spot students who answered a lacking comment, and <span
-                                    class="pending-state-badge awaiting">Awaiting Student</span> for requests that are
-                                still locked until proof arrives.
-                            </p>
-                        </div>
-                    <?php endif; ?>
+                        <details class="clearance-section">
+                            <summary>
+                                <div class="clearance-section-header">
+                                    <div class="clearance-section-icon rejected">
+                                        <i class="fas fa-times-circle"></i>
+                                    </div>
+                                    <div>
+                                        <div class="clearance-section-title">Rejected</div>
+                                        <div class="clearance-section-subtitle">Clearances already closed out with a rejection.</div>
+                                    </div>
+                                </div>
+                                <div class="clearance-section-meta">
+                                    <span class="status-badge status-rejected clearance-section-count"><?php echo $clearance_section_counts['rejected']; ?> items</span>
+                                    <i class="fas fa-chevron-down clearance-section-chevron"></i>
+                                </div>
+                            </summary>
+                            <div class="clearance-section-content">
+                                <?php if (empty($clearance_sections['rejected'])): ?>
+                                    <div class="empty-state">
+                                        <i class="fas fa-times-circle"></i>
+                                        <h3>No rejected clearances</h3>
+                                        <p>Rejected records will appear here once they are processed.</p>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="clearance-compact-grid">
+                                        <?php foreach ($clearance_sections['rejected'] as $clearance): ?>
+                                            <?php
+                                            $rejected_period_label = trim(($clearance['semester'] ?? '') . ' ' . ($clearance['school_year'] ?? ''));
+                                            $rejected_processed_at = !empty($clearance['processed_date'])
+                                                ? date('M d, Y h:i A', strtotime($clearance['processed_date']))
+                                                : (!empty($clearance['updated_at'])
+                                                    ? date('M d, Y h:i A', strtotime($clearance['updated_at']))
+                                                    : 'Recently processed');
+                                            ?>
+                                            <div class="clearance-compact-item">
+                                                <div class="clearance-compact-top">
+                                                    <div>
+                                                        <div class="clearance-compact-name">
+                                                            <?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>
+                                                        </div>
+                                                        <div class="clearance-compact-meta">
+                                                            <span><i class="fas fa-id-card"></i>
+                                                                <?php echo htmlspecialchars($clearance['ismis_id']); ?></span>
+                                                            <span><i class="fas fa-book"></i>
+                                                                <?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?></span>
+                                                            <?php if (!empty($clearance['college_name'])): ?>
+                                                                <span><i class="fas fa-building"></i>
+                                                                    <?php echo htmlspecialchars($clearance['college_name']); ?></span>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    </div>
+                                                    <span class="status-badge status-rejected">Rejected</span>
+                                                </div>
+                                                <div class="clearance-compact-meta">
+                                                    <span><i class="fas fa-calendar-alt"></i>
+                                                        <?php echo htmlspecialchars($rejected_period_label ?: 'No period recorded'); ?></span>
+                                                    <span><i class="fas fa-clock"></i>
+                                                        <?php echo htmlspecialchars($rejected_processed_at); ?></span>
+                                                </div>
+                                                <div class="clearance-compact-actions">
+                                                    <button type="button" class="pending-action-btn neutral"
+                                                        onclick="viewStudentProgress(<?php echo $clearance['users_id']; ?>, '<?php echo $clearance['semester']; ?>', '<?php echo $clearance['school_year']; ?>', '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo $clearance['ismis_id']; ?>', '<?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?>', '<?php echo htmlspecialchars($clearance['college_name'] ?? 'N/A'); ?>', '<?php echo $clearance['address'] ?? ''; ?>', '<?php echo $clearance['contacts'] ?? ''; ?>', '<?php echo $clearance['age'] ?? ''; ?>')">
+                                                        <i class="fas fa-eye"></i> View Progress
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </details>
+                    </div>
                 </div>
             </div>
 
