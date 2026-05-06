@@ -6263,6 +6263,25 @@ function getActivityIcon($action)
         document.getElementById('studentSearch')?.addEventListener('input', debouncedSearchStudents);
         document.getElementById('studentCourseFilter')?.addEventListener('change', searchStudents);
 
+        const clearanceDetails = document.querySelectorAll('.clearance-accordion details');
+        clearanceDetails.forEach(detail => {
+            detail.addEventListener('toggle', () => {
+                if (!detail.open) {
+                    return;
+                }
+
+                if (!window.matchMedia('(max-width: 768px)').matches) {
+                    return;
+                }
+
+                clearanceDetails.forEach(other => {
+                    if (other !== detail) {
+                        other.removeAttribute('open');
+                    }
+                });
+            });
+        });
+
         filterPending();
         filterHistory();
         filterUndo();
