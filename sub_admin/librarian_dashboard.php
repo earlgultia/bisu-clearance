@@ -1992,10 +1992,12 @@ function getActivityIcon($action)
         }
 
         .clearance-accordion {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            display: flex;
             gap: 14px;
             margin-top: 18px;
+            overflow-x: auto;
+            padding-bottom: 6px;
+            align-items: flex-start;
         }
 
         .clearance-section {
@@ -2004,7 +2006,8 @@ function getActivityIcon($action)
             border-radius: 20px;
             box-shadow: var(--card-shadow);
             overflow: hidden;
-            min-width: 0;
+            flex: 1 1 0;
+            min-width: 320px;
         }
 
         .clearance-section summary {
@@ -3390,10 +3393,6 @@ function getActivityIcon($action)
                 grid-template-columns: repeat(2, 1fr);
             }
 
-            .clearance-accordion {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
             .student-info-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
@@ -3518,9 +3517,8 @@ function getActivityIcon($action)
             .pending-table {
                 min-width: 940px;
             }
-
-            .clearance-accordion {
-                grid-template-columns: 1fr;
+            .clearance-section {
+                min-width: 260px;
             }
 
         .pending-action-stack {
