@@ -4285,14 +4285,14 @@ function getOrganizationIcon($org_type)
         /* Office Cards Grid - 5 Columns */
         .offices-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.9rem;
             margin: 1.5rem 0;
         }
 
         @media (max-width: 1200px) {
             .offices-grid {
-                grid-template-columns: repeat(3, 1fr);
+                grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
             }
         }
 
@@ -4321,6 +4321,7 @@ function getOrganizationIcon($org_type)
             transition: all 0.3s;
             cursor: pointer;
             position: relative;
+            min-width: 0;
         }
 
         .office-card:hover {
@@ -4360,6 +4361,7 @@ function getOrganizationIcon($org_type)
 
         .office-details {
             width: 100%;
+            min-width: 0;
         }
 
         .office-name {
@@ -4367,6 +4369,7 @@ function getOrganizationIcon($org_type)
             color: var(--text);
             margin-bottom: 0.3rem;
             font-size: 0.95rem;
+            overflow-wrap: anywhere;
         }
 
         .office-status {
@@ -4376,6 +4379,8 @@ function getOrganizationIcon($org_type)
             border-radius: 20px;
             display: inline-block;
             margin-bottom: 0.3rem;
+            max-width: 100%;
+            white-space: normal;
         }
 
         .office-status.approved {
