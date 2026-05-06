@@ -3517,8 +3517,15 @@ function getActivityIcon($action)
             .pending-table {
                 min-width: 940px;
             }
+
+            .clearance-accordion {
+                flex-direction: column;
+                overflow-x: visible;
+            }
+
             .clearance-section {
-                min-width: 260px;
+                min-width: 0;
+                width: 100%;
             }
 
         .pending-action-stack {
