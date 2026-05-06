@@ -4024,8 +4024,8 @@ function getOrganizationIcon($org_type)
 
         .dashboard-overview {
             display: grid;
-            grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
-            gap: 1.5rem;
+            grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
+            gap: 1.75rem;
             margin-bottom: 2rem;
             align-items: start;
         }
@@ -4041,7 +4041,12 @@ function getOrganizationIcon($org_type)
             gap: 1rem;
             min-width: 0;
             position: relative;
-            z-index: 1;
+            z-index: 2;
+        }
+
+        .overview-stack > .section-card {
+            min-width: 0;
+            overflow: hidden;
         }
 
         .profile-highlight-card {
