@@ -3519,13 +3519,41 @@ function getActivityIcon($action)
             }
 
             .clearance-accordion {
-                flex-direction: column;
-                overflow-x: visible;
+                /* desktop: horizontal; mobile rules below will stack */
+                display: flex;
+                gap: 18px;
+                align-items: flex-start;
+                overflow-x: auto;
             }
 
             .clearance-section {
-                min-width: 0;
-                width: 100%;
+                flex: 1 1 0;
+                min-width: 280px;
+                transition: flex 0.28s ease, max-height 0.28s ease, box-shadow 0.18s ease;
+                overflow: hidden;
+                border: 1px solid var(--border-color);
+                border-radius: 12px;
+                background: var(--card-bg);
+            }
+
+            .clearance-section summary {
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 12px 16px;
+                list-style: none;
+            }
+
+            .clearance-section .clearance-section-content {
+                padding: 12px 16px;
+                max-height: 70vh;
+                overflow: auto;
+            }
+
+            .clearance-section.expanded {
+                flex: 2.2 1 0;
+                box-shadow: var(--card-shadow-hover);
             }
 
         .pending-action-stack {
@@ -3536,6 +3564,19 @@ function getActivityIcon($action)
             min-width: 210px;
             max-width: 280px;
         }
+        }
+
+        @media (max-width: 1024px) {
+            .clearance-accordion {
+                display: block;
+            }
+            .clearance-section {
+                width: 100%;
+                margin-bottom: 12px;
+            }
+            .clearance-section.expanded {
+                flex: 1;
+            }
         }
 
         @media (max-width: 480px) {
@@ -6264,23 +6305,46 @@ function getActivityIcon($action)
         document.getElementById('studentCourseFilter')?.addEventListener('change', searchStudents);
 
         const clearanceDetails = document.querySelectorAll('.clearance-accordion details');
+        function isDesktop() { return window.innerWidth > 1024; }
         clearanceDetails.forEach(detail => {
-            detail.addEventListener('toggle', () => {
-                if (!detail.open) {
-                    return;
-                }
-
-                if (!window.matchMedia('(max-width: 768px)').matches) {
-                    return;
-                }
-
-                clearanceDetails.forEach(other => {
-                    if (other !== detail) {
-                        other.removeAttribute('open');
+            const summary = detail.querySelector('summary');
+            if (!summary) return;
+            summary.addEventListener('click', function (e) {
+                if (isDesktop()) {
+                    e.preventDefault();
+                    const isExpanded = detail.classList.contains('expanded');
+                    clearanceDetails.forEach(d => { d.classList.remove('expanded'); d.open = false; });
+                    if (!isExpanded) {
+                        detail.classList.add('expanded');
+                        detail.open = true;
+                    } else {
+                        detail.classList.remove('expanded');
+                        detail.open = false;
                     }
-                });
+                } else {
+                    // Mobile: allow native toggle but collapse others when opened
+                    setTimeout(() => {
+                        if (detail.open) {
+                            clearanceDetails.forEach(d => { if (d !== detail) d.open = false; });
+                        }
+                    }, 10);
+                }
             });
         });
+
+        function ensureDefaultClearanceState() {
+            if (isDesktop()) {
+                clearanceDetails.forEach((d, i) => {
+                    d.classList.remove('expanded');
+                    d.open = false;
+                    if (i === 0) { d.classList.add('expanded'); d.open = true; }
+                });
+            } else {
+                clearanceDetails.forEach(d => d.classList.remove('expanded'));
+            }
+        }
+        ensureDefaultClearanceState();
+        window.addEventListener('resize', ensureDefaultClearanceState);
 
         filterPending();
         filterHistory();
