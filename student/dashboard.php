@@ -4033,11 +4033,15 @@ function getOrganizationIcon($org_type)
         .overview-stack {
             display: grid;
             gap: 1.5rem;
+            min-width: 0;
         }
 
         .profile-highlight {
             display: grid;
             gap: 1rem;
+            min-width: 0;
+            position: relative;
+            z-index: 1;
         }
 
         .profile-highlight-card {
