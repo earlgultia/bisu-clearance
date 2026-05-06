@@ -4024,7 +4024,7 @@ function getOrganizationIcon($org_type)
 
         .dashboard-overview {
             display: grid;
-            grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
+            grid-template-columns: minmax(0, 1fr);
             gap: 1.75rem;
             margin-bottom: 2rem;
             align-items: start;
@@ -4036,96 +4036,9 @@ function getOrganizationIcon($org_type)
             min-width: 0;
         }
 
-        .profile-highlight {
-            display: grid;
-            gap: 1rem;
-            min-width: 0;
-            position: relative;
-            z-index: 2;
-        }
-
         .overview-stack > .section-card {
             min-width: 0;
             overflow: hidden;
-        }
-
-        .profile-highlight-card {
-            background:
-                linear-gradient(155deg, rgba(58, 36, 117, 0.05), rgba(82, 167, 159, 0.08)),
-                var(--white);
-            border-radius: 18px;
-            padding: 1.2rem;
-            border: 1px solid var(--border);
-        }
-
-        .profile-highlight-card h3 {
-            font-size: 1rem;
-            margin-bottom: 0.35rem;
-        }
-
-        .profile-highlight-card p {
-            color: var(--text-light);
-            font-size: 0.9rem;
-            line-height: 1.6;
-        }
-
-        .spotlight-card {
-            background:
-                radial-gradient(circle at top right, rgba(82, 167, 159, 0.18), transparent 34%),
-                linear-gradient(180deg, rgba(58, 36, 117, 0.05), transparent 65%),
-                var(--white);
-            border-radius: 20px;
-            padding: 1.35rem;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            display: grid;
-            gap: 1rem;
-        }
-
-        .spotlight-label {
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-light);
-            font-weight: 800;
-        }
-
-        .spotlight-title {
-            font-family: var(--font-display);
-            font-size: 1.35rem;
-            color: var(--text);
-            line-height: 1.25;
-        }
-
-        .spotlight-copy {
-            color: var(--text-light);
-            line-height: 1.65;
-            font-size: 0.94rem;
-        }
-
-        .spotlight-metrics {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.85rem;
-        }
-
-        .spotlight-metric {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 0.85rem 0.95rem;
-            display: grid;
-            gap: 0.2rem;
-        }
-
-        .spotlight-metric strong {
-            font-size: 1.15rem;
-            color: var(--text);
-        }
-
-        .spotlight-metric span {
-            font-size: 0.82rem;
-            color: var(--text-light);
         }
 
         /* Section Card */
@@ -8107,41 +8020,6 @@ function getOrganizationIcon($org_type)
                 <?php endif; ?>
                     </div>
 
-                    <div class="profile-highlight">
-                        <div class="spotlight-card">
-                            <div class="spotlight-label">Live Focus</div>
-                            <div class="spotlight-title"><?php echo htmlspecialchars($current_clearance ? 'Stay on top of your active clearance' : 'You are ready to apply for clearance'); ?></div>
-                            <div class="spotlight-copy"><?php echo htmlspecialchars($hero_support_text); ?></div>
-                            <div class="spotlight-metrics">
-                                <div class="spotlight-metric">
-                                    <strong><?php echo (int) ($current_clearance ? ($current_clearance['approved_offices'] ?? 0) : 0); ?>/<?php echo (int) ($current_clearance ? ($current_clearance['total_offices'] ?? 5) : 5); ?></strong>
-                                    <span>Office approvals</span>
-                                </div>
-                                <div class="spotlight-metric">
-                                    <strong><?php echo (int) $current_approved_organizations; ?>/<?php echo (int) $current_total_organizations; ?></strong>
-                                    <span>Organization checks</span>
-                                </div>
-                                <div class="spotlight-metric">
-                                    <strong><?php echo (int) ($clearance_summary['rejected'] ?? 0); ?></strong>
-                                    <span>Items needing fixes</span>
-                                </div>
-                                <div class="spotlight-metric">
-                                    <strong><?php echo (int) ($message_tab_notification_count ?? 0); ?></strong>
-                                    <span>Unread updates</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="profile-highlight-card">
-                            <h3><i class="fas fa-lightbulb" style="color: var(--warning); margin-right: 0.45rem;"></i>Best Next Step</h3>
-                            <p><?php echo htmlspecialchars($current_clearance ? ($current_pending_organizations > 0 ? 'Open Track Status and upload proof for any organization asking for additional documents so your clearance does not stall.' : 'Keep checking your current progress and respond quickly to any office or organization comments.') : 'Open the Apply tab, choose your term, and submit a new clearance request when you are ready.'); ?></p>
-                        </div>
-
-                        <div class="profile-highlight-card">
-                            <h3><i class="fas fa-mobile-alt" style="color: var(--info); margin-right: 0.45rem;"></i>Mobile Friendly</h3>
-                            <p>The layout now keeps your main actions, stats, and progress blocks easier to scan on smaller screens so you can manage clearance updates comfortably from your phone.</p>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- No Applications Yet -->
