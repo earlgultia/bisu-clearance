@@ -2908,6 +2908,11 @@ function cleanOrganizationRemarks($remarks)
     return trim($clean, " \t\n\r\0\x0B|");
 }
 
+function shouldShowFrontLackingIndicator($item)
+{
+    return !empty($item['lacking_comment']) && empty($item['student_proof_file']);
+}
+
 $organization_clearance_data = [];
 try {
     ensureOrganizationProofColumns($db);
@@ -8035,7 +8040,7 @@ function getOrganizationIcon($org_type)
                         <!-- Office Cards - All 5 offices -->
                         <div class="offices-grid">
                             <?php foreach ($current_clearance['applications'] as $office): ?>
-                                <div class="office-card <?php echo !empty($office['lacking_comment']) ? 'lacking' : ''; ?>"
+                                <div class="office-card <?php echo shouldShowFrontLackingIndicator($office) ? 'lacking' : ''; ?>"
                                     onclick='viewDetails(<?php echo json_encode($office); ?>)'>
                                     <div class="office-icon <?php echo $office['status']; ?>">
                                         <i class="fas fa-<?php echo getOfficeIcon($office['office_name']); ?>"></i>
@@ -8048,7 +8053,7 @@ function getOrganizationIcon($org_type)
                                             <?php echo ucfirst($office['status']); ?>
                                         </div>
 
-                                        <?php if (!empty($office['lacking_comment'])): ?>
+                                        <?php if (shouldShowFrontLackingIndicator($office)): ?>
                                             <div class="lacking-badge">
                                                 <i class="fas fa-exclamation-triangle"></i> Lacking Items
                                             </div>
@@ -8363,7 +8368,7 @@ function getOrganizationIcon($org_type)
                                     <h4 style="margin: 1.5rem 0 1rem; color: var(--text);">Office Status</h4>
                                     <div class="offices-grid">
                                         <?php foreach ($group['applications'] as $app): ?>
-                                            <div class="office-card <?php echo !empty($app['lacking_comment']) ? 'lacking' : ''; ?>"
+                                            <div class="office-card <?php echo shouldShowFrontLackingIndicator($app) ? 'lacking' : ''; ?>"
                                                 onclick='viewDetails(<?php echo json_encode($app); ?>)'>
                                                 <div class="office-icon <?php echo $app['status']; ?>">
                                                     <i class="fas fa-<?php echo getOfficeIcon($app['office_name']); ?>"></i>
@@ -8376,7 +8381,7 @@ function getOrganizationIcon($org_type)
                                                         <?php echo ucfirst($app['status']); ?>
                                                     </div>
 
-                                                    <?php if (!empty($app['lacking_comment'])): ?>
+                                                    <?php if (shouldShowFrontLackingIndicator($app)): ?>
                                                         <div class="lacking-badge">
                                                             <i class="fas fa-exclamation-triangle"></i> Lacking Items
                                                         </div>
@@ -8387,18 +8392,19 @@ function getOrganizationIcon($org_type)
                                                                 <i class="fas fa-upload"></i> Upload Proof
                                                             </button>
                                                         <?php else: ?>
-                                                            <div class="proof-action-group">
-                                                                <div class="proof-badge">
-                                                                    <i class="fas fa-check-circle"></i> Proof Uploaded
-                                                                </div>
-                                                                <?php if (!empty($app['student_proof_file'])): ?>
-                                                                    <a href="<?php echo htmlspecialchars(buildStudentAssetHref($app['student_proof_file']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank"
-                                                                        class="view-proof-btn" onclick="event.stopPropagation();">
-                                                                        <i class="fas fa-eye"></i> View Proof
-                                                                    </a>
-                                                                <?php endif; ?>
-                                                            </div>
                                                         <?php endif; ?>
+                                                    <?php endif; ?>
+
+                                                    <?php if (!empty($app['student_proof_file'])): ?>
+                                                        <div class="proof-action-group">
+                                                            <div class="proof-badge">
+                                                                <i class="fas fa-check-circle"></i> Proof Uploaded
+                                                            </div>
+                                                            <a href="<?php echo htmlspecialchars(buildStudentAssetHref($app['student_proof_file']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank"
+                                                                class="view-proof-btn" onclick="event.stopPropagation();">
+                                                                <i class="fas fa-eye"></i> View Proof
+                                                            </a>
+                                                        </div>
                                                     <?php endif; ?>
 
                                                     <?php if (!empty($app['processed_date'])): ?>
@@ -8416,7 +8422,7 @@ function getOrganizationIcon($org_type)
                                         <h4 style="margin: 1.5rem 0 1rem; color: var(--text);">Organization Status</h4>
                                         <div class="offices-grid">
                                             <?php foreach ($group['organization_applications'] as $orgApp): ?>
-                                                <div class="office-card <?php echo !empty($orgApp['lacking_comment']) ? 'lacking' : ''; ?>"
+                                                <div class="office-card <?php echo shouldShowFrontLackingIndicator($orgApp) ? 'lacking' : ''; ?>"
                                                     onclick='viewDetails(<?php echo json_encode($orgApp); ?>)'>
                                                     <div class="office-icon <?php echo $orgApp['status']; ?>">
                                                         <i class="fas fa-<?php echo getOrganizationIcon($orgApp['org_type'] ?? ''); ?>"></i>
@@ -8429,7 +8435,7 @@ function getOrganizationIcon($org_type)
                                                             <?php echo ucfirst($orgApp['status']); ?>
                                                         </div>
 
-                                                        <?php if (!empty($orgApp['lacking_comment'])): ?>
+                                                        <?php if (shouldShowFrontLackingIndicator($orgApp)): ?>
                                                             <div class="lacking-badge">
                                                                 <i class="fas fa-exclamation-triangle"></i> Organization Proof Needed
                                                             </div>
@@ -8439,17 +8445,19 @@ function getOrganizationIcon($org_type)
                                                                     onclick="event.stopPropagation(); openUploadModal(<?php echo (int) $orgApp['clearance_id']; ?>, <?php echo htmlspecialchars(json_encode($orgApp['display_name'] ?? $orgApp['org_name'] ?? 'Organization'), ENT_QUOTES, 'UTF-8'); ?>, 'organization', <?php echo (int) $orgApp['org_clearance_id']; ?>)">
                                                                     <i class="fas fa-upload"></i> Upload Proof
                                                                 </button>
-                                                            <?php else: ?>
-                                                                <div class="proof-action-group">
-                                                                    <div class="proof-badge">
-                                                                        <i class="fas fa-check-circle"></i> Proof Uploaded
-                                                                    </div>
-                                                                    <a href="<?php echo htmlspecialchars(buildStudentAssetHref($orgApp['student_proof_file']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank"
-                                                                        class="view-proof-btn" onclick="event.stopPropagation();">
-                                                                        <i class="fas fa-eye"></i> View Proof
-                                                                    </a>
-                                                                </div>
                                                             <?php endif; ?>
+                                                        <?php endif; ?>
+
+                                                        <?php if (!empty($orgApp['student_proof_file'])): ?>
+                                                            <div class="proof-action-group">
+                                                                <div class="proof-badge">
+                                                                    <i class="fas fa-check-circle"></i> Proof Uploaded
+                                                                </div>
+                                                                <a href="<?php echo htmlspecialchars(buildStudentAssetHref($orgApp['student_proof_file']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank"
+                                                                    class="view-proof-btn" onclick="event.stopPropagation();">
+                                                                    <i class="fas fa-eye"></i> View Proof
+                                                                </a>
+                                                            </div>
                                                         <?php endif; ?>
 
                                                         <?php if (!empty($orgApp['processed_date'])): ?>
@@ -8459,71 +8467,6 @@ function getOrganizationIcon($org_type)
                                                             </div>
                                                         <?php endif; ?>
                                                     </div>
-                                                </div>
-                                            <?php endforeach; ?>
-                                        </div>
-                                    <?php endif; ?>
-
-                                    <!-- Lacking Comments Summary -->
-                                    <?php
-                                    $has_lacking = false;
-                                    $lacking_offices = [];
-                                    foreach ($group['applications'] as $app) {
-                                        if (!empty($app['lacking_comment'])) {
-                                            $has_lacking = true;
-                                            $lacking_offices[] = [
-                                                'office' => getOfficeDisplayName($app['office_name']),
-                                                'comment' => $app['lacking_comment']
-                                            ];
-                                        }
-                                    }
-                                    ?>
-
-                                    <?php if ($has_lacking): ?>
-                                        <div
-                                            style="margin-top: 1rem; padding: 1rem; background: rgba(249, 115, 22, 0.1); border-radius: 8px;">
-                                            <h5
-                                                style="display: flex; align-items: center; gap: 0.5rem; color: var(--lacking); margin-bottom: 0.5rem;">
-                                                <i class="fas fa-exclamation-triangle"></i> Items Needed
-                                            </h5>
-                                            <?php foreach ($lacking_offices as $lo): ?>
-                                                <div
-                                                    style="margin-bottom: 0.5rem; padding: 0.5rem; background: var(--white); border-radius: 4px;">
-                                                    <strong>
-                                                        <?php echo $lo['office']; ?>:
-                                                    </strong>
-                                                    <?php echo htmlspecialchars($lo['comment']); ?>
-                                                </div>
-                                            <?php endforeach; ?>
-                                        </div>
-                                    <?php endif; ?>
-
-                                    <?php
-                                    $organization_lacking_items = [];
-                                    foreach ($group['organization_applications'] ?? [] as $orgApp) {
-                                        if (!empty($orgApp['lacking_comment'])) {
-                                            $organization_lacking_items[] = [
-                                                'organization' => $orgApp['display_name'] ?? $orgApp['org_name'] ?? 'Organization',
-                                                'comment' => $orgApp['lacking_comment']
-                                            ];
-                                        }
-                                    }
-                                    ?>
-
-                                    <?php if (!empty($organization_lacking_items)): ?>
-                                        <div
-                                            style="margin-top: 1rem; padding: 1rem; background: rgba(14, 165, 233, 0.1); border-radius: 8px;">
-                                            <h5
-                                                style="display: flex; align-items: center; gap: 0.5rem; color: var(--proof); margin-bottom: 0.5rem;">
-                                                <i class="fas fa-building"></i> Organization Requirements
-                                            </h5>
-                                            <?php foreach ($organization_lacking_items as $orgLacking): ?>
-                                                <div
-                                                    style="margin-bottom: 0.5rem; padding: 0.5rem; background: var(--white); border-radius: 4px;">
-                                                    <strong>
-                                                        <?php echo htmlspecialchars($orgLacking['organization']); ?>:
-                                                    </strong>
-                                                    <?php echo htmlspecialchars($orgLacking['comment']); ?>
                                                 </div>
                                             <?php endforeach; ?>
                                         </div>
@@ -8750,7 +8693,7 @@ function getOrganizationIcon($org_type)
                                             <h4 style="margin: 1rem 0; color: var(--text);">Organization Details</h4>
                                             <div class="offices-grid">
                                                 <?php foreach ($group['organization_applications'] as $orgApp): ?>
-                                                    <div class="office-card <?php echo !empty($orgApp['lacking_comment']) ? 'lacking' : ''; ?>"
+                                                    <div class="office-card <?php echo shouldShowFrontLackingIndicator($orgApp) ? 'lacking' : ''; ?>"
                                                         onclick='viewDetails(<?php echo json_encode($orgApp); ?>)'>
                                                         <div class="office-icon <?php echo $orgApp['status']; ?>">
                                                             <i class="fas fa-<?php echo getOrganizationIcon($orgApp['org_type'] ?? ''); ?>"></i>
