@@ -6890,13 +6890,6 @@ function getOrganizationIcon($org_type)
             .profile-highlight {
                 order: 2;
             }
-
-
-        @media (max-width: 1280px) {
-            .dashboard-overview {
-                grid-template-columns: 1fr;
-            }
-        }
             .nav-item {
                 flex: 0 0 auto;
                 min-width: 172px;
@@ -6907,6 +6900,12 @@ function getOrganizationIcon($org_type)
 
             .nav-menu::-webkit-scrollbar {
                 height: 6px;
+            }
+        }
+
+        @media (max-width: 1280px) {
+            .dashboard-overview {
+                grid-template-columns: 1fr;
             }
         }
 
