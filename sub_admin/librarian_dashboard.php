@@ -1997,7 +1997,7 @@ function getActivityIcon($action)
             margin-top: 18px;
             overflow-x: auto;
             padding-bottom: 6px;
-            align-items: flex-start;
+            align-items: stretch;
         }
 
         .clearance-section {
@@ -2006,8 +2006,20 @@ function getActivityIcon($action)
             border-radius: 20px;
             box-shadow: var(--card-shadow);
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
             flex: 1 1 0;
             min-width: 320px;
+            transition: flex 0.25s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .clearance-section:not(.expanded) {
+            flex: 1 1 0;
+        }
+
+        .clearance-section.expanded {
+            flex: 2.35 1 0;
+            box-shadow: var(--card-shadow-hover);
         }
 
         .clearance-section summary {
@@ -2096,6 +2108,7 @@ function getActivityIcon($action)
             display: grid;
             gap: 14px;
             min-width: 0;
+            flex: 1 1 auto;
         }
 
         .clearance-compact-grid {
@@ -3519,21 +3532,15 @@ function getActivityIcon($action)
             }
 
             .clearance-accordion {
-                /* desktop: horizontal; mobile rules below will stack */
-                display: flex;
-                gap: 18px;
-                align-items: flex-start;
-                overflow-x: auto;
+                display: block;
+                overflow-x: visible;
+                padding-bottom: 0;
             }
 
             .clearance-section {
-                flex: 1 1 0;
-                min-width: 280px;
-                transition: flex 0.28s ease, max-height 0.28s ease, box-shadow 0.18s ease;
-                overflow: hidden;
-                border: 1px solid var(--border-color);
-                border-radius: 12px;
-                background: var(--card-bg);
+                width: 100%;
+                min-width: 0;
+                margin-bottom: 12px;
             }
 
             .clearance-section summary {
@@ -3547,35 +3554,21 @@ function getActivityIcon($action)
 
             .clearance-section .clearance-section-content {
                 padding: 12px 16px;
-                max-height: 70vh;
+                max-height: none;
                 overflow: auto;
             }
 
             .clearance-section.expanded {
-                flex: 2.2 1 0;
-                box-shadow: var(--card-shadow-hover);
-            }
-
-        .pending-action-stack {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-items: center;
-            min-width: 210px;
-            max-width: 280px;
-        }
-        }
-
-        @media (max-width: 1024px) {
-            .clearance-accordion {
-                display: block;
-            }
-            .clearance-section {
-                width: 100%;
-                margin-bottom: 12px;
-            }
-            .clearance-section.expanded {
                 flex: 1;
+            }
+
+            .pending-action-stack {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                align-items: center;
+                min-width: 210px;
+                max-width: 280px;
             }
         }
 
@@ -6312,20 +6305,28 @@ function getActivityIcon($action)
             summary.addEventListener('click', function (e) {
                 if (isDesktop()) {
                     e.preventDefault();
-                    const isExpanded = detail.classList.contains('expanded');
-                    clearanceDetails.forEach(d => { d.classList.remove('expanded'); d.open = false; });
-                    if (!isExpanded) {
-                        detail.classList.add('expanded');
-                        detail.open = true;
-                    } else {
-                        detail.classList.remove('expanded');
-                        detail.open = false;
-                    }
+                    const willOpen = !detail.open;
+                    clearanceDetails.forEach(d => {
+                        if (d !== detail) {
+                            d.open = false;
+                            d.classList.remove('expanded');
+                        }
+                    });
+                    detail.open = willOpen;
+                    detail.classList.toggle('expanded', willOpen);
                 } else {
                     // Mobile: allow native toggle but collapse others when opened
                     setTimeout(() => {
                         if (detail.open) {
-                            clearanceDetails.forEach(d => { if (d !== detail) d.open = false; });
+                            clearanceDetails.forEach(d => {
+                                d.classList.toggle('expanded', d === detail);
+                                if (d !== detail) {
+                                    d.open = false;
+                                    d.classList.remove('expanded');
+                                }
+                            });
+                        } else {
+                            detail.classList.remove('expanded');
                         }
                     }, 10);
                 }
@@ -6339,7 +6340,16 @@ function getActivityIcon($action)
             });
         }
         ensureDefaultClearanceState();
-        window.addEventListener('resize', ensureDefaultClearanceState);
+        window.addEventListener('resize', () => {
+            if (isDesktop()) {
+                clearanceDetails.forEach(d => d.classList.remove('expanded'));
+            } else {
+                clearanceDetails.forEach(d => {
+                    d.classList.remove('expanded');
+                    d.open = false;
+                });
+            }
+        });
 
         filterPending();
         filterHistory();
