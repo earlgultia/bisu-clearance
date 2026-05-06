@@ -4283,7 +4283,7 @@ function getActivityIcon($action)
                     </div>
 
                     <div class="clearance-accordion">
-                        <details class="clearance-section" open>
+                        <details class="clearance-section">
                             <summary>
                                 <div class="clearance-section-header">
                                     <div class="clearance-section-icon pending">
@@ -6333,15 +6333,10 @@ function getActivityIcon($action)
         });
 
         function ensureDefaultClearanceState() {
-            if (isDesktop()) {
-                clearanceDetails.forEach((d, i) => {
-                    d.classList.remove('expanded');
-                    d.open = false;
-                    if (i === 0) { d.classList.add('expanded'); d.open = true; }
-                });
-            } else {
-                clearanceDetails.forEach(d => d.classList.remove('expanded'));
-            }
+            clearanceDetails.forEach(d => {
+                d.classList.remove('expanded');
+                d.open = false;
+            });
         }
         ensureDefaultClearanceState();
         window.addEventListener('resize', ensureDefaultClearanceState);
