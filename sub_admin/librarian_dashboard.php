@@ -4486,7 +4486,7 @@ function getActivityIcon($action)
                     </div>
 
                     <div class="clearance-accordion clearance-accordion-modern">
-                        <details class="clearance-section clearance-section-modern">
+                        <details class="clearance-section clearance-section-modern" open>
                             <summary style="list-style: none; cursor: pointer; user-select: none;">
                                 <div class="clearance-section-header-modern">
                                     <div style="flex: 1;">
