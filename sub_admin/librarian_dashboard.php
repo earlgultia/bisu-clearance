@@ -4530,6 +4530,10 @@ function getActivityIcon($action)
                                 <div style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-secondary);">
                                     <span id="pendingVisibleCount">Showing <?php echo count($pending_clearances); ?> of <?php echo count($pending_clearances); ?> records</span>
                                 </div>
+                                <!-- Temporary debug: visible pending count for troubleshooting -->
+                                <div id="pendingDebugCount" style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">
+                                    Debug: pending_count = <?php echo (int) count($pending_clearances); ?>
+                                </div>
 
                                 <?php if (!empty($pending_clearances)): ?>
                                     <div class="pending-bulk-panel-modern" style="background: var(--primary-soft); border: 1px solid var(--primary); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
@@ -6458,10 +6462,25 @@ function getActivityIcon($action)
         });
 
         function ensureDefaultClearanceState() {
-            clearanceDetails.forEach(d => {
-                d.classList.remove('expanded');
-                d.open = false;
-            });
+            // If any <details> has the `open` attribute set in HTML, respect it.
+            // Otherwise, open the first section (Pending) by default.
+            const anyPreOpen = Array.from(clearanceDetails).some(d => d.hasAttribute('open'));
+            if (anyPreOpen) {
+                clearanceDetails.forEach(d => {
+                    if (d.hasAttribute('open')) {
+                        d.open = true;
+                        d.classList.add('expanded');
+                    } else {
+                        d.classList.remove('expanded');
+                    }
+                });
+            } else {
+                clearanceDetails.forEach((d, i) => {
+                    d.classList.remove('expanded');
+                    d.open = (i === 0); // open first by default
+                    if (i === 0) d.classList.add('expanded');
+                });
+            }
         }
         ensureDefaultClearanceState();
         window.addEventListener('resize', () => {
