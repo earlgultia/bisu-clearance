@@ -5718,11 +5718,11 @@ function getActivityIcon($action)
                 }
 
                 const currentUrl = new URL(window.location.href);
-                const currentTab = currentUrl.searchParams.get('tab') || 'dashboard';
+                const currentTab = currentUrl.searchParams.get('tab') || document.querySelector('.tab-content.active')?.id || 'dashboard';
                 const hasDashboardTab = !!document.getElementById('dashboard');
 
-                if (hasDashboardTab && currentTab !== 'dashboard') {
-                    switchTab('dashboard');
+                if (hasDashboardTab && currentTab && document.getElementById(currentTab) && !document.getElementById(currentTab).classList.contains('active')) {
+                    switchTab(currentTab);
                 } else {
                     window.history.pushState({
                         [dashboardBackGuardKey]: 'lock',
