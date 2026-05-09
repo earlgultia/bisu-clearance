@@ -6484,14 +6484,9 @@ function getActivityIcon($action)
         }
         ensureDefaultClearanceState();
         window.addEventListener('resize', () => {
-            if (isDesktop()) {
-                clearanceDetails.forEach(d => d.classList.remove('expanded'));
-            } else {
-                clearanceDetails.forEach(d => {
-                    d.classList.remove('expanded');
-                    d.open = false;
-                });
-            }
+            // Re-apply default open/expanded state on resize so desktop
+            // view always shows the intended section (respect `open` or first).
+            ensureDefaultClearanceState();
         });
 
         filterPending();
