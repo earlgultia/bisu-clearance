@@ -2207,6 +2207,30 @@ function getActivityIcon($action)
             display: block;
         }
 
+        /* Desktop-specific: ensure all sections and their content are visible */
+        @media (min-width: 1025px) {
+            .clearance-accordion-modern {
+                display: flex;
+                flex-direction: row;
+                gap: 1.25rem;
+                align-items: flex-start;
+            }
+
+            .clearance-section {
+                overflow: visible !important;
+                min-width: 0;
+                flex: 1 1 0;
+            }
+
+            .clearance-section .clearance-section-content-modern,
+            .clearance-section .clearance-section-content {
+                display: block !important;
+                max-height: none !important;
+                padding: 1.25rem !important;
+                overflow: visible !important;
+            }
+        }
+
         .clearance-section-content-modern {
             padding: 1.5rem;
         }
