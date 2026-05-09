@@ -6627,31 +6627,59 @@ function getActivityIcon($action)
         document.getElementById('studentSearch')?.addEventListener('input', debouncedSearchStudents);
         document.getElementById('studentCourseFilter')?.addEventListener('change', searchStudents);
 
-        const clearanceDetails = document.querySelectorAll('.clearance-accordion details');
+        const clearanceDetails = Array.from(document.querySelectorAll('.clearance-accordion details'));
         function isDesktop() { return window.innerWidth > 1024; }
+
+        function collapseAllClearanceSections() {
+            clearanceDetails.forEach(d => {
+                d.open = false;
+                d.classList.remove('expanded-full','minimized','expanded');
+            });
+            document.querySelector('.clearance-accordion-modern')?.classList.remove('full-view');
+        }
+
+        function expandClearanceSection(detail) {
+            const container = document.querySelector('.clearance-accordion-modern');
+            if (!container) return;
+            container.classList.add('full-view');
+            clearanceDetails.forEach(d => {
+                if (d === detail) {
+                    d.classList.add('expanded-full');
+                    d.classList.remove('minimized');
+                    d.open = true;
+                } else {
+                    d.classList.add('minimized');
+                    d.classList.remove('expanded-full');
+                    d.open = false;
+                }
+            });
+            detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
         clearanceDetails.forEach(detail => {
-            const summary = detail.querySelector('summary');
+            const summary = detail.querySelector('summary') || detail.querySelector('.clearance-section-header-modern');
             if (!summary) return;
-            summary.addEventListener('click', function (e) {
+            if (detail.hasAttribute('open')) detail.setAttribute('data-default-open','1');
+            summary.addEventListener('click', function(e){
                 if (isDesktop()) {
                     e.preventDefault();
-                    clearanceDetails.forEach(d => {
-                        d.open = true;
-                        d.classList.add('expanded');
-                    });
+                    const isExpanded = detail.classList.contains('expanded-full');
+                    if (isExpanded) {
+                        collapseAllClearanceSections();
+                    } else {
+                        expandClearanceSection(detail);
+                    }
                 } else {
-                    // Mobile: allow native toggle but collapse others when opened
                     setTimeout(() => {
                         if (detail.open) {
                             clearanceDetails.forEach(d => {
-                                d.classList.toggle('expanded', d === detail);
                                 if (d !== detail) {
                                     d.open = false;
                                     d.classList.remove('expanded');
+                                } else {
+                                    d.classList.add('expanded');
                                 }
                             });
-                        } else {
-                            detail.classList.remove('expanded');
                         }
                     }, 10);
                 }
@@ -6660,27 +6688,17 @@ function getActivityIcon($action)
 
         function ensureDefaultClearanceState() {
             if (isDesktop()) {
-                // On desktop, keep all sections visible so the three clearance groups are obvious.
-                clearanceDetails.forEach(d => {
-                    d.open = true;
-                    d.classList.add('expanded');
-                });
+                collapseAllClearanceSections();
                 return;
             }
-
-            // On mobile, keep the first section open by default for a compact layout.
             clearanceDetails.forEach((d, i) => {
-                d.classList.remove('expanded');
+                d.classList.remove('expanded-full','minimized');
                 d.open = (i === 0);
-                if (i === 0) {
-                    d.classList.add('expanded');
-                }
+                d.classList.toggle('expanded', i === 0);
             });
         }
         ensureDefaultClearanceState();
         window.addEventListener('resize', () => {
-            // Re-apply default open/expanded state on resize so desktop
-            // view always shows the intended section (respect `open` or first).
             ensureDefaultClearanceState();
         });
 
@@ -6864,6 +6882,28 @@ function getActivityIcon($action)
         }
     </script>
 
+    <script>
+        // Intercept clicks on the status cards so they don't change history or trigger back-guard
+        document.querySelectorAll('.clearance-status-card').forEach(card => {
+            card.addEventListener('click', function (e) {
+                e.preventDefault();
+                const href = card.getAttribute('href') || '';
+                const targetId = href.startsWith('#') ? href.slice(1) : href;
+                if (!targetId) return;
+                const detail = document.getElementById(targetId);
+                if (!detail) return;
+                const summary = detail.querySelector('summary') || detail.querySelector('.clearance-section-header-modern');
+                if (summary) {
+                    // Trigger the existing summary click handler (preserves desktop expand behavior)
+                    summary.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                } else {
+                    detail.open = true;
+                    detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+    </script>
+
     <style>
         /* Full-expand / minimize behavior for desktop view */
         @media (min-width: 1025px) {
@@ -6877,66 +6917,7 @@ function getActivityIcon($action)
         }
     </style>
 
-    <script>
-        (function(){
-            function isDesktop() { return window.innerWidth > 1024; }
-
-            function toggleFullView(detail){
-                if (!isDesktop()) return;
-                const container = document.querySelector('.clearance-accordion-modern');
-                if (!container) return;
-                const isExpanded = detail.classList.contains('expanded-full');
-                if (isExpanded){
-                    container.classList.remove('full-view');
-                    document.querySelectorAll('.clearance-section').forEach(d=>{
-                        d.classList.remove('expanded-full','minimized');
-                        // restore open state if it was originally open
-                        if (d.hasAttribute('data-default-open') || d.hasAttribute('open')) d.open = true;
-                        else d.open = false;
-                    });
-                } else {
-                    container.classList.add('full-view');
-                    document.querySelectorAll('.clearance-section').forEach(d=>{
-                        if (d === detail){
-                            d.classList.add('expanded-full');
-                            d.classList.remove('minimized');
-                            d.open = true;
-                        } else {
-                            d.classList.add('minimized');
-                            d.classList.remove('expanded-full');
-                            d.open = false;
-                        }
-                    });
-                }
-            }
-
-            // Attach click handlers to summary/header for desktop expand behavior
-            document.querySelectorAll('.clearance-section').forEach(detail=>{
-                const summary = detail.querySelector('summary') || detail.querySelector('.clearance-section-header-modern');
-                if (!summary) return;
-                // store default open state
-                if (detail.hasAttribute('open')) detail.setAttribute('data-default-open','1');
-                summary.addEventListener('click', function(e){
-                    if (!isDesktop()) return; // keep native mobile behavior
-                    e.preventDefault();
-                    toggleFullView(detail);
-                });
-            });
-
-            // On resize, if width becomes desktop and only one section has expanded-full keep it,
-            // otherwise ensure layout remains consistent
-            window.addEventListener('resize', function(){
-                if (!isDesktop()){
-                    document.querySelector('.clearance-accordion-modern')?.classList.remove('full-view');
-                    document.querySelectorAll('.clearance-section').forEach(d=>{
-                        d.classList.remove('expanded-full','minimized');
-                        if (d.hasAttribute('data-default-open') || d.hasAttribute('open')) d.open = true;
-                        else d.open = false;
-                    });
-                }
-            });
-        })();
-    </script>
+    
 
 </body>
 
