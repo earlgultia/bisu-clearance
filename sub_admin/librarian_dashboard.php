@@ -2140,6 +2140,10 @@ function getActivityIcon($action)
             transform: rotate(180deg);
         }
 
+        .clearance-section-modern summary {
+            display: block;
+        }
+
         .clearance-section-content-modern {
             padding: 1.5rem;
         }
@@ -6462,25 +6466,23 @@ function getActivityIcon($action)
         });
 
         function ensureDefaultClearanceState() {
-            // If any <details> has the `open` attribute set in HTML, respect it.
-            // Otherwise, open the first section (Pending) by default.
-            const anyPreOpen = Array.from(clearanceDetails).some(d => d.hasAttribute('open'));
-            if (anyPreOpen) {
+            if (isDesktop()) {
+                // On desktop, keep all sections visible so the three clearance groups are obvious.
                 clearanceDetails.forEach(d => {
-                    if (d.hasAttribute('open')) {
-                        d.open = true;
-                        d.classList.add('expanded');
-                    } else {
-                        d.classList.remove('expanded');
-                    }
+                    d.open = true;
+                    d.classList.add('expanded');
                 });
-            } else {
-                clearanceDetails.forEach((d, i) => {
-                    d.classList.remove('expanded');
-                    d.open = (i === 0); // open first by default
-                    if (i === 0) d.classList.add('expanded');
-                });
+                return;
             }
+
+            // On mobile, keep the first section open by default for a compact layout.
+            clearanceDetails.forEach((d, i) => {
+                d.classList.remove('expanded');
+                d.open = (i === 0);
+                if (i === 0) {
+                    d.classList.add('expanded');
+                }
+            });
         }
         ensureDefaultClearanceState();
         window.addEventListener('resize', () => {
