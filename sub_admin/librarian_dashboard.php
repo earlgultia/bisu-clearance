@@ -2006,6 +2006,69 @@ function getActivityIcon($action)
             gap: 1.5rem;
         }
 
+        .clearance-status-nav {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
+            margin: 0 0 1.5rem;
+        }
+
+        .clearance-status-card {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            color: var(--text-primary);
+            padding: 1rem;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .clearance-status-card:hover {
+            border-color: var(--primary);
+            box-shadow: var(--card-shadow-hover);
+            transform: translateY(-1px);
+        }
+
+        .clearance-status-label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .clearance-status-helper {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .clearance-status-count {
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 800;
+            padding: 0.45rem 0.8rem;
+            white-space: nowrap;
+        }
+
+        .clearance-status-count.pending {
+            background: var(--danger-soft);
+            color: var(--danger);
+        }
+
+        .clearance-status-count.approved {
+            background: var(--success-soft);
+            color: var(--success);
+        }
+
+        .clearance-status-count.rejected {
+            background: var(--danger-soft);
+            color: var(--danger);
+        }
+
         .clearance-section {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
@@ -3731,6 +3794,10 @@ function getActivityIcon($action)
                 grid-template-columns: 1fr 1fr;
             }
 
+            .clearance-status-nav {
+                grid-template-columns: 1fr;
+            }
+
             .undo-top {
                 flex-direction: column;
             }
@@ -4489,8 +4556,32 @@ function getActivityIcon($action)
                         </div>
                     </div>
 
+                    <div class="clearance-status-nav" aria-label="Clearance status sections">
+                        <a class="clearance-status-card" href="#pendingClearances">
+                            <span>
+                                <span class="clearance-status-label">Pending</span>
+                                <span class="clearance-status-helper">Awaiting library review</span>
+                            </span>
+                            <span class="clearance-status-count pending"><?php echo (int) ($stats['pending'] ?? 0); ?></span>
+                        </a>
+                        <a class="clearance-status-card" href="#approvedClearances">
+                            <span>
+                                <span class="clearance-status-label">Approved</span>
+                                <span class="clearance-status-helper">Processed successfully</span>
+                            </span>
+                            <span class="clearance-status-count approved"><?php echo (int) ($stats['approved'] ?? 0); ?></span>
+                        </a>
+                        <a class="clearance-status-card" href="#rejectedClearances">
+                            <span>
+                                <span class="clearance-status-label">Rejected</span>
+                                <span class="clearance-status-helper">Returned or not cleared</span>
+                            </span>
+                            <span class="clearance-status-count rejected"><?php echo (int) ($stats['rejected'] ?? 0); ?></span>
+                        </a>
+                    </div>
+
                     <div class="clearance-accordion clearance-accordion-modern">
-                        <details class="clearance-section clearance-section-modern" open>
+                        <details id="pendingClearances" class="clearance-section clearance-section-modern" open>
                             <summary style="list-style: none; cursor: pointer; user-select: none;">
                                 <div class="clearance-section-header-modern">
                                     <div style="flex: 1;">
@@ -4681,7 +4772,7 @@ function getActivityIcon($action)
                             </div>
                         </details>
 
-                        <details class="clearance-section clearance-section-modern">
+                        <details id="approvedClearances" class="clearance-section clearance-section-modern" open>
                             <summary style="list-style: none; cursor: pointer; user-select: none;">
                                 <div class="clearance-section-header-modern">
                                     <div style="flex: 1;">
@@ -4758,7 +4849,7 @@ function getActivityIcon($action)
                             </div>
                         </details>
 
-                        <details class="clearance-section clearance-section-modern">
+                        <details id="rejectedClearances" class="clearance-section clearance-section-modern" open>
                             <summary style="list-style: none; cursor: pointer; user-select: none;">
                                 <div class="clearance-section-header-modern">
                                     <div style="flex: 1;">
@@ -6437,15 +6528,10 @@ function getActivityIcon($action)
             summary.addEventListener('click', function (e) {
                 if (isDesktop()) {
                     e.preventDefault();
-                    const willOpen = !detail.open;
                     clearanceDetails.forEach(d => {
-                        if (d !== detail) {
-                            d.open = false;
-                            d.classList.remove('expanded');
-                        }
+                        d.open = true;
+                        d.classList.add('expanded');
                     });
-                    detail.open = willOpen;
-                    detail.classList.toggle('expanded', willOpen);
                 } else {
                     // Mobile: allow native toggle but collapse others when opened
                     setTimeout(() => {
