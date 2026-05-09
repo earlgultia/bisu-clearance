@@ -2295,6 +2295,61 @@ function getActivityIcon($action)
             background: var(--primary-soft);
         }
 
+        /* Enhanced table/grid appearance */
+        .table-modern {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 6px 18px rgba(15,23,42,0.06);
+        }
+
+        .table-modern thead th {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250,250,250,0.96));
+            backdrop-filter: blur(4px);
+        }
+
+        .table-modern tbody tr:nth-child(even) {
+            background: var(--bg-tertiary);
+        }
+
+        .table-modern tbody td {
+            border-right: 1px solid rgba(0,0,0,0.03);
+        }
+
+        .table-modern .empty-row {
+            text-align: center;
+            color: var(--muted);
+            padding: 2rem;
+        }
+
+        /* Make expanded section content scrollable with sticky header */
+        .clearance-section.expanded-full .clearance-section-content-modern {
+            max-height: calc(100vh - 180px);
+            overflow: auto;
+            padding: 1.25rem;
+        }
+
+        /* Grid-style cards fallback for small lists inside sections */
+        .grid-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 1rem;
+            align-items: start;
+        }
+
+        .grid-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0.9rem;
+            box-shadow: var(--card-shadow);
+        }
+
+        .grid-card .title { font-weight:700; color:var(--text-primary); }
+        .grid-card .meta { color:var(--muted); font-size:0.85rem }
+
         .btn-modern {
             background: var(--primary);
             color: white;
