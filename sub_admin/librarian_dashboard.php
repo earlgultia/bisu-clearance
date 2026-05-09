@@ -2231,6 +2231,34 @@ function getActivityIcon($action)
             }
         }
 
+        /* Additional desktop-enforcement to avoid accidental hiding */
+        @media (min-width: 1025px) {
+            .clearance-accordion-modern,
+            .clearance-section,
+            .clearance-section * {
+                -webkit-print-color-adjust: exact;
+            }
+
+            .clearance-section {
+                position: relative;
+                z-index: 2;
+                background: var(--card-bg) !important;
+                color: var(--text-primary) !important;
+            }
+
+            .clearance-section summary,
+            .clearance-section .clearance-section-header-modern {
+                display: block !important;
+                color: var(--text-primary) !important;
+            }
+
+            .clearance-section .clearance-section-content-modern {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+            }
+        }
+
         .clearance-section-content-modern {
             padding: 1.5rem;
         }
@@ -6780,6 +6808,81 @@ function getActivityIcon($action)
             return status == 'approved' ? 'status-approved' : (status == 'rejected' ? 'status-rejected' : 'status-pending');
         }
     </script>
+
+    <style>
+        /* Full-expand / minimize behavior for desktop view */
+        @media (min-width: 1025px) {
+            .clearance-accordion-modern.full-view { gap: 0.75rem; }
+            .clearance-accordion-modern .clearance-section { transition: flex 0.32s ease, max-width 0.32s ease, opacity 0.32s ease; }
+            .clearance-section.expanded-full { flex: 1 1 100% !important; max-width: 100% !important; z-index: 10; }
+            .clearance-section.minimized { flex: 0 0 64px !important; max-width: 64px !important; min-width:64px !important; opacity: 0.9; overflow: hidden; }
+            .clearance-section.minimized summary { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; padding: 0.5rem; }
+            .clearance-section.minimized .clearance-section-content-modern,
+            .clearance-section.minimized .clearance-section-content { display: none !important; }
+        }
+    </style>
+
+    <script>
+        (function(){
+            function isDesktop() { return window.innerWidth > 1024; }
+
+            function toggleFullView(detail){
+                if (!isDesktop()) return;
+                const container = document.querySelector('.clearance-accordion-modern');
+                if (!container) return;
+                const isExpanded = detail.classList.contains('expanded-full');
+                if (isExpanded){
+                    container.classList.remove('full-view');
+                    document.querySelectorAll('.clearance-section').forEach(d=>{
+                        d.classList.remove('expanded-full','minimized');
+                        // restore open state if it was originally open
+                        if (d.hasAttribute('data-default-open') || d.hasAttribute('open')) d.open = true;
+                        else d.open = false;
+                    });
+                } else {
+                    container.classList.add('full-view');
+                    document.querySelectorAll('.clearance-section').forEach(d=>{
+                        if (d === detail){
+                            d.classList.add('expanded-full');
+                            d.classList.remove('minimized');
+                            d.open = true;
+                        } else {
+                            d.classList.add('minimized');
+                            d.classList.remove('expanded-full');
+                            d.open = false;
+                        }
+                    });
+                }
+            }
+
+            // Attach click handlers to summary/header for desktop expand behavior
+            document.querySelectorAll('.clearance-section').forEach(detail=>{
+                const summary = detail.querySelector('summary') || detail.querySelector('.clearance-section-header-modern');
+                if (!summary) return;
+                // store default open state
+                if (detail.hasAttribute('open')) detail.setAttribute('data-default-open','1');
+                summary.addEventListener('click', function(e){
+                    if (!isDesktop()) return; // keep native mobile behavior
+                    e.preventDefault();
+                    toggleFullView(detail);
+                });
+            });
+
+            // On resize, if width becomes desktop and only one section has expanded-full keep it,
+            // otherwise ensure layout remains consistent
+            window.addEventListener('resize', function(){
+                if (!isDesktop()){
+                    document.querySelector('.clearance-accordion-modern')?.classList.remove('full-view');
+                    document.querySelectorAll('.clearance-section').forEach(d=>{
+                        d.classList.remove('expanded-full','minimized');
+                        if (d.hasAttribute('data-default-open') || d.hasAttribute('open')) d.open = true;
+                        else d.open = false;
+                    });
+                }
+            });
+        })();
+    </script>
+
 </body>
 
 </html>
