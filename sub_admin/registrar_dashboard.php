@@ -5113,6 +5113,19 @@ function getActivityIcon($action)
                         });
                     }
 
+                    function toggleRegistrarSection(section) {
+                        if (!section) {
+                            return;
+                        }
+
+                        if (section.open) {
+                            section.open = false;
+                            saveRegistrarClearanceSectionState(section.id, false);
+                        } else {
+                            openRegistrarSection(section);
+                        }
+                    }
+
                     registrarClearanceSections.forEach(section => {
                         section.addEventListener('toggle', function () {
                             if (section.open) {
@@ -5133,6 +5146,26 @@ function getActivityIcon($action)
                     if (registrarOpenSectionId) {
                         const openSection = document.getElementById(registrarOpenSectionId);
                         if (openSection) {
+
+                    document.querySelectorAll('.clearance-status-card').forEach(card => {
+                        card.addEventListener('click', function (event) {
+                            event.preventDefault();
+
+                            const href = card.getAttribute('href') || '';
+                            const targetId = href.startsWith('#') ? href.slice(1) : href;
+                            if (!targetId) {
+                                return;
+                            }
+
+                            const section = document.getElementById(targetId);
+                            if (!section) {
+                                return;
+                            }
+
+                            toggleRegistrarSection(section);
+                            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        });
+                    });
                             openRegistrarSection(openSection);
                         }
                     } else {

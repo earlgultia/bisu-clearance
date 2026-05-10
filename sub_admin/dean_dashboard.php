@@ -4759,6 +4759,18 @@ function getActivityIcon($action)
                         });
                     }
 
+                    function toggleClearanceSection(detail) {
+                        if (!detail) {
+                            return;
+                        }
+
+                        if (detail.open) {
+                            collapseAllClearanceSections();
+                        } else {
+                            expandClearanceSection(detail);
+                        }
+                    }
+
                     document.addEventListener('DOMContentLoaded', function () {
                         const sections = getClearanceSections();
                         const state = getClearanceSectionState();
@@ -4775,19 +4787,33 @@ function getActivityIcon($action)
                             if (summary) {
                                 summary.addEventListener('click', function (event) {
                                     event.preventDefault();
-                                    if (detail.open) {
-                                        detail.open = false;
-                                        saveClearanceSectionState(detail.id, false);
-                                        applySectionState(detail, false);
-                                    } else {
-                                        expandClearanceSection(detail);
-                                    }
+                                    toggleClearanceSection(detail);
                                 });
                             }
                         });
 
                         window.addEventListener('resize', function () {
                             getClearanceSections().forEach(detail => applySectionState(detail, detail.open));
+                        });
+                    });
+
+                    document.querySelectorAll('.clearance-status-card').forEach(card => {
+                        card.addEventListener('click', function (event) {
+                            event.preventDefault();
+
+                            const href = card.getAttribute('href') || '';
+                            const targetId = href.startsWith('#') ? href.slice(1) : href;
+                            if (!targetId) {
+                                return;
+                            }
+
+                            const detail = document.getElementById(targetId);
+                            if (!detail) {
+                                return;
+                            }
+
+                            toggleClearanceSection(detail);
+                            detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         });
                     });
                 </script>

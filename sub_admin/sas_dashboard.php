@@ -3474,6 +3474,19 @@ function getOrgTypeBadge($type)
                             });
                         }
 
+                        function toggleSasClearanceSection(section) {
+                            if (!section) {
+                                return;
+                            }
+
+                            if (section.open) {
+                                section.open = false;
+                                saveSasClearanceSectionState(section.id, false);
+                            } else {
+                                openSasClearanceSection(section);
+                            }
+                        }
+
                         sasClearanceSections.forEach(section => {
                             section.addEventListener('toggle', function () {
                                 if (section.open) {
@@ -3503,6 +3516,26 @@ function getOrgTypeBadge($type)
                                 openSasClearanceSection(defaultSection);
                             }
                         }
+
+                        document.querySelectorAll('.clearance-status-card').forEach(card => {
+                            card.addEventListener('click', function (event) {
+                                event.preventDefault();
+
+                                const href = card.getAttribute('href') || '';
+                                const targetId = href.startsWith('#') ? href.slice(1) : href;
+                                if (!targetId) {
+                                    return;
+                                }
+
+                                const section = document.getElementById(targetId);
+                                if (!section) {
+                                    return;
+                                }
+
+                                toggleSasClearanceSection(section);
+                                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            });
+                        });
                     </script>
                 </div>
             </div>
