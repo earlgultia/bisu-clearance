@@ -3487,7 +3487,7 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
                     <i class="fas fa-tachometer-alt"></i> Dashboard
                 </button>
                 <button class="nav-item <?php echo $active_tab == 'pending' ? 'active' : ''; ?>" onclick="switchTab('pending')">
-                    <i class="fas fa-clock"></i> Pending Clearances
+                    <i class="fas fa-clock"></i> Clearances
                     <?php if (($stats['pending'] ?? 0) > 0): ?>
                             <span style="margin-left: auto; background: var(--warning); color: white; padding: 2px 8px; border-radius: 20px; font-size: 0.8rem;">
                                 <?php echo $stats['pending']; ?>

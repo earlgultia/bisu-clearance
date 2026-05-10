@@ -1110,6 +1110,13 @@ try {
     $db->query($query);
     $db->bind(':office_id', $registrar_office_id);
     $recent_clearances = $db->resultSet();
+    $recent_clearances = array_map('attachRegistrarProofView', $recent_clearances ?: []);
+    $approved_clearances = array_values(array_filter($recent_clearances, function ($clearance) {
+        return ($clearance['status'] ?? '') === 'approved';
+    }));
+    $rejected_clearances = array_values(array_filter($recent_clearances, function ($clearance) {
+        return ($clearance['status'] ?? '') === 'rejected';
+    }));
 
     // Get ALL approvals by this registrar (NO TIME LIMIT - for undo functionality)
     $db->query("SELECT 
@@ -4032,7 +4039,7 @@ function getActivityIcon($action)
                 </button>
                 <button class="nav-item <?php echo $active_tab == 'pending' ? 'active' : ''; ?>"
                     onclick="switchTab('pending')">
-                    <i class="fas fa-clock"></i> Pending Clearances
+                    <i class="fas fa-clock"></i> Clearances
                     <?php if (($stats['pending'] ?? 0) > 0): ?>
                             <span
                                 style="margin-left: auto; background: var(--warning); color: white; padding: 2px 8px; border-radius: 20px; font-size: 0.8rem;">
@@ -4597,12 +4604,33 @@ function getActivityIcon($action)
                         </div>
                     </div>
 
-                    <div class="clearance-status-nav" aria-label="Clearance status sections" style="margin-bottom: 2rem;">
-                        <a class="clearance-status-card" href="#pendingClearancesSection" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
+                    <div class="clearance-status-nav" aria-label="Clearance status sections" style="margin-bottom: 2rem; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;">
+                        <a class="clearance-status-card" href="#pendingClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.1rem 1.2rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
                             <span><span style="display: block; font-weight: 600; font-size: 1rem;">Pending</span><span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Awaiting review</span></span>
-                            <span style="background: var(--danger-soft); color: var(--danger); padding: 0.5rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo count($pending_clearances); ?></span>
+                            <span style="background: var(--danger-soft); color: var(--danger); padding: 0.45rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo $stats['pending'] ?? 0; ?></span>
+                        </a>
+                        <a class="clearance-status-card" href="#approvedClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.1rem 1.2rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
+                            <span><span style="display: block; font-weight: 600; font-size: 1rem;">Approved</span><span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Recently processed</span></span>
+                            <span style="background: var(--success-soft); color: var(--success); padding: 0.45rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo $stats['approved'] ?? 0; ?></span>
+                        </a>
+                        <a class="clearance-status-card" href="#rejectedClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.1rem 1.2rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
+                            <span><span style="display: block; font-weight: 600; font-size: 1rem;">Rejected</span><span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Recently declined</span></span>
+                            <span style="background: var(--warning-soft); color: var(--warning); padding: 0.45rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo $stats['rejected'] ?? 0; ?></span>
                         </a>
                     </div>
+
+                    <div class="clearance-accordion" style="display: grid; gap: 16px;">
+                        <details id="pendingClearances" open style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
+                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.2rem 1.35rem; border-bottom: 1px solid var(--border-color);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
+                                    <div>
+                                        <h3 style="margin: 0; font-size: 1.08rem; font-weight: 600; color: var(--text-primary);">Pending Clearances</h3>
+                                        <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">Awaiting review or student submission</p>
+                                    </div>
+                                    <span style="background: var(--danger-soft); color: var(--danger); padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.9rem; font-weight: 600;"><?php echo count($pending_clearances); ?> records</span>
+                                </div>
+                            </summary>
+                                <div style="padding: 1.35rem;">
 
                     <div class="info-card" style="margin-bottom: 20px;">
                         <i class="fas fa-layer-group"></i>
@@ -4919,12 +4947,153 @@ function getActivityIcon($action)
                                 </p>
                             </div>
                     <?php endif; ?>
+                            </div>
+                        </details>
+
+                        <details id="approvedClearances" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
+                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.2rem 1.35rem; border-bottom: 1px solid var(--border-color);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
+                                    <div>
+                                        <h3 style="margin: 0; font-size: 1.08rem; font-weight: 600; color: var(--text-primary);">Approved Clearances</h3>
+                                        <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">Recent registrar approvals</p>
+                                    </div>
+                                    <span style="background: var(--success-soft); color: var(--success); padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.9rem; font-weight: 600;"><?php echo count($approved_clearances); ?> records</span>
+                                </div>
+                            </summary>
+                            <div style="padding: 1.35rem;">
+                                <?php if (empty($approved_clearances)): ?>
+                                    <div class="empty-state">
+                                        <i class="fas fa-check-circle"></i>
+                                        <h3>No approved clearances</h3>
+                                        <p>Approved registrar decisions will appear here.</p>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="table-responsive">
+                                        <table class="pending-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Student</th>
+                                                    <th>Clearance Details</th>
+                                                    <th>Processed By</th>
+                                                    <th>Status</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($approved_clearances as $clearance): ?>
+                                                    <tr>
+                                                        <td>
+                                                            <div class="pending-student-cell">
+                                                                <div class="pending-student-name"><?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?></div>
+                                                                <div class="pending-subline"><?php echo htmlspecialchars($clearance['ismis_id']); ?></div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="pending-details-cell">
+                                                                <div style="font-weight: 600; color: var(--text-primary);"><?php echo htmlspecialchars(ucfirst($clearance['clearance_type'] ?? 'Clearance')); ?></div>
+                                                                <div class="pending-subline"><?php echo htmlspecialchars(trim(($clearance['semester'] ?? '') . ' ' . ($clearance['school_year'] ?? ''))); ?></div>
+                                                            </div>
+                                                        </td>
+                                                        <td><?php echo htmlspecialchars(trim(($clearance['processed_fname'] ?? '') . ' ' . ($clearance['processed_lname'] ?? '')) ?: 'Registrar'); ?></td>
+                                                        <td><span class="pending-state-badge complied">Approved</span></td>
+                                                        <td>
+                                                            <div class="pending-action-stack" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                                                                <button type="button" class="pending-action-btn neutral" onclick="viewStudentProgress(<?php echo $clearance['users_id']; ?>, '<?php echo $clearance['semester']; ?>', '<?php echo $clearance['school_year']; ?>', '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo $clearance['ismis_id']; ?>', '<?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?>', '<?php echo htmlspecialchars($clearance['college_name'] ?? 'N/A'); ?>', '<?php echo $clearance['address'] ?? ''; ?>', '<?php echo $clearance['contacts'] ?? ''; ?>', '<?php echo $clearance['age'] ?? ''; ?>')">
+                                                                    <i class="fas fa-eye"></i> Progress
+                                                                </button>
+                                                                <?php if (!empty($clearance['proof_file'])): ?>
+                                                                    <button type="button" class="pending-action-btn neutral" onclick="viewRegistrarProof('<?php echo $clearance['proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['proof_remarks'] ?? '')); ?>', '<?php echo htmlspecialchars(trim(($clearance['processed_fname'] ?? '') . ' ' . ($clearance['processed_lname'] ?? ''))); ?>', '<?php echo htmlspecialchars($clearance['proof_uploaded_at'] ?? ''); ?>')">
+                                                                        <i class="fas fa-file"></i> Proof
+                                                                    </button>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </details>
+
+                        <details id="rejectedClearances" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
+                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.2rem 1.35rem; border-bottom: 1px solid var(--border-color);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
+                                    <div>
+                                        <h3 style="margin: 0; font-size: 1.08rem; font-weight: 600; color: var(--text-primary);">Rejected Clearances</h3>
+                                        <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">Recent registrar rejections</p>
+                                    </div>
+                                    <span style="background: var(--warning-soft); color: var(--warning); padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.9rem; font-weight: 600;"><?php echo count($rejected_clearances); ?> records</span>
+                                </div>
+                            </summary>
+                            <div style="padding: 1.35rem;">
+                                <?php if (empty($rejected_clearances)): ?>
+                                    <div class="empty-state">
+                                        <i class="fas fa-times-circle"></i>
+                                        <h3>No rejected clearances</h3>
+                                        <p>Rejected registrar decisions will appear here.</p>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="table-responsive">
+                                        <table class="pending-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Student</th>
+                                                    <th>Clearance Details</th>
+                                                    <th>Processed By</th>
+                                                    <th>Status</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($rejected_clearances as $clearance): ?>
+                                                    <tr>
+                                                        <td>
+                                                            <div class="pending-student-cell">
+                                                                <div class="pending-student-name"><?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?></div>
+                                                                <div class="pending-subline"><?php echo htmlspecialchars($clearance['ismis_id']); ?></div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="pending-details-cell">
+                                                                <div style="font-weight: 600; color: var(--text-primary);"><?php echo htmlspecialchars(ucfirst($clearance['clearance_type'] ?? 'Clearance')); ?></div>
+                                                                <div class="pending-subline"><?php echo htmlspecialchars(trim(($clearance['semester'] ?? '') . ' ' . ($clearance['school_year'] ?? ''))); ?></div>
+                                                            </div>
+                                                        </td>
+                                                        <td><?php echo htmlspecialchars(trim(($clearance['processed_fname'] ?? '') . ' ' . ($clearance['processed_lname'] ?? '')) ?: 'Registrar'); ?></td>
+                                                        <td><span class="pending-state-badge awaiting">Rejected</span></td>
+                                                        <td>
+                                                            <div class="pending-action-stack" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                                                                <button type="button" class="pending-action-btn neutral" onclick="viewStudentProgress(<?php echo $clearance['users_id']; ?>, '<?php echo $clearance['semester']; ?>', '<?php echo $clearance['school_year']; ?>', '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo $clearance['ismis_id']; ?>', '<?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?>', '<?php echo htmlspecialchars($clearance['college_name'] ?? 'N/A'); ?>', '<?php echo $clearance['address'] ?? ''; ?>', '<?php echo $clearance['contacts'] ?? ''; ?>', '<?php echo $clearance['age'] ?? ''; ?>')">
+                                                                    <i class="fas fa-eye"></i> Progress
+                                                                </button>
+                                                                <?php if (!empty($clearance['lacking_comment'])): ?>
+                                                                    <button type="button" class="pending-action-btn neutral" onclick="viewLackingComment('<?php echo htmlspecialchars(addslashes($clearance['lacking_comment'])); ?>', '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo htmlspecialchars(trim(($clearance['lacking_by_fname'] ?? '') . ' ' . ($clearance['lacking_by_lname'] ?? ''))); ?>', '<?php echo $clearance['lacking_comment_at'] ?? ''; ?>')">
+                                                                        <i class="fas fa-flag"></i> Reason
+                                                                    </button>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </details>
+                    </div>
                 </div>
 
                 <script>
-                    // Registrar clearance state management with localStorage
+                    const registrarClearanceSections = Array.from(document.querySelectorAll('.clearance-accordion details'));
                     const REGISTRAR_CLEARANCE_STATE_KEY = 'registrar_clearance_section_state';
-                    
+
+                    function isRegistrarDesktop() {
+                        return window.innerWidth > 1024;
+                    }
+
                     function getRegistrarClearanceSectionState() {
                         const saved = localStorage.getItem(REGISTRAR_CLEARANCE_STATE_KEY);
                         return saved ? JSON.parse(saved) : {};
@@ -4934,6 +5103,44 @@ function getActivityIcon($action)
                         const state = getRegistrarClearanceSectionState();
                         state[sectionId] = isOpen;
                         localStorage.setItem(REGISTRAR_CLEARANCE_STATE_KEY, JSON.stringify(state));
+                    }
+
+                    function openRegistrarSection(activeSection) {
+                        registrarClearanceSections.forEach(section => {
+                            const shouldOpen = section === activeSection;
+                            section.open = shouldOpen;
+                            saveRegistrarClearanceSectionState(section.id, shouldOpen);
+                        });
+                    }
+
+                    registrarClearanceSections.forEach(section => {
+                        section.addEventListener('toggle', function () {
+                            if (section.open) {
+                                openRegistrarSection(section);
+                                if (isRegistrarDesktop()) {
+                                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }
+                            } else {
+                                saveRegistrarClearanceSectionState(section.id, false);
+                            }
+                        });
+                    });
+
+                    const registrarSavedState = getRegistrarClearanceSectionState();
+                    const registrarOpenSectionId = ['pendingClearances', 'approvedClearances', 'rejectedClearances']
+                        .find(sectionId => registrarSavedState[sectionId]);
+
+                    if (registrarOpenSectionId) {
+                        const openSection = document.getElementById(registrarOpenSectionId);
+                        if (openSection) {
+                            openRegistrarSection(openSection);
+                        }
+                    } else {
+                        const defaultSection = document.getElementById('pendingClearances');
+                        if (defaultSection) {
+                            defaultSection.open = true;
+                            openRegistrarSection(defaultSection);
+                        }
                     }
                 </script>
             </div>

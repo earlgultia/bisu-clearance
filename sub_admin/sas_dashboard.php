@@ -3113,7 +3113,7 @@ function getOrgTypeBadge($type)
                         </div>
                         <div class="stat-details">
                             <h3><?php echo $stats['pending_count'] ?? 0; ?></h3>
-                            <p>Pending Clearances</p>
+                            <p>Clearances</p>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -3202,13 +3202,33 @@ function getOrgTypeBadge($type)
                         </div>
                     </div>
 
-                    <div class="clearance-status-nav" aria-label="Clearance status sections" style="margin-bottom: 2rem;">
-                        <a class="clearance-status-card" href="#clearancesSection" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
+                    <div class="clearance-status-nav" aria-label="Clearance status sections" style="margin-bottom: 2rem; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;">
+                        <a class="clearance-status-card" href="#pendingClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.1rem 1.2rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
                             <span><span style="display: block; font-weight: 600; font-size: 1rem;">Pending</span><span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Awaiting review</span></span>
-                            <span style="background: var(--danger-soft); color: var(--danger); padding: 0.5rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo $stats['pending_count'] ?? 0; ?></span>
+                            <span style="background: var(--danger-soft); color: var(--danger); padding: 0.45rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo (int) ($stats['pending_count'] ?? 0); ?></span>
+                        </a>
+                        <a class="clearance-status-card" href="#approvedClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.1rem 1.2rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
+                            <span><span style="display: block; font-weight: 600; font-size: 1rem;">Approved</span><span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Processed decisions</span></span>
+                            <span style="background: var(--success-soft); color: var(--success); padding: 0.45rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo count(array_filter($stats['clearance_history'] ?? [], function ($item) { return ($item['status'] ?? '') === 'approved'; })); ?></span>
+                        </a>
+                        <a class="clearance-status-card" href="#rejectedClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.1rem 1.2rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
+                            <span><span style="display: block; font-weight: 600; font-size: 1rem;">Rejected</span><span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Declined decisions</span></span>
+                            <span style="background: var(--warning-soft); color: var(--warning); padding: 0.45rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo count(array_filter($stats['clearance_history'] ?? [], function ($item) { return ($item['status'] ?? '') === 'rejected'; })); ?></span>
                         </a>
                     </div>
 
+                    <div class="clearance-accordion" style="display: grid; gap: 16px;">
+                        <details id="pendingClearances" class="clearance-section" open style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
+                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.2rem 1.35rem; border-bottom: 1px solid var(--border-color);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
+                                    <div>
+                                        <h3 style="margin: 0; font-size: 1.08rem; font-weight: 600; color: var(--text-primary);">Pending Clearances</h3>
+                                        <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">Awaiting review</p>
+                                    </div>
+                                    <span style="background: var(--danger-soft); color: var(--danger); padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.9rem; font-weight: 600;"><?php echo (int) ($stats['pending_count'] ?? 0); ?> records</span>
+                                </div>
+                            </summary>
+                            <div style="padding: 1.35rem;">
                     <!-- Search Filter Bar -->
                     <div class="filter-bar">
                         <select class="filter-select" id="clearanceTypeFilter">
@@ -3317,23 +3337,174 @@ function getOrgTypeBadge($type)
                             </table>
                         </div>
                     <?php endif; ?>
+                            </div>
+                        </details>
+
+                        <details id="approvedClearances" class="clearance-section" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
+                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.2rem 1.35rem; border-bottom: 1px solid var(--border-color);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
+                                    <div>
+                                        <h3 style="margin: 0; font-size: 1.08rem; font-weight: 600; color: var(--text-primary);">Approved Clearances</h3>
+                                        <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">Recent SAS approvals</p>
+                                    </div>
+                                    <span style="background: var(--success-soft); color: var(--success); padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.9rem; font-weight: 600;"><?php echo count(array_filter($stats['clearance_history'] ?? [], function ($item) { return ($item['status'] ?? '') === 'approved'; })); ?> records</span>
+                                </div>
+                            </summary>
+                            <div style="padding: 1.35rem;">
+                                <?php $approved_clearances = array_values(array_filter($stats['clearance_history'] ?? [], function ($item) { return ($item['status'] ?? '') === 'approved'; })); ?>
+                                <?php if (empty($approved_clearances)): ?>
+                                    <div class="empty-state">
+                                        <i class="fas fa-check-circle"></i>
+                                        <h3>No approved clearances</h3>
+                                        <p>Approved SAS decisions will appear here.</p>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="table-responsive">
+                                        <table id="approvedClearancesTable">
+                                            <thead>
+                                                <tr>
+                                                    <th>Student</th>
+                                                    <th>Type</th>
+                                                    <th>Semester</th>
+                                                    <th>Processed By</th>
+                                                    <th>Status</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($approved_clearances as $clearance): ?>
+                                                    <tr data-type="<?php echo $clearance['clearance_type']; ?>" data-semester="<?php echo $clearance['semester']; ?>" data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>" data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
+                                                        <td><strong><?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?></strong><div class="pending-meta"><?php echo htmlspecialchars($clearance['ismis_id']); ?></div></td>
+                                                        <td><span class="type-badge"><?php echo ucfirst($clearance['clearance_type']); ?></span></td>
+                                                        <td><?php echo htmlspecialchars(trim(($clearance['semester'] ?? '') . ' ' . ($clearance['school_year'] ?? ''))); ?></td>
+                                                        <td><?php echo htmlspecialchars(trim(($clearance['processed_fname'] ?? '') . ' ' . ($clearance['processed_lname'] ?? '')) ?: 'SAS'); ?></td>
+                                                        <td><span class="status-badge status-approved">Approved</span></td>
+                                                        <td>
+                                                            <div class="action-btns">
+                                                                <button class="action-btn view" onclick="viewClearanceDetails(<?php echo $clearance['clearance_id']; ?>, '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo $clearance['ismis_id']; ?>', '<?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?>', '<?php echo htmlspecialchars($clearance['college_name'] ?? 'N/A'); ?>', '', '', '', 0, 0, 'approved')"><i class="fas fa-eye"></i></button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </details>
+
+                        <details id="rejectedClearances" class="clearance-section" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
+                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.2rem 1.35rem; border-bottom: 1px solid var(--border-color);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
+                                    <div>
+                                        <h3 style="margin: 0; font-size: 1.08rem; font-weight: 600; color: var(--text-primary);">Rejected Clearances</h3>
+                                        <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">Recent SAS rejections</p>
+                                    </div>
+                                    <span style="background: var(--warning-soft); color: var(--warning); padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.9rem; font-weight: 600;"><?php echo count(array_filter($stats['clearance_history'] ?? [], function ($item) { return ($item['status'] ?? '') === 'rejected'; })); ?> records</span>
+                                </div>
+                            </summary>
+                            <div style="padding: 1.35rem;">
+                                <?php $rejected_clearances = array_values(array_filter($stats['clearance_history'] ?? [], function ($item) { return ($item['status'] ?? '') === 'rejected'; })); ?>
+                                <?php if (empty($rejected_clearances)): ?>
+                                    <div class="empty-state">
+                                        <i class="fas fa-times-circle"></i>
+                                        <h3>No rejected clearances</h3>
+                                        <p>Rejected SAS decisions will appear here.</p>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="table-responsive">
+                                        <table id="rejectedClearancesTable">
+                                            <thead>
+                                                <tr>
+                                                    <th>Student</th>
+                                                    <th>Type</th>
+                                                    <th>Semester</th>
+                                                    <th>Processed By</th>
+                                                    <th>Status</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($rejected_clearances as $clearance): ?>
+                                                    <tr data-type="<?php echo $clearance['clearance_type']; ?>" data-semester="<?php echo $clearance['semester']; ?>" data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>" data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>">
+                                                        <td><strong><?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?></strong><div class="pending-meta"><?php echo htmlspecialchars($clearance['ismis_id']); ?></div></td>
+                                                        <td><span class="type-badge"><?php echo ucfirst($clearance['clearance_type']); ?></span></td>
+                                                        <td><?php echo htmlspecialchars(trim(($clearance['semester'] ?? '') . ' ' . ($clearance['school_year'] ?? ''))); ?></td>
+                                                        <td><?php echo htmlspecialchars(trim(($clearance['processed_fname'] ?? '') . ' ' . ($clearance['processed_lname'] ?? '')) ?: 'SAS'); ?></td>
+                                                        <td><span class="status-badge status-rejected">Rejected</span></td>
+                                                        <td>
+                                                            <div class="action-btns">
+                                                                <button class="action-btn view" onclick="viewClearanceDetails(<?php echo $clearance['clearance_id']; ?>, '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo $clearance['ismis_id']; ?>', '<?php echo htmlspecialchars($clearance['course_name'] ?? 'N/A'); ?>', '<?php echo htmlspecialchars($clearance['college_name'] ?? 'N/A'); ?>', '', '', '', 0, 0, 'rejected')"><i class="fas fa-eye"></i></button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </details>
+                    </div>
+
+                    <script>
+                        const SAS_CLEARANCE_STATE_KEY = 'sas_clearance_section_state';
+                        const sasClearanceSections = Array.from(document.querySelectorAll('.clearance-accordion details'));
+
+                        function isSasDesktop() {
+                            return window.innerWidth > 1024;
+                        }
+
+                        function getSasClearanceSectionState() {
+                            const saved = localStorage.getItem(SAS_CLEARANCE_STATE_KEY);
+                            return saved ? JSON.parse(saved) : {};
+                        }
+
+                        function saveSasClearanceSectionState(sectionId, isOpen) {
+                            const state = getSasClearanceSectionState();
+                            state[sectionId] = isOpen;
+                            localStorage.setItem(SAS_CLEARANCE_STATE_KEY, JSON.stringify(state));
+                        }
+
+                        function openSasClearanceSection(activeSection) {
+                            sasClearanceSections.forEach(section => {
+                                const shouldOpen = section === activeSection;
+                                section.open = shouldOpen;
+                                saveSasClearanceSectionState(section.id, shouldOpen);
+                            });
+                        }
+
+                        sasClearanceSections.forEach(section => {
+                            section.addEventListener('toggle', function () {
+                                if (section.open) {
+                                    openSasClearanceSection(section);
+                                    if (isSasDesktop()) {
+                                        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    }
+                                } else {
+                                    saveSasClearanceSectionState(section.id, false);
+                                }
+                            });
+                        });
+
+                        const savedSasState = getSasClearanceSectionState();
+                        const openSectionId = ['pendingClearances', 'approvedClearances', 'rejectedClearances']
+                            .find(sectionId => savedSasState[sectionId]);
+
+                        if (openSectionId) {
+                            const openSection = document.getElementById(openSectionId);
+                            if (openSection) {
+                                openSasClearanceSection(openSection);
+                            }
+                        } else {
+                            const defaultSection = document.getElementById('pendingClearances');
+                            if (defaultSection) {
+                                defaultSection.open = true;
+                                openSasClearanceSection(defaultSection);
+                            }
+                        }
+                    </script>
                 </div>
-
-                <script>
-                    // SAS clearance state management with localStorage
-                    const SAS_CLEARANCE_STATE_KEY = 'sas_clearance_section_state';
-                    
-                    function getSasClearanceSectionState() {
-                        const saved = localStorage.getItem(SAS_CLEARANCE_STATE_KEY);
-                        return saved ? JSON.parse(saved) : {};
-                    }
-
-                    function saveSasClearanceSectionState(sectionId, isOpen) {
-                        const state = getSasClearanceSectionState();
-                        state[sectionId] = isOpen;
-                        localStorage.setItem(SAS_CLEARANCE_STATE_KEY, JSON.stringify(state));
-                    }
-                </script>
             </div>
 
             <!-- Clearance History Tab -->
