@@ -3842,15 +3842,58 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
                     <div class="section-header" style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem;">
                         <div>
                             <h2 style="font-size: 1.75rem; font-weight: 600; color: var(--text-primary); margin: 0;"><i class="fas fa-file-invoice"></i> Clearance Records</h2>
+                            <p style="color: var(--text-secondary); margin: 0.5rem 0 0 0; font-size: 0.95rem;">Review pending, approved, and rejected cashier clearances in one place</p>
                         </div>
                     </div>
 
-                    <div class="clearance-status-nav" aria-label="Clearance status sections" style="margin-bottom: 2rem;">
-                        <a class="clearance-status-card" href="#pendingClearancesSection" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
-                            <span><span style="display: block; font-weight: 600; font-size: 1rem;">Pending</span><span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Awaiting review</span></span>
-                            <span style="background: var(--danger-soft); color: var(--danger); padding: 0.5rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo count($pending_clearances); ?></span>
+                    <div class="clearance-status-nav" aria-label="Clearance status sections" style="margin-bottom: 2rem; position: sticky; top: 1rem; z-index: 30; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem;">
+                        <a class="clearance-status-card" href="#pendingClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; text-decoration: none; color: var(--text-primary); transition: all 0.2s; box-shadow: var(--card-shadow);">
+                            <span>
+                                <span style="display: block; font-weight: 700; font-size: 1rem;">Pending</span>
+                                <span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Awaiting cashier review</span>
+                            </span>
+                            <span style="background: var(--danger-soft); color: var(--danger); padding: 0.5rem 0.9rem; border-radius: 999px; font-weight: 700; font-size: 0.9rem;"><?php echo (int) ($stats['pending'] ?? 0); ?></span>
+                        </a>
+                        <a class="clearance-status-card" href="#approvedClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; text-decoration: none; color: var(--text-primary); transition: all 0.2s; box-shadow: var(--card-shadow);">
+                            <span>
+                                <span style="display: block; font-weight: 700; font-size: 1rem;">Approved</span>
+                                <span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Cashier approvals</span>
+                            </span>
+                            <span style="background: var(--success-soft); color: var(--success); padding: 0.5rem 0.9rem; border-radius: 999px; font-weight: 700; font-size: 0.9rem;"><?php echo (int) ($stats['approved'] ?? 0); ?></span>
+                        </a>
+                        <a class="clearance-status-card" href="#rejectedClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; text-decoration: none; color: var(--text-primary); transition: all 0.2s; box-shadow: var(--card-shadow);">
+                            <span>
+                                <span style="display: block; font-weight: 700; font-size: 1rem;">Rejected</span>
+                                <span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Returned records</span>
+                            </span>
+                            <span style="background: var(--danger-soft); color: var(--danger); padding: 0.5rem 0.9rem; border-radius: 999px; font-weight: 700; font-size: 0.9rem;"><?php echo (int) ($stats['rejected'] ?? 0); ?></span>
                         </a>
                     </div>
+
+                    <?php
+                    $approved_clearances = array_values(array_filter($recent_clearances, function ($item) {
+                        return ($item['status'] ?? '') === 'approved';
+                    }));
+                    $rejected_clearances = array_values(array_filter($recent_clearances, function ($item) {
+                        return ($item['status'] ?? '') === 'rejected';
+                    }));
+                    ?>
+
+                    <div class="clearance-accordion-modern" style="display: flex; flex-direction: column; gap: 1rem;">
+                        <details id="pendingClearances" class="clearance-section-modern" open style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden; box-shadow: var(--card-shadow); transition: all 0.25s ease;">
+                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.25rem 1.5rem;">
+                                <div class="clearance-section-header-modern" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                                    <div style="flex: 1;">
+                                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--text-primary);">Pending Clearances</h3>
+                                        <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">Awaiting cashier review</p>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <span style="background: var(--danger-soft); color: var(--danger); padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.9rem; font-weight: 700;"><?php echo count($pending_clearances); ?> records</span>
+                                        <i class="fas fa-chevron-down" style="color: var(--text-secondary);"></i>
+                                    </div>
+                                </div>
+                            </summary>
+                            <div class="clearance-section-content-modern" style="padding: 0 1.5rem 1.5rem 1.5rem;">
 
                     <div class="summary-grid">
                         <div class="summary-card">
@@ -4153,32 +4196,235 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
                                 <h4>No pending clearances match the current filters</h4>
                                 <p>Try a different processing state, clearance type, or search term to bring matching rows back into view.</p>
                             </div>
-                    <?php endif; ?>
+                            <?php endif; ?>
+                            </div>
+                        </details>
+
+                        <details id="approvedClearances" class="clearance-section-modern" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden; box-shadow: var(--card-shadow); transition: all 0.25s ease;">
+                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.25rem 1.5rem;">
+                                <div class="clearance-section-header-modern" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                                    <div style="flex: 1;">
+                                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--text-primary);">Approved Clearances</h3>
+                                        <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">Recently approved cashier records</p>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <span style="background: var(--success-soft); color: var(--success); padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.9rem; font-weight: 700;"><?php echo count($approved_clearances); ?> records</span>
+                                        <i class="fas fa-chevron-down" style="color: var(--text-secondary);"></i>
+                                    </div>
+                                </div>
+                            </summary>
+                            <div class="clearance-section-content-modern" style="padding: 0 1.5rem 1.5rem 1.5rem;">
+                                <?php if (empty($approved_clearances)): ?>
+                                        <div class="empty-state">
+                                            <i class="fas fa-check-circle"></i>
+                                            <h3>No approved clearances yet</h3>
+                                            <p>Approved cashier records will appear here.</p>
+                                        </div>
+                                <?php else: ?>
+                                        <div class="table-responsive">
+                                            <table class="pending-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Student</th>
+                                                        <th>Clearance</th>
+                                                        <th>Processed</th>
+                                                        <th>Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php foreach ($approved_clearances as $approved_item): ?>
+                                                            <tr>
+                                                                <td>
+                                                                    <div class="pending-student-cell">
+                                                                        <div class="pending-student-name"><?php echo htmlspecialchars($approved_item['fname'] . ' ' . $approved_item['lname']); ?></div>
+                                                                        <div class="pending-subline">
+                                                                            <span><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($approved_item['ismis_id']); ?></span>
+                                                                            <span><i class="fas fa-book"></i> <?php echo htmlspecialchars($approved_item['course_name'] ?? 'N/A'); ?></span>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="pending-detail-stack">
+                                                                        <span class="type-badge"><?php echo htmlspecialchars(ucfirst($approved_item['clearance_type'] ?? 'cashier')); ?></span>
+                                                                        <div class="pending-meta"><?php echo !empty($approved_item['proof_remarks']) ? htmlspecialchars($approved_item['proof_remarks']) : 'Approved by cashier'; ?></div>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="pending-meta"><?php echo !empty($approved_item['processed_date']) ? date('M d, Y h:i A', strtotime($approved_item['processed_date'])) : 'Recently processed'; ?></div>
+                                                                    <div class="pending-meta"><?php echo htmlspecialchars(trim(($approved_item['processed_fname'] ?? '') . ' ' . ($approved_item['processed_lname'] ?? '')) ?: 'Cashier'); ?></div>
+                                                                </td>
+                                                                <td><span class="status-badge status-approved">Approved</span></td>
+                                                            </tr>
+                                                    <?php endforeach; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                <?php endif; ?>
+                            </div>
+                        </details>
+
+                        <details id="rejectedClearances" class="clearance-section-modern" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden; box-shadow: var(--card-shadow); transition: all 0.25s ease;">
+                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.25rem 1.5rem;">
+                                <div class="clearance-section-header-modern" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                                    <div style="flex: 1;">
+                                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--text-primary);">Rejected Clearances</h3>
+                                        <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">Recently rejected cashier records</p>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <span style="background: var(--danger-soft); color: var(--danger); padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.9rem; font-weight: 700;"><?php echo count($rejected_clearances); ?> records</span>
+                                        <i class="fas fa-chevron-down" style="color: var(--text-secondary);"></i>
+                                    </div>
+                                </div>
+                            </summary>
+                            <div class="clearance-section-content-modern" style="padding: 0 1.5rem 1.5rem 1.5rem;">
+                                <?php if (empty($rejected_clearances)): ?>
+                                        <div class="empty-state">
+                                            <i class="fas fa-times-circle"></i>
+                                            <h3>No rejected clearances yet</h3>
+                                            <p>Rejected cashier records will appear here.</p>
+                                        </div>
+                                <?php else: ?>
+                                        <div class="table-responsive">
+                                            <table class="pending-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Student</th>
+                                                        <th>Clearance</th>
+                                                        <th>Processed</th>
+                                                        <th>Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php foreach ($rejected_clearances as $rejected_item): ?>
+                                                            <tr>
+                                                                <td>
+                                                                    <div class="pending-student-cell">
+                                                                        <div class="pending-student-name"><?php echo htmlspecialchars($rejected_item['fname'] . ' ' . $rejected_item['lname']); ?></div>
+                                                                        <div class="pending-subline">
+                                                                            <span><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($rejected_item['ismis_id']); ?></span>
+                                                                            <span><i class="fas fa-book"></i> <?php echo htmlspecialchars($rejected_item['course_name'] ?? 'N/A'); ?></span>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="pending-detail-stack">
+                                                                        <span class="type-badge"><?php echo htmlspecialchars(ucfirst($rejected_item['clearance_type'] ?? 'cashier')); ?></span>
+                                                                        <div class="pending-meta"><?php echo !empty($rejected_item['lacking_comment']) ? htmlspecialchars($rejected_item['lacking_comment']) : 'Rejected by cashier'; ?></div>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="pending-meta"><?php echo !empty($rejected_item['processed_date']) ? date('M d, Y h:i A', strtotime($rejected_item['processed_date'])) : 'Recently processed'; ?></div>
+                                                                    <div class="pending-meta"><?php echo htmlspecialchars(trim(($rejected_item['processed_fname'] ?? '') . ' ' . ($rejected_item['processed_lname'] ?? '')) ?: 'Cashier'); ?></div>
+                                                                </td>
+                                                                <td><span class="status-badge status-rejected">Rejected</span></td>
+                                                            </tr>
+                                                    <?php endforeach; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                <?php endif; ?>
+                            </div>
+                        </details>
+                    </div>
                 </div>
 
                 <script>
-                    // Cashier clearance state management with localStorage
                     const CASHIER_CLEARANCE_STATE_KEY = 'cashier_clearance_section_state';
-                    
-                    function getCashierClearanceSectionState() {
+
+                    function getClearanceSectionState() {
                         const saved = localStorage.getItem(CASHIER_CLEARANCE_STATE_KEY);
                         return saved ? JSON.parse(saved) : {};
                     }
 
-                    function saveCashierClearanceSectionState(sectionId, isOpen) {
-                        const state = getCashierClearanceSectionState();
+                    function saveClearanceSectionState(sectionId, isOpen) {
+                        const state = getClearanceSectionState();
                         state[sectionId] = isOpen;
                         localStorage.setItem(CASHIER_CLEARANCE_STATE_KEY, JSON.stringify(state));
                     }
 
-                    // Handle scroll restoration to keep pending section open when expanded
-                    document.addEventListener('DOMContentLoaded', function() {
-                        const state = getCashierClearanceSectionState();
-                        if (state['pendingClearancesSection'] !== undefined) {
-                            // State is already persisted, will be restored on next interaction
+                    function isDesktop() {
+                        return window.innerWidth > 1024;
+                    }
+
+                    function getClearanceSections() {
+                        return Array.from(document.querySelectorAll('#pending .clearance-accordion-modern details'));
+                    }
+
+                    function applySectionState(detail, isExpanded) {
+                        if (isExpanded) {
+                            detail.style.flex = '1 1 100%';
+                            detail.style.maxWidth = '100%';
+                            detail.style.opacity = '1';
+                            detail.style.transform = 'none';
+                            detail.style.zIndex = '20';
+                            detail.style.position = 'relative';
+                        } else if (isDesktop()) {
+                            detail.style.flex = '1 1 0';
+                            detail.style.maxWidth = 'none';
+                            detail.style.opacity = '0.92';
+                            detail.style.transform = 'scale(0.995)';
+                            detail.style.zIndex = '1';
+                            detail.style.position = 'relative';
+                        } else {
+                            detail.style.flex = '';
+                            detail.style.maxWidth = '';
+                            detail.style.opacity = '';
+                            detail.style.transform = '';
+                            detail.style.zIndex = '';
+                            detail.style.position = '';
                         }
+                    }
+
+                    function collapseAllClearanceSections() {
+                        getClearanceSections().forEach(detail => {
+                            detail.open = false;
+                            saveClearanceSectionState(detail.id, false);
+                            applySectionState(detail, false);
+                        });
+                    }
+
+                    function expandClearanceSection(detail) {
+                        getClearanceSections().forEach(section => {
+                            const shouldOpen = section === detail;
+                            section.open = shouldOpen;
+                            saveClearanceSectionState(section.id, shouldOpen);
+                            applySectionState(section, shouldOpen);
+                        });
+                    }
+
+                    document.addEventListener('DOMContentLoaded', function () {
+                        const sections = getClearanceSections();
+                        const state = getClearanceSectionState();
+                        const hasSavedState = Object.keys(state).length > 0;
+
+                        sections.forEach(detail => {
+                            if (hasSavedState && state[detail.id] !== undefined) {
+                                detail.open = !!state[detail.id];
+                            }
+
+                            applySectionState(detail, detail.open);
+
+                            const summary = detail.querySelector('summary');
+                            if (summary) {
+                                summary.addEventListener('click', function (event) {
+                                    event.preventDefault();
+                                    if (detail.open) {
+                                        detail.open = false;
+                                        saveClearanceSectionState(detail.id, false);
+                                        applySectionState(detail, false);
+                                    } else {
+                                        expandClearanceSection(detail);
+                                    }
+                                });
+                            }
+                        });
+
+                        window.addEventListener('resize', function () {
+                            getClearanceSections().forEach(detail => applySectionState(detail, detail.open));
+                        });
                     });
                 </script>
+            </div>
             </div>
 
             <!-- Undo Approvals Tab -->
