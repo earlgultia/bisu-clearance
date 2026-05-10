@@ -2011,6 +2011,11 @@ function getActivityIcon($action)
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 1rem;
             margin: 0 0 1.5rem;
+            /* Keep the status navigation visible and clickable when sections expand/scroll */
+            position: sticky;
+            top: 1rem;
+            z-index: 30;
+            background: transparent; /* inherit container background */
         }
 
         .clearance-status-card {
