@@ -3836,12 +3836,20 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
                 </div>
             </div>
 
-            <!-- Pending Clearances Tab -->
+            <!-- Clearances Tab -->
             <div id="pending" class="tab-content <?php echo $active_tab == 'pending' ? 'active' : ''; ?>">
                 <div class="section-card">
-                    <div class="section-header">
-                        <h2><i class="fas fa-clock"></i> Pending Clearances</h2>
-                        <span>Found: <?php echo count($pending_clearances); ?> pending</span>
+                    <div class="section-header" style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem;">
+                        <div>
+                            <h2 style="font-size: 1.75rem; font-weight: 600; color: var(--text-primary); margin: 0;"><i class="fas fa-file-invoice"></i> Clearance Records</h2>
+                        </div>
+                    </div>
+
+                    <div class="clearance-status-nav" aria-label="Clearance status sections" style="margin-bottom: 2rem;">
+                        <a class="clearance-status-card" href="#pendingClearancesSection" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
+                            <span><span style="display: block; font-weight: 600; font-size: 1rem;">Pending</span><span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Awaiting review</span></span>
+                            <span style="background: var(--danger-soft); color: var(--danger); padding: 0.5rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo count($pending_clearances); ?></span>
+                        </a>
                     </div>
 
                     <div class="summary-grid">
@@ -4147,6 +4155,30 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
                             </div>
                     <?php endif; ?>
                 </div>
+
+                <script>
+                    // Cashier clearance state management with localStorage
+                    const CASHIER_CLEARANCE_STATE_KEY = 'cashier_clearance_section_state';
+                    
+                    function getCashierClearanceSectionState() {
+                        const saved = localStorage.getItem(CASHIER_CLEARANCE_STATE_KEY);
+                        return saved ? JSON.parse(saved) : {};
+                    }
+
+                    function saveCashierClearanceSectionState(sectionId, isOpen) {
+                        const state = getCashierClearanceSectionState();
+                        state[sectionId] = isOpen;
+                        localStorage.setItem(CASHIER_CLEARANCE_STATE_KEY, JSON.stringify(state));
+                    }
+
+                    // Handle scroll restoration to keep pending section open when expanded
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const state = getCashierClearanceSectionState();
+                        if (state['pendingClearancesSection'] !== undefined) {
+                            // State is already persisted, will be restored on next interaction
+                        }
+                    });
+                </script>
             </div>
 
             <!-- Undo Approvals Tab -->

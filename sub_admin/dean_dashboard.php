@@ -4189,11 +4189,22 @@ function getActivityIcon($action)
                 </div>
             </div>
 
-            <!-- Pending Clearances Tab -->
+            <!-- Clearances Tab -->
             <div id="pending" class="tab-content <?php echo $active_tab == 'pending' ? 'active' : ''; ?>">
                 <div class="section-card">
-                    <div class="section-header">
-                        <h2><i class="fas fa-clock"></i> Pending Clearances - <?php echo htmlspecialchars($dean_college_name); ?></h2>
+                    <div class="section-header" style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem;">
+                        <div>
+                            <h2 style="font-size: 1.75rem; font-weight: 600; color: var(--text-primary); margin: 0;"><i class="fas fa-file-invoice"></i> Clearance Records</h2>
+                            <p style="color: var(--text-secondary); margin: 0.5rem 0 0 0; font-size: 0.95rem;">Review and manage all clearance submissions for <?php echo htmlspecialchars($dean_college_name); ?></p>
+                        </div>
+                    </div>
+
+                    <div class="clearance-status-nav" aria-label="Clearance status sections" style="margin-bottom: 2rem;">
+                        <a class="clearance-status-card" href="#pendingClearancesSection" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
+                            <span><span style="display: block; font-weight: 600; font-size: 1rem;">Pending</span><span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Awaiting review</span></span>
+                            <span style="background: var(--danger-soft); color: var(--danger); padding: 0.5rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo count($pending_clearances); ?></span>
+                        </a>
+                    </div>
                         <span>Found: <?php echo count($pending_clearances); ?> pending</span>
                     </div>
 
@@ -4514,9 +4525,23 @@ function getActivityIcon($action)
                             </div>
                     <?php endif; ?>
                 </div>
-            </div>
 
-            <!-- Undo Approvals Tab -->
+                <script>
+                    // Dean clearance state management with localStorage
+                    const DEAN_CLEARANCE_STATE_KEY = 'dean_clearance_section_state';
+                    
+                    function getDeanClearanceSectionState() {
+                        const saved = localStorage.getItem(DEAN_CLEARANCE_STATE_KEY);
+                        return saved ? JSON.parse(saved) : {};
+                    }
+
+                    function saveDeanClearanceSectionState(sectionId, isOpen) {
+                        const state = getDeanClearanceSectionState();
+                        state[sectionId] = isOpen;
+                        localStorage.setItem(DEAN_CLEARANCE_STATE_KEY, JSON.stringify(state));
+                    }
+                </script>
+            </div>
             <div id="undo" class="tab-content <?php echo $active_tab == 'undo' ? 'active' : ''; ?>">
                 <div class="section-card">
                     <div class="section-header">
