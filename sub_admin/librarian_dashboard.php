@@ -6959,13 +6959,32 @@ function getActivityIcon($action)
     <style>
         /* Full-expand / minimize behavior for desktop view */
         @media (min-width: 1025px) {
-            .clearance-accordion-modern.full-view { gap: 0.75rem; }
-            .clearance-accordion-modern .clearance-section { transition: flex 0.32s ease, max-width 0.32s ease, opacity 0.32s ease; }
-            .clearance-section.expanded-full { flex: 1 1 100% !important; max-width: 100% !important; z-index: 10; }
-            .clearance-section.minimized { flex: 0 0 64px !important; max-width: 64px !important; min-width:64px !important; opacity: 0.9; overflow: hidden; }
-            .clearance-section.minimized summary { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; padding: 0.5rem; }
+            /* When a section is expanded, keep other sections visible and don't shove action buttons
+               into a thin vertical bar. Instead let the expanded section take prominence while
+               leaving siblings at their normal width (slightly de-emphasized). */
+            .clearance-accordion-modern.full-view { gap: 0.75rem; position: relative; }
+            .clearance-accordion-modern .clearance-section { transition: transform 0.28s ease, opacity 0.28s ease, box-shadow 0.28s ease; }
+            .clearance-section.expanded-full {
+                flex: 1 1 100% !important;
+                max-width: 100% !important;
+                z-index: 20;
+                position: relative;
+                box-shadow: var(--card-shadow-hover);
+                transform: translateZ(0);
+            }
+            /* Instead of collapsing siblings into a narrow strip, keep their width but
+               slightly reduce emphasis so important controls (Approve/Reject) remain visible. */
+            .clearance-section.minimized {
+                flex: 1 1 0 !important;
+                max-width: none !important;
+                min-width: 0 !important;
+                opacity: 0.92;
+                transform: scale(0.995);
+                overflow: visible;
+            }
+            .clearance-section.minimized summary { writing-mode: initial; transform: none; white-space: normal; padding: 1rem; }
             .clearance-section.minimized .clearance-section-content-modern,
-            .clearance-section.minimized .clearance-section-content { display: none !important; }
+            .clearance-section.minimized .clearance-section-content { display: block !important; }
         }
     </style>
 
