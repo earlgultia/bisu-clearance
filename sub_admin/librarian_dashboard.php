@@ -68,7 +68,7 @@ $librarian_lname = $_SESSION['user_lname'] ?? '';
 $success = '';
 $error = '';
 $warning = '';
-$active_tab = $_GET['tab'] ?? 'pending';
+$active_tab = $_GET['tab'] ?? 'dashboard';
 $profile_pic = null;
 $filter_semester = $_GET['semester'] ?? '';
 $filter_school_year = $_GET['school_year'] ?? '';
@@ -4879,7 +4879,7 @@ function getActivityIcon($action)
                             </div>
                         </details>
 
-                        <details id="approvedClearances" class="clearance-section clearance-section-modern" open>
+                        <details id="approvedClearances" class="clearance-section clearance-section-modern">
                             <summary style="list-style: none; cursor: pointer; user-select: none;">
                                 <div class="clearance-section-header-modern">
                                     <div style="flex: 1;">
@@ -4956,7 +4956,7 @@ function getActivityIcon($action)
                             </div>
                         </details>
 
-                        <details id="rejectedClearances" class="clearance-section clearance-section-modern" open>
+                        <details id="rejectedClearances" class="clearance-section clearance-section-modern">
                             <summary style="list-style: none; cursor: pointer; user-select: none;">
                                 <div class="clearance-section-header-modern">
                                     <div style="flex: 1;">
@@ -6630,10 +6630,25 @@ function getActivityIcon($action)
         const clearanceDetails = Array.from(document.querySelectorAll('.clearance-accordion details'));
         function isDesktop() { return window.innerWidth > 1024; }
 
+        // Clearance state management with localStorage
+        const CLEARANCE_STATE_KEY = 'librarian_clearance_section_state';
+        
+        function getClearanceSectionState() {
+            const saved = localStorage.getItem(CLEARANCE_STATE_KEY);
+            return saved ? JSON.parse(saved) : {};
+        }
+
+        function saveClearanceSectionState(sectionId, isOpen) {
+            const state = getClearanceSectionState();
+            state[sectionId] = isOpen;
+            localStorage.setItem(CLEARANCE_STATE_KEY, JSON.stringify(state));
+        }
+
         function collapseAllClearanceSections() {
             clearanceDetails.forEach(d => {
                 d.open = false;
                 d.classList.remove('expanded-full','minimized','expanded');
+                saveClearanceSectionState(d.id, false);
             });
             document.querySelector('.clearance-accordion-modern')?.classList.remove('full-view');
         }
@@ -6647,19 +6662,39 @@ function getActivityIcon($action)
                     d.classList.add('expanded-full');
                     d.classList.remove('minimized');
                     d.open = true;
+                    saveClearanceSectionState(d.id, true);
                 } else {
                     d.classList.add('minimized');
                     d.classList.remove('expanded-full');
                     d.open = false;
+                    saveClearanceSectionState(d.id, false);
                 }
             });
             detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
+        // Restore clearance section state from localStorage
         clearanceDetails.forEach(detail => {
+            const state = getClearanceSectionState();
+            const sectionId = detail.id;
+            const wasOpen = state[sectionId];
+            
+            // Only restore state if it was explicitly saved (not on first visit)
+            if (wasOpen !== undefined) {
+                if (wasOpen && isDesktop()) {
+                    expandClearanceSection(detail);
+                } else if (wasOpen && !isDesktop()) {
+                    detail.open = true;
+                    detail.classList.add('expanded');
+                } else {
+                    detail.open = false;
+                    detail.classList.remove('expanded');
+                }
+            }
+            
             const summary = detail.querySelector('summary') || detail.querySelector('.clearance-section-header-modern');
             if (!summary) return;
-            if (detail.hasAttribute('open')) detail.setAttribute('data-default-open','1');
+            
             summary.addEventListener('click', function(e){
                 if (isDesktop()) {
                     e.preventDefault();
@@ -6676,10 +6711,15 @@ function getActivityIcon($action)
                                 if (d !== detail) {
                                     d.open = false;
                                     d.classList.remove('expanded');
+                                    saveClearanceSectionState(d.id, false);
                                 } else {
                                     d.classList.add('expanded');
+                                    saveClearanceSectionState(d.id, true);
                                 }
                             });
+                        } else {
+                            saveClearanceSectionState(detail.id, false);
+                            detail.classList.remove('expanded');
                         }
                     }, 10);
                 }
@@ -6687,19 +6727,25 @@ function getActivityIcon($action)
         });
 
         function ensureDefaultClearanceState() {
-            if (isDesktop()) {
-                collapseAllClearanceSections();
-                return;
+            // Don't auto-reset sections anymore - they maintain their state via localStorage
+            // Only apply viewport-specific styling if needed
+            if (!isDesktop()) {
+                clearanceDetails.forEach(d => {
+                    d.classList.remove('expanded-full','minimized');
+                });
             }
-            clearanceDetails.forEach((d, i) => {
-                d.classList.remove('expanded-full','minimized');
-                d.open = (i === 0);
-                d.classList.toggle('expanded', i === 0);
-            });
         }
         ensureDefaultClearanceState();
+        
+        // Track previous viewport type to avoid resetting state on scroll
+        let previousViewportType = isDesktop() ? 'desktop' : 'mobile';
         window.addEventListener('resize', () => {
-            ensureDefaultClearanceState();
+            const currentViewportType = isDesktop() ? 'desktop' : 'mobile';
+            // Only reset clearance state if viewport type changed (desktop ↔ mobile)
+            if (currentViewportType !== previousViewportType) {
+                previousViewportType = currentViewportType;
+                // Don't call ensureDefaultClearanceState as it would reset saved state
+            }
         });
 
         filterPending();
@@ -6892,14 +6938,20 @@ function getActivityIcon($action)
                 if (!targetId) return;
                 const detail = document.getElementById(targetId);
                 if (!detail) return;
-                const summary = detail.querySelector('summary') || detail.querySelector('.clearance-section-header-modern');
-                if (summary) {
-                    // Trigger the existing summary click handler (preserves desktop expand behavior)
-                    summary.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-                } else {
-                    detail.open = true;
-                    detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                
+                // Close all other clearance sections
+                const accordion = detail.closest('.clearance-accordion-modern');
+                if (accordion) {
+                    accordion.querySelectorAll('.clearance-section-modern').forEach(section => {
+                        if (section !== detail) {
+                            section.open = false;
+                        }
+                    });
                 }
+                
+                // Open the clicked section
+                detail.open = true;
+                detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
         });
     </script>
