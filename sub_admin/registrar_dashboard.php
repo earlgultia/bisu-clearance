@@ -4604,33 +4604,36 @@ function getActivityIcon($action)
                         </div>
                     </div>
 
-                    <div class="clearance-status-nav" aria-label="Clearance status sections" style="margin-bottom: 2rem; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;">
-                        <a class="clearance-status-card" href="#pendingClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.1rem 1.2rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
+                    <div class="clearance-status-nav" aria-label="Clearance status sections" style="margin-bottom: 2rem; position: sticky; top: 1rem; z-index: 30; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem;">
+                        <a class="clearance-status-card" href="#pendingClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; text-decoration: none; color: var(--text-primary); transition: all 0.2s; box-shadow: var(--card-shadow);">
                             <span><span style="display: block; font-weight: 600; font-size: 1rem;">Pending</span><span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Awaiting review</span></span>
-                            <span style="background: var(--danger-soft); color: var(--danger); padding: 0.45rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo $stats['pending'] ?? 0; ?></span>
+                            <span style="background: var(--danger-soft); color: var(--danger); padding: 0.5rem 0.9rem; border-radius: 999px; font-weight: 700; font-size: 0.9rem;"><?php echo $stats['pending'] ?? 0; ?></span>
                         </a>
-                        <a class="clearance-status-card" href="#approvedClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.1rem 1.2rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
+                        <a class="clearance-status-card" href="#approvedClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; text-decoration: none; color: var(--text-primary); transition: all 0.2s; box-shadow: var(--card-shadow);">
                             <span><span style="display: block; font-weight: 600; font-size: 1rem;">Approved</span><span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Recently processed</span></span>
-                            <span style="background: var(--success-soft); color: var(--success); padding: 0.45rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo $stats['approved'] ?? 0; ?></span>
+                            <span style="background: var(--success-soft); color: var(--success); padding: 0.5rem 0.9rem; border-radius: 999px; font-weight: 700; font-size: 0.9rem;"><?php echo $stats['approved'] ?? 0; ?></span>
                         </a>
-                        <a class="clearance-status-card" href="#rejectedClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1.1rem 1.2rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; text-decoration: none; color: var(--text-primary); transition: all 0.2s;">
+                        <a class="clearance-status-card" href="#rejectedClearances" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; text-decoration: none; color: var(--text-primary); transition: all 0.2s; box-shadow: var(--card-shadow);">
                             <span><span style="display: block; font-weight: 600; font-size: 1rem;">Rejected</span><span style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Recently declined</span></span>
-                            <span style="background: var(--warning-soft); color: var(--warning); padding: 0.45rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;"><?php echo $stats['rejected'] ?? 0; ?></span>
+                            <span style="background: var(--warning-soft); color: var(--warning); padding: 0.5rem 0.9rem; border-radius: 999px; font-weight: 700; font-size: 0.9rem;"><?php echo $stats['rejected'] ?? 0; ?></span>
                         </a>
                     </div>
 
-                    <div class="clearance-accordion" style="display: grid; gap: 16px;">
-                        <details id="pendingClearances" open style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
-                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.2rem 1.35rem; border-bottom: 1px solid var(--border-color);">
-                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
-                                    <div>
-                                        <h3 style="margin: 0; font-size: 1.08rem; font-weight: 600; color: var(--text-primary);">Pending Clearances</h3>
+                    <div class="clearance-accordion-modern" style="display: flex; flex-direction: column; gap: 1rem;">
+                        <details id="pendingClearances" class="clearance-section-modern" open style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden; box-shadow: var(--card-shadow); transition: all 0.25s ease;">
+                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.25rem 1.5rem;">
+                                <div class="clearance-section-header-modern" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                                    <div style="flex: 1;">
+                                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--text-primary);">Pending Clearances</h3>
                                         <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">Awaiting review or student submission</p>
                                     </div>
-                                    <span style="background: var(--danger-soft); color: var(--danger); padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.9rem; font-weight: 600;"><?php echo count($pending_clearances); ?> records</span>
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <span style="background: var(--danger-soft); color: var(--danger); padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.9rem; font-weight: 700;"><?php echo count($pending_clearances); ?> records</span>
+                                        <i class="fas fa-chevron-down" style="color: var(--text-secondary);"></i>
+                                    </div>
                                 </div>
                             </summary>
-                                <div style="padding: 1.35rem;">
+                            <div class="clearance-section-content-modern" style="padding: 0 1.5rem 1.5rem 1.5rem;">
 
                     <div class="info-card" style="margin-bottom: 20px;">
                         <i class="fas fa-layer-group"></i>
@@ -4950,17 +4953,20 @@ function getActivityIcon($action)
                             </div>
                         </details>
 
-                        <details id="approvedClearances" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
-                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.2rem 1.35rem; border-bottom: 1px solid var(--border-color);">
-                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
-                                    <div>
-                                        <h3 style="margin: 0; font-size: 1.08rem; font-weight: 600; color: var(--text-primary);">Approved Clearances</h3>
+                        <details id="approvedClearances" class="clearance-section-modern" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden; box-shadow: var(--card-shadow); transition: all 0.25s ease;">
+                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.25rem 1.5rem;">
+                                <div class="clearance-section-header-modern" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                                    <div style="flex: 1;">
+                                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--text-primary);">Approved Clearances</h3>
                                         <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">Recent registrar approvals</p>
                                     </div>
-                                    <span style="background: var(--success-soft); color: var(--success); padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.9rem; font-weight: 600;"><?php echo count($approved_clearances); ?> records</span>
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <span style="background: var(--success-soft); color: var(--success); padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.9rem; font-weight: 700;"><?php echo count($approved_clearances); ?> records</span>
+                                        <i class="fas fa-chevron-down" style="color: var(--text-secondary);"></i>
+                                    </div>
                                 </div>
                             </summary>
-                            <div style="padding: 1.35rem;">
+                            <div class="clearance-section-content-modern" style="padding: 0 1.5rem 1.5rem 1.5rem;">
                                 <?php if (empty($approved_clearances)): ?>
                                     <div class="empty-state">
                                         <i class="fas fa-check-circle"></i>
@@ -5017,17 +5023,20 @@ function getActivityIcon($action)
                             </div>
                         </details>
 
-                        <details id="rejectedClearances" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
-                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.2rem 1.35rem; border-bottom: 1px solid var(--border-color);">
-                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
-                                    <div>
-                                        <h3 style="margin: 0; font-size: 1.08rem; font-weight: 600; color: var(--text-primary);">Rejected Clearances</h3>
+                        <details id="rejectedClearances" class="clearance-section-modern" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden; box-shadow: var(--card-shadow); transition: all 0.25s ease;">
+                            <summary style="list-style: none; cursor: pointer; user-select: none; padding: 1.25rem 1.5rem;">
+                                <div class="clearance-section-header-modern" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                                    <div style="flex: 1;">
+                                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--text-primary);">Rejected Clearances</h3>
                                         <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">Recent registrar rejections</p>
                                     </div>
-                                    <span style="background: var(--warning-soft); color: var(--warning); padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.9rem; font-weight: 600;"><?php echo count($rejected_clearances); ?> records</span>
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <span style="background: var(--warning-soft); color: var(--warning); padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.9rem; font-weight: 700;"><?php echo count($rejected_clearances); ?> records</span>
+                                        <i class="fas fa-chevron-down" style="color: var(--text-secondary);"></i>
+                                    </div>
                                 </div>
                             </summary>
-                            <div style="padding: 1.35rem;">
+                            <div class="clearance-section-content-modern" style="padding: 0 1.5rem 1.5rem 1.5rem;">
                                 <?php if (empty($rejected_clearances)): ?>
                                     <div class="empty-state">
                                         <i class="fas fa-times-circle"></i>
@@ -5087,7 +5096,6 @@ function getActivityIcon($action)
                 </div>
 
                 <script>
-                    const registrarClearanceSections = Array.from(document.querySelectorAll('.clearance-accordion details'));
                     const REGISTRAR_CLEARANCE_STATE_KEY = 'registrar_clearance_section_state';
 
                     function isRegistrarDesktop() {
@@ -5105,11 +5113,49 @@ function getActivityIcon($action)
                         localStorage.setItem(REGISTRAR_CLEARANCE_STATE_KEY, JSON.stringify(state));
                     }
 
-                    function openRegistrarSection(activeSection) {
-                        registrarClearanceSections.forEach(section => {
+                    function getRegistrarClearanceSections() {
+                        return Array.from(document.querySelectorAll('.clearance-accordion-modern details'));
+                    }
+
+                    function applyRegistrarSectionState(detail, isExpanded) {
+                        if (isExpanded) {
+                            detail.style.flex = '1 1 100%';
+                            detail.style.maxWidth = '100%';
+                            detail.style.opacity = '1';
+                            detail.style.transform = 'none';
+                            detail.style.zIndex = '20';
+                            detail.style.position = 'relative';
+                        } else if (isRegistrarDesktop()) {
+                            detail.style.flex = '1 1 0';
+                            detail.style.maxWidth = 'none';
+                            detail.style.opacity = '0.92';
+                            detail.style.transform = 'scale(0.995)';
+                            detail.style.zIndex = '1';
+                            detail.style.position = 'relative';
+                        } else {
+                            detail.style.flex = '';
+                            detail.style.maxWidth = '';
+                            detail.style.opacity = '';
+                            detail.style.transform = '';
+                            detail.style.zIndex = '';
+                            detail.style.position = '';
+                        }
+                    }
+
+                    function collapseAllRegistrarSections() {
+                        getRegistrarClearanceSections().forEach(detail => {
+                            detail.open = false;
+                            saveRegistrarClearanceSectionState(detail.id, false);
+                            applyRegistrarSectionState(detail, false);
+                        });
+                    }
+
+                    function expandRegistrarSection(activeSection) {
+                        getRegistrarClearanceSections().forEach(section => {
                             const shouldOpen = section === activeSection;
                             section.open = shouldOpen;
                             saveRegistrarClearanceSectionState(section.id, shouldOpen);
+                            applyRegistrarSectionState(section, shouldOpen);
                         });
                     }
 
@@ -5119,33 +5165,49 @@ function getActivityIcon($action)
                         }
 
                         if (section.open) {
-                            section.open = false;
-                            saveRegistrarClearanceSectionState(section.id, false);
+                            collapseAllRegistrarSections();
                         } else {
-                            openRegistrarSection(section);
+                            expandRegistrarSection(section);
                         }
                     }
 
-                    registrarClearanceSections.forEach(section => {
-                        section.addEventListener('toggle', function () {
-                            if (section.open) {
-                                openRegistrarSection(section);
-                                if (isRegistrarDesktop()) {
-                                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                }
-                            } else {
-                                saveRegistrarClearanceSectionState(section.id, false);
+                    document.addEventListener('DOMContentLoaded', function () {
+                        const sections = getRegistrarClearanceSections();
+                        const state = getRegistrarClearanceSectionState();
+                        const hasSavedState = Object.keys(state).length > 0;
+
+                        sections.forEach(detail => {
+                            if (hasSavedState && state[detail.id] !== undefined) {
+                                detail.open = !!state[detail.id];
+                            }
+
+                            applyRegistrarSectionState(detail, detail.open);
+
+                            const summary = detail.querySelector('summary');
+                            if (summary) {
+                                summary.addEventListener('click', function (event) {
+                                    event.preventDefault();
+                                    toggleRegistrarSection(detail);
+                                });
                             }
                         });
+
+                        // If there's no saved state, default to opening the pending section (SAS behavior)
+                        if (!hasSavedState) {
+                            const defaultSection = document.getElementById('pendingClearances');
+                            if (defaultSection) {
+                                defaultSection.open = true;
+                                applyRegistrarSectionState(defaultSection, true);
+                                if (isRegistrarDesktop()) {
+                                    defaultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }
+                            }
+                        }
+
+                        window.addEventListener('resize', function () {
+                            getRegistrarClearanceSections().forEach(detail => applyRegistrarSectionState(detail, detail.open));
+                        });
                     });
-
-                    const registrarSavedState = getRegistrarClearanceSectionState();
-                    const registrarOpenSectionId = ['pendingClearances', 'approvedClearances', 'rejectedClearances']
-                        .find(sectionId => registrarSavedState[sectionId]);
-
-                    if (registrarOpenSectionId) {
-                        const openSection = document.getElementById(registrarOpenSectionId);
-                        if (openSection) {
 
                     document.querySelectorAll('.clearance-status-card').forEach(card => {
                         card.addEventListener('click', function (event) {
@@ -5166,15 +5228,6 @@ function getActivityIcon($action)
                             section.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         });
                     });
-                            openRegistrarSection(openSection);
-                        }
-                    } else {
-                        const defaultSection = document.getElementById('pendingClearances');
-                        if (defaultSection) {
-                            defaultSection.open = true;
-                            openRegistrarSection(defaultSection);
-                        }
-                    }
                 </script>
             </div>
 

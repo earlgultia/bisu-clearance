@@ -4792,6 +4792,17 @@ function getActivityIcon($action)
                             }
                         });
 
+                        // If there's no saved state, default to opening the pending section (SAS behavior)
+                        if (!hasSavedState) {
+                            const defaultSection = document.getElementById('pendingClearances');
+                            if (defaultSection) {
+                                expandClearanceSection(defaultSection);
+                                if (isDesktop()) {
+                                    defaultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }
+                            }
+                        }
+
                         window.addEventListener('resize', function () {
                             getClearanceSections().forEach(detail => applySectionState(detail, detail.open));
                         });

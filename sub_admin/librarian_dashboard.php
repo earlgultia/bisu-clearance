@@ -6731,6 +6731,21 @@ function getActivityIcon($action)
             });
         });
 
+        // If there's no saved state, open pendingClearances by default (SAS behavior)
+        const _librarianSavedState = getClearanceSectionState();
+        if (Object.keys(_librarianSavedState).length === 0) {
+            const defaultSection = document.getElementById('pendingClearances');
+            if (defaultSection) {
+                if (isDesktop()) {
+                    expandClearanceSection(defaultSection);
+                } else {
+                    defaultSection.open = true;
+                    defaultSection.classList.add('expanded');
+                    saveClearanceSectionState(defaultSection.id, true);
+                }
+            }
+        }
+
         function ensureDefaultClearanceState() {
             // Don't auto-reset sections anymore - they maintain their state via localStorage
             // Only apply viewport-specific styling if needed
