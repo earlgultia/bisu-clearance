@@ -3192,6 +3192,82 @@ function getActivityIcon($action)
             max-width: 200px;
         }
 
+        .pending-actions-group {
+            display: grid;
+            gap: 8px;
+            width: 100%;
+            min-width: 280px;
+            max-width: 340px;
+            margin: 0 auto;
+        }
+
+        .pending-actions-group.secondary {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .pending-actions-group.primary {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .pending-actions-group .btn-modern {
+            width: 100%;
+            justify-content: center;
+            min-height: 40px;
+            padding: 0.55rem 0.75rem;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+
+        .pending-actions-group .btn-modern i {
+            font-size: 0.95rem;
+        }
+
+        .pending-actions-group .btn-modern.approve-btn,
+        .pending-actions-group .btn-modern.btn-modern-success {
+            box-shadow: 0 8px 18px rgba(16, 185, 129, 0.18);
+        }
+
+        .pending-actions-group .btn-modern.btn-modern-secondary {
+            background: var(--bg-tertiary);
+        }
+
+        .pending-actions-group .btn-modern.view-proof-btn {
+            background: var(--proof-soft);
+            color: var(--proof);
+        }
+
+        .pending-actions-group .btn-modern.view-proof-btn:hover {
+            background: rgba(14, 165, 233, 0.18);
+        }
+
+        .pending-actions-group .btn-modern.lacking-btn {
+            background: var(--lacking-soft);
+            color: var(--lacking);
+        }
+
+        .pending-actions-group .btn-modern.lacking-btn:hover {
+            background: rgba(249, 115, 22, 0.18);
+        }
+
+        .pending-actions-group .btn-modern.mark-btn {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .pending-actions-group .btn-modern.mark-btn:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .pending-actions-label {
+            color: var(--text-secondary);
+            font-size: 0.76rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: -2px;
+            text-align: center;
+        }
+
         .action-btn {
             width: 44px;
             height: 44px;
@@ -4113,6 +4189,16 @@ function getActivityIcon($action)
                 padding: 0.32rem 0.5rem;
                 font-size: 0.9rem;
             }
+
+            .pending-actions-group {
+                min-width: 0;
+                max-width: 100%;
+            }
+
+            .pending-actions-group.secondary,
+            .pending-actions-group.primary {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(versionedUrl('assets/img/favicon.png'), ENT_QUOTES, 'UTF-8'); ?>">
@@ -5009,7 +5095,7 @@ function getActivityIcon($action)
                                                             </div>
                                                         </td>
                                                         <td class="actions-cell" style="padding: 1rem; text-align: center;">
-                                                            <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+                                                            <div class="pending-actions-group secondary">
                                                                 <?php if ($has_student_proof): ?>
                                                                     <button type="button" class="btn-modern btn-modern-small view-proof-btn"
                                                                         onclick="viewStudentProof(<?php echo $clearance['clearance_id']; ?>, <?php echo json_encode($clearance['student_proof_file']); ?>, <?php echo json_encode($clearance['student_proof_remarks'] ?? ''); ?>)"
@@ -5017,22 +5103,28 @@ function getActivityIcon($action)
                                                                         data-clearance-id="<?php echo (int) $clearance['clearance_id']; ?>"
                                                                         data-proof-file="<?php echo htmlspecialchars($clearance['student_proof_file'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                                                         data-proof-remarks="<?php echo htmlspecialchars($clearance['student_proof_remarks'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
-                                                                        style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                                                                        aria-label="View submitted proof">
                                                                         <i class="fas fa-file"></i>
+                                                                        <span>Proof</span>
                                                                     </button>
                                                                 <?php endif; ?>
                                                                 <?php if ($has_lacking): ?>
-                                                                    <button type="button" class="btn-modern btn-modern-small" onclick="viewLackingComment('<?php echo htmlspecialchars(addslashes($clearance['lacking_comment'])); ?>', '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo htmlspecialchars(($clearance['lacking_by_fname'] ?? '') . ' ' . ($clearance['lacking_by_lname'] ?? '')); ?>', '<?php echo $clearance['lacking_comment_at']; ?>')" title="View lacking notice" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                                                                    <button type="button" class="btn-modern btn-modern-small lacking-btn" onclick="viewLackingComment('<?php echo htmlspecialchars(addslashes($clearance['lacking_comment'])); ?>', '<?php echo htmlspecialchars($clearance['fname'] . ' ' . $clearance['lname']); ?>', '<?php echo htmlspecialchars(($clearance['lacking_by_fname'] ?? '') . ' ' . ($clearance['lacking_by_lname'] ?? '')); ?>', '<?php echo $clearance['lacking_comment_at']; ?>')" title="View lacking notice" aria-label="View lacking notice">
                                                                         <i class="fas fa-info-circle"></i>
+                                                                        <span>Notice</span>
                                                                     </button>
                                                                 <?php endif; ?>
+                                                            </div>
+                                                            <div class="pending-actions-group primary">
                                                                 <?php if ($has_student_proof || !$has_lacking): ?>
-                                                                    <button type="button" class="btn-modern btn-modern-success approve-btn" onclick="approveClearance(<?php echo $clearance['clearance_id']; ?>)" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
-                                                                        <i class="fas fa-check"></i> Approve
+                                                                    <button type="button" class="btn-modern btn-modern-success approve-btn" onclick="approveClearance(<?php echo $clearance['clearance_id']; ?>)" aria-label="Approve clearance">
+                                                                        <i class="fas fa-check"></i>
+                                                                        <span>Approve</span>
                                                                     </button>
                                                                 <?php endif; ?>
-                                                                <button type="button" class="btn-modern btn-modern-secondary" onclick="openLackingModal(<?php echo $clearance['clearance_id']; ?>)" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
-                                                                    <i class="fas fa-flag"></i> Mark
+                                                                <button type="button" class="btn-modern btn-modern-secondary mark-btn" onclick="openLackingModal(<?php echo $clearance['clearance_id']; ?>)" aria-label="Mark lacking">
+                                                                    <i class="fas fa-flag"></i>
+                                                                    <span>Mark</span>
                                                                 </button>
                                                             </div>
                                                         </td>
