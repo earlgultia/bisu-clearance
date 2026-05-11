@@ -4982,7 +4982,12 @@ function getActivityIcon($action)
                                                         <td class="photo-cell" style="text-align:center; padding: 1rem;">
                                                             <?php if (!empty($clearance['student_proof_file'])): ?>
                                                                 <?php $safeFile = (string) $clearance['student_proof_file']; $proofUrl = 'serve_proof.php?file=' . rawurlencode($safeFile); ?>
-                                                                <img src="<?php echo htmlspecialchars($proofUrl, ENT_QUOTES, 'UTF-8'); ?>" style="max-width:90px; max-height:60px; border-radius:6px; cursor:pointer;" onclick="viewStudentProof(<?php echo (int)$clearance['clearance_id']; ?>, <?php echo json_encode($safeFile); ?>, <?php echo json_encode($clearance['student_proof_remarks'] ?? ''); ?>)">
+                                                                <img src="<?php echo htmlspecialchars($proofUrl, ENT_QUOTES, 'UTF-8'); ?>"
+                                                                    style="max-width:90px; max-height:60px; border-radius:6px; cursor:pointer;"
+                                                                    data-clearance-id="<?php echo (int) $clearance['clearance_id']; ?>"
+                                                                    data-proof-file="<?php echo htmlspecialchars($safeFile, ENT_QUOTES, 'UTF-8'); ?>"
+                                                                    data-proof-remarks="<?php echo htmlspecialchars($clearance['student_proof_remarks'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                                                    onclick="viewStudentProof(<?php echo (int)$clearance['clearance_id']; ?>, <?php echo json_encode($safeFile); ?>, <?php echo json_encode($clearance['student_proof_remarks'] ?? ''); ?>)">
                                                             <?php else: ?>
                                                                 <span class="badge badge-info" style="font-size:0.85rem; padding:4px 6px;">No Photo</span>
                                                             <?php endif; ?>
@@ -5006,7 +5011,13 @@ function getActivityIcon($action)
                                                         <td class="actions-cell" style="padding: 1rem; text-align: center;">
                                                             <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
                                                                 <?php if ($has_student_proof): ?>
-                                                                    <button type="button" class="btn-modern btn-modern-small view-proof-btn" onclick="viewStudentProof(<?php echo $clearance['clearance_id']; ?>, <?php echo json_encode($clearance['student_proof_file']); ?>, <?php echo json_encode($clearance['student_proof_remarks'] ?? ''); ?>)" title="View proof" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                                                                    <button type="button" class="btn-modern btn-modern-small view-proof-btn"
+                                                                        onclick="viewStudentProof(<?php echo $clearance['clearance_id']; ?>, <?php echo json_encode($clearance['student_proof_file']); ?>, <?php echo json_encode($clearance['student_proof_remarks'] ?? ''); ?>)"
+                                                                        title="View proof"
+                                                                        data-clearance-id="<?php echo (int) $clearance['clearance_id']; ?>"
+                                                                        data-proof-file="<?php echo htmlspecialchars($clearance['student_proof_file'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                                                        data-proof-remarks="<?php echo htmlspecialchars($clearance['student_proof_remarks'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                                                        style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
                                                                         <i class="fas fa-file"></i>
                                                                     </button>
                                                                 <?php endif; ?>
@@ -5498,14 +5509,21 @@ function getActivityIcon($action)
                                                     <?php
                                                     $file_ext = strtolower(pathinfo($clearance['student_proof_file'], PATHINFO_EXTENSION));
                                                     $is_image = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+                                                    $safeProofFile = (string) ($clearance['student_proof_file'] ?? '');
                                                     ?>
                                                     <?php if ($is_image): ?>
-                                                        <img src="<?php echo htmlspecialchars('serve_proof.php?file=' . rawurlencode(ltrim((string) preg_replace('#^(?:\.\./|\./)+#', '', str_replace('\\', '/', (string) ($clearance['student_proof_file'] ?? ''))), '/')), ENT_QUOTES, 'UTF-8'); ?>"
+                                                        <img src="<?php echo htmlspecialchars('serve_proof.php?file=' . rawurlencode(ltrim((string) preg_replace('#^(?:\.\./|\./)+#', '', str_replace('\\', '/', (string) $safeProofFile), '/')), ENT_QUOTES, 'UTF-8'); ?>"
                                                             style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; cursor: pointer;"
-                                                            onclick="viewStudentProof('<?php echo $clearance['clearance_id']; ?>', '<?php echo $clearance['student_proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['student_proof_remarks'] ?? '')); ?>')">
+                                                            data-clearance-id="<?php echo htmlspecialchars($clearance['clearance_id'], ENT_QUOTES, 'UTF-8'); ?>"
+                                                            data-proof-file="<?php echo htmlspecialchars($safeProofFile, ENT_QUOTES, 'UTF-8'); ?>"
+                                                            data-proof-remarks="<?php echo htmlspecialchars($clearance['student_proof_remarks'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                                            onclick="viewStudentProof(<?php echo json_encode($clearance['clearance_id']); ?>, <?php echo json_encode($safeProofFile); ?>, <?php echo json_encode($clearance['student_proof_remarks'] ?? ''); ?>)">
                                                     <?php else: ?>
                                                         <span class="proof-badge"
-                                                            onclick="viewStudentProof('<?php echo $clearance['clearance_id']; ?>', '<?php echo $clearance['student_proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['student_proof_remarks'] ?? '')); ?>')">
+                                                            data-clearance-id="<?php echo htmlspecialchars($clearance['clearance_id'], ENT_QUOTES, 'UTF-8'); ?>"
+                                                            data-proof-file="<?php echo htmlspecialchars($safeProofFile, ENT_QUOTES, 'UTF-8'); ?>"
+                                                            data-proof-remarks="<?php echo htmlspecialchars($clearance['student_proof_remarks'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                                            onclick="viewStudentProof(<?php echo json_encode($clearance['clearance_id']); ?>, <?php echo json_encode($safeProofFile); ?>, <?php echo json_encode($clearance['student_proof_remarks'] ?? ''); ?>)">
                                                             <i class="fas fa-file"></i> View
                                                         </span>
                                                     <?php endif; ?>
@@ -7240,6 +7258,38 @@ function getActivityIcon($action)
         function getStatusClass(status) {
             return status == 'approved' ? 'status-approved' : (status == 'rejected' ? 'status-rejected' : 'status-pending');
         }
+
+        // Delegated click handler to reliably open proof viewers from buttons or thumbnails
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.view-proof-btn, [data-proof-file]');
+            if (!btn) return;
+            try {
+                e.preventDefault();
+            } catch (err) {}
+
+            let clearanceId = btn.getAttribute('data-clearance-id') || (btn.dataset && btn.dataset.clearanceId) || null;
+            let proofFile = btn.getAttribute('data-proof-file') || (btn.dataset && btn.dataset.proofFile) || '';
+            let remarks = btn.getAttribute('data-proof-remarks') || (btn.dataset && btn.dataset.proofRemarks) || '';
+
+            // fallback: attempt to parse inline onclick signature if data attrs are missing
+            if (!clearanceId) {
+                const onclick = btn.getAttribute('onclick') || '';
+                const m = onclick.match(/viewStudentProof\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^\)]+)\s*\)/);
+                if (m) {
+                    try { clearanceId = JSON.parse(m[1]); } catch (e) { clearanceId = String(m[1]).replace(/['"\s]/g, ''); }
+                    try { proofFile = JSON.parse(m[2]); } catch (e) { proofFile = String(m[2]).replace(/['"\s]/g, ''); }
+                    try { remarks = JSON.parse(m[3]); } catch (e) { remarks = String(m[3]).replace(/['"\s]/g, ''); }
+                }
+            }
+
+            if (!clearanceId && btn.closest && btn.closest('tr')) {
+                clearanceId = btn.closest('tr').dataset.clearanceId || clearanceId;
+            }
+
+            if (typeof viewStudentProof === 'function') {
+                viewStudentProof(clearanceId, proofFile, remarks);
+            }
+        });
     </script>
 
     <script>
