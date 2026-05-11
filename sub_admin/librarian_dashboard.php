@@ -211,6 +211,108 @@ if (isset($_POST['add_lacking_comment'])) {
 }
 
 // ============================================
+// UPLOAD RETURN PHOTO (Librarian captures returned book photo)
+// ============================================
+if (isset($_POST['upload_return_photo'])) {
+    $clearance_id = $_POST['clearance_id'] ?? '';
+
+    if ($clearance_id && isset($_FILES['return_photo']) && $_FILES['return_photo']['error'] === UPLOAD_ERR_OK) {
+        try {
+            $db->beginTransaction();
+
+            // Get current clearance info
+            $db->query("SELECT c.*, u.fname, u.lname, u.ismis_id, c.office_id
+                       FROM clearance c
+                       JOIN users u ON c.users_id = u.users_id
+                       WHERE c.clearance_id = :id");
+            $db->bind(':id', $clearance_id);
+            $current = $db->single();
+
+            if (!$current) {
+                throw new Exception("Clearance not found");
+            }
+
+            // Verify this clearance belongs to librarian office
+            if ($current['office_id'] != $librarian_office_id) {
+                throw new Exception("Unauthorized: This clearance does not belong to your office");
+            }
+
+            $file = $_FILES['return_photo'];
+            $tmp = $file['tmp_name'];
+            $origName = $file['name'];
+            $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+            $allowed = ['jpg', 'jpeg', 'png', 'webp'];
+            $maxSize = 5 * 1024 * 1024; // 5MB
+
+            if (!in_array($ext, $allowed) || !@getimagesize($tmp)) {
+                throw new Exception("Invalid image file. Allowed: jpg, jpeg, png, webp.");
+            }
+
+            if ($file['size'] > $maxSize) {
+                throw new Exception("File too large. Maximum allowed size is 5MB.");
+            }
+
+            $uploadDir = __DIR__ . '/../uploads/library_returns/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+
+            $filename = 'return_' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
+            $destPath = $uploadDir . $filename;
+
+            if (!move_uploaded_file($tmp, $destPath)) {
+                throw new Exception("Failed to save uploaded file.");
+            }
+
+            $relativePath = 'uploads/library_returns/' . $filename;
+
+            // Save to clearance record as student_proof_file so approve flow can use it
+            $db->query("UPDATE clearance SET student_proof_file = :file, proof_uploaded_by = :uploaded_by, proof_uploaded_at = NOW(), updated_at = NOW() WHERE clearance_id = :id");
+            $db->bind(':file', $relativePath);
+            $db->bind(':uploaded_by', $librarian_id);
+            $db->bind(':id', $clearance_id);
+
+            if (!$db->execute()) {
+                throw new Exception("Failed to update clearance with uploaded photo.");
+            }
+
+            // Log the upload
+            if (class_exists('ActivityLogModel')) {
+                $logModel = new ActivityLogModel();
+                $logModel->log($librarian_id, 'UPLOAD_RETURN_PHOTO', "Uploaded return-photo for clearance ID: $clearance_id for student: {$current['fname']} {$current['lname']}");
+            }
+
+            $db->commit();
+
+            // Return JSON for AJAX clients
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'file' => $relativePath]);
+                exit();
+            }
+
+            $_SESSION['success_message'] = "Return photo uploaded successfully.";
+            header("Location: librarian_dashboard.php?tab=pending");
+            exit();
+        } catch (Exception $e) {
+            if ($db->getConnection()->inTransaction()) {
+                $db->rollback();
+            }
+            error_log("Error uploading return photo: " . $e->getMessage());
+            $error = "Error: " . $e->getMessage();
+
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => $error]);
+                exit();
+            }
+        }
+    } else {
+        $error = "No file uploaded or upload error.";
+    }
+}
+
+// ============================================
 // CLEARANCE APPROVAL - Now works with students who have submitted proof
 // ============================================
 if (isset($_POST['approve_clearance'])) {
@@ -4769,6 +4871,7 @@ function getActivityIcon($action)
                                                     <th style="width: 50px; text-align: center;">Select</th>
                                                     <th>Student Information</th>
                                                     <th>Clearance Details</th>
+                                                    <th style="width:120px; text-align: center;">Photo</th>
                                                     <th>Status</th>
                                                     <th style="text-align: center;">Actions</th>
                                                 </tr>
@@ -4795,7 +4898,8 @@ function getActivityIcon($action)
 
                                                     $period_label = trim(($clearance['semester'] ?? '') . ' ' . ($clearance['school_year'] ?? ''));
                                                     ?>
-                                                    <tr data-type="<?php echo $clearance['clearance_type']; ?>"
+                                                    <tr data-clearance-id="<?php echo (int) $clearance['clearance_id']; ?>"
+                                                        data-type="<?php echo $clearance['clearance_type']; ?>"
                                                         data-state="<?php echo $pending_state; ?>"
                                                         data-name="<?php echo htmlspecialchars(strtolower(trim(($clearance['fname'] ?? '') . ' ' . ($clearance['lname'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>"
                                                         data-id="<?php echo htmlspecialchars(strtolower((string) ($clearance['ismis_id'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>"
@@ -4831,6 +4935,14 @@ function getActivityIcon($action)
                                                                 <?php endif; ?>
                                                             </div>
                                                         </td>
+                                                        <td class="photo-cell" style="text-align:center; padding: 1rem;">
+                                                            <?php if (!empty($clearance['student_proof_file'])): ?>
+                                                                <?php $safeFile = (string) $clearance['student_proof_file']; $proofUrl = 'serve_proof.php?file=' . rawurlencode($safeFile); ?>
+                                                                <img src="<?php echo htmlspecialchars($proofUrl, ENT_QUOTES, 'UTF-8'); ?>" style="max-width:90px; max-height:60px; border-radius:6px; cursor:pointer;" onclick="viewStudentProof(<?php echo (int)$clearance['clearance_id']; ?>, <?php echo json_encode($safeFile); ?>, <?php echo json_encode($clearance['student_proof_remarks'] ?? ''); ?>)">
+                                                            <?php else: ?>
+                                                                <span class="badge badge-info" style="font-size:0.85rem; padding:4px 6px;">No Photo</span>
+                                                            <?php endif; ?>
+                                                        </td>
                                                         <td style="padding: 1rem;">
                                                             <div style="display: inline-block; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; background: 
                                                                 <?php 
@@ -4847,10 +4959,10 @@ function getActivityIcon($action)
                                                                 <?php echo $pending_state_label; ?>
                                                             </div>
                                                         </td>
-                                                        <td style="padding: 1rem; text-align: center;">
+                                                        <td class="actions-cell" style="padding: 1rem; text-align: center;">
                                                             <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
                                                                 <?php if ($has_student_proof): ?>
-                                                                    <button type="button" class="btn-modern btn-modern-small" onclick="viewStudentProof('<?php echo $clearance['clearance_id']; ?>', '<?php echo $clearance['student_proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['student_proof_remarks'] ?? '')); ?>')" title="View proof" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                                                                    <button type="button" class="btn-modern btn-modern-small view-proof-btn" onclick="viewStudentProof(<?php echo $clearance['clearance_id']; ?>, <?php echo json_encode($clearance['student_proof_file']); ?>, <?php echo json_encode($clearance['student_proof_remarks'] ?? ''); ?>)" title="View proof" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
                                                                         <i class="fas fa-file"></i>
                                                                     </button>
                                                                 <?php endif; ?>
@@ -4859,8 +4971,8 @@ function getActivityIcon($action)
                                                                         <i class="fas fa-info-circle"></i>
                                                                     </button>
                                                                 <?php endif; ?>
-                                                                <?php if (!$has_lacking): ?>
-                                                                    <button type="button" class="btn-modern btn-modern-success" onclick="approveClearance(<?php echo $clearance['clearance_id']; ?>)" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                                                                <?php if ($has_student_proof || !$has_lacking): ?>
+                                                                    <button type="button" class="btn-modern btn-modern-success approve-btn" onclick="approveClearance(<?php echo $clearance['clearance_id']; ?>)" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
                                                                         <i class="fas fa-check"></i> Approve
                                                                     </button>
                                                                 <?php endif; ?>
@@ -5632,6 +5744,19 @@ function getActivityIcon($action)
                             and can submit proof when the lacking items are resolved.
                         </div>
                     </div>
+                    <!-- Return photo upload: librarian may capture a photo of the returned book here -->
+                    <form id="returnPhotoForm" method="POST" action="" enctype="multipart/form-data" onsubmit="return false;">
+                        <input type="hidden" name="clearance_id" id="returnPhotoClearanceId">
+                        <div class="form-group">
+                            <label><i class="fas fa-camera"></i> Attach Returned Book Photo (optional)</label>
+                            <input type="file" id="returnPhotoInput" name="return_photo" accept="image/*" capture="environment" class="filter-input-modern">
+                            <div id="returnPhotoPreview" style="margin-top:8px; text-align:center;"></div>
+                        </div>
+                        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
+                            <button type="button" class="btn btn-secondary" onclick="clearReturnPhoto()">Clear</button>
+                            <button type="button" class="btn btn-primary" id="uploadReturnPhotoBtn" onclick="uploadReturnPhoto()">Upload Photo</button>
+                        </div>
+                    </form>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeLackingModal()">Cancel</button>
@@ -5983,12 +6108,137 @@ function getActivityIcon($action)
         // Lacking Modal
         function openLackingModal(clearanceId) {
             document.getElementById('lackingClearanceId').value = clearanceId;
+            // also set the return-photo form clearance id
+            const rId = document.getElementById('returnPhotoClearanceId');
+            if (rId) rId.value = clearanceId;
+            // clear any previous preview
+            clearReturnPhoto();
             document.getElementById('lackingModal').style.display = 'flex';
         }
 
         function closeLackingModal() {
             document.getElementById('lackingModal').style.display = 'none';
             document.getElementById('lackingComment').value = '';
+            // clear return-photo inputs and preview
+            clearReturnPhoto();
+        }
+
+        // Return photo helpers
+        function clearReturnPhoto() {
+            const input = document.getElementById('returnPhotoInput');
+            const preview = document.getElementById('returnPhotoPreview');
+            if (input) {
+                try { input.value = ''; } catch (e) { /* ignore */ }
+            }
+            if (preview) {
+                preview.innerHTML = '';
+            }
+        }
+
+        document.addEventListener('change', function (e) {
+            if (!e.target) return;
+            if (e.target.id === 'returnPhotoInput') {
+                const file = e.target.files && e.target.files[0];
+                const preview = document.getElementById('returnPhotoPreview');
+                if (file && preview) {
+                    const url = URL.createObjectURL(file);
+                    preview.innerHTML = `<img src="${url}" style="max-width:220px; max-height:220px; border-radius:8px;" onclick="window.open('${url}', '_blank')">`;
+                } else if (preview) {
+                    preview.innerHTML = '';
+                }
+            }
+        });
+
+        async function uploadReturnPhoto() {
+            const input = document.getElementById('returnPhotoInput');
+            const clearanceId = document.getElementById('returnPhotoClearanceId')?.value || document.getElementById('lackingClearanceId')?.value;
+            if (!input || !input.files || !input.files[0]) {
+                if (typeof showToast === 'function') showToast('Please select a photo first.', 'warning');
+                return;
+            }
+
+            const file = input.files[0];
+            const fd = new FormData();
+            fd.append('return_photo', file);
+            fd.append('clearance_id', clearanceId);
+            fd.append('upload_return_photo', '1');
+
+            try {
+                const resp = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: fd,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const data = await resp.json();
+                if (data && data.success) {
+                    if (typeof showToast === 'function') showToast('Photo uploaded successfully.', 'success');
+                    // update preview area with the saved file path (use serve_proof.php to render)
+                    const preview = document.getElementById('returnPhotoPreview');
+                    if (preview && data.file) {
+                        const proofUrl = `serve_proof.php?file=${encodeURIComponent(data.file)}`;
+                        preview.innerHTML = `<img src="${proofUrl}" style="max-width:220px; max-height:220px; border-radius:8px; cursor: pointer;" onclick="window.open('${proofUrl}', '_blank')">`;
+                    }
+
+                    // Attempt to update the pending table row in-place so the librarian can approve immediately
+                    try {
+                        const checkbox = document.querySelector(`.clearance-checkbox[value="${clearanceId}"]`);
+                        if (checkbox) {
+                            checkbox.disabled = false;
+                            const row = checkbox.closest('tr');
+                            if (row) {
+                                // Update photo cell
+                                const photoCell = row.querySelector('.photo-cell');
+                                const proofUrl = `serve_proof.php?file=${encodeURIComponent(data.file)}`;
+                                if (photoCell) {
+                                    photoCell.innerHTML = `<img src="${proofUrl}" style="max-width:90px; max-height:60px; border-radius:6px; cursor:pointer;">`;
+                                    // attach click to open proof modal
+                                    const img = photoCell.querySelector('img');
+                                    if (img) {
+                                        img.addEventListener('click', function () {
+                                            viewStudentProof(parseInt(clearanceId, 10), data.file, '');
+                                        });
+                                    }
+                                }
+
+                                // Update actions cell: add view-proof and approve buttons if missing
+                                const actionsCell = row.querySelector('.actions-cell');
+                                if (actionsCell) {
+                                    if (!actionsCell.querySelector('.view-proof-btn')) {
+                                        const viewBtn = document.createElement('button');
+                                        viewBtn.type = 'button';
+                                        viewBtn.className = 'btn-modern btn-modern-small view-proof-btn';
+                                        viewBtn.title = 'View proof';
+                                        viewBtn.style.cssText = 'padding: 0.4rem 0.8rem; font-size: 0.8rem;';
+                                        viewBtn.innerHTML = '<i class="fas fa-file"></i>';
+                                        viewBtn.addEventListener('click', function () {
+                                            viewStudentProof(parseInt(clearanceId, 10), data.file, '');
+                                        });
+                                        actionsCell.insertBefore(viewBtn, actionsCell.firstChild);
+                                    }
+
+                                    if (!actionsCell.querySelector('.approve-btn')) {
+                                        const approveBtn = document.createElement('button');
+                                        approveBtn.type = 'button';
+                                        approveBtn.className = 'btn-modern btn-modern-success approve-btn';
+                                        approveBtn.style.cssText = 'padding: 0.4rem 0.8rem; font-size: 0.8rem;';
+                                        approveBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
+                                        approveBtn.addEventListener('click', function () {
+                                            approveClearance(parseInt(clearanceId, 10));
+                                        });
+                                        actionsCell.appendChild(approveBtn);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Row update error', e);
+                    }
+                } else {
+                    if (typeof showToast === 'function') showToast((data && data.error) ? data.error : 'Upload failed', 'error');
+                }
+            } catch (err) {
+                if (typeof showToast === 'function') showToast('Upload failed. Please try again.', 'error');
+            }
         }
 
         // View Lacking Comment
