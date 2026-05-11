@@ -1344,6 +1344,7 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
             height: calc(100vh - 70px);
             overflow-y: auto;
             transition: all 0.3s ease;
+            z-index: 900;
         }
 
         .sidebar-backdrop {
