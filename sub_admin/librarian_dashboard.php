@@ -5746,8 +5746,8 @@ function getActivityIcon($action)
                         </div>
                     </div>
                     <!-- Return photo upload: librarian may capture a photo of the returned book here -->
-                    <form id="returnPhotoForm" method="POST" action="" enctype="multipart/form-data" onsubmit="return false;">
-                        <input type="hidden" name="clearance_id" id="returnPhotoClearanceId">
+                    <div id="returnPhotoForm" class="return-photo-block">
+                        <input type="hidden" id="returnPhotoClearanceId">
                         <div class="form-group">
                             <label><i class="fas fa-camera"></i> Attach Returned Book Photo (optional)</label>
                             <input type="file" id="returnPhotoInput" name="return_photo" accept="image/*" capture="environment" class="filter-input-modern">
@@ -5757,7 +5757,7 @@ function getActivityIcon($action)
                             <button type="button" class="btn btn-secondary" onclick="clearReturnPhoto()">Clear</button>
                             <button type="button" class="btn btn-primary" id="uploadReturnPhotoBtn" onclick="uploadReturnPhoto()">Upload Photo</button>
                         </div>
-                    </form>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeLackingModal()">Cancel</button>
@@ -7238,7 +7238,7 @@ function getActivityIcon($action)
             .clearance-section.expanded-full {
                 flex: 1 1 100% !important;
                 max-width: 100% !important;
-                z-index: 20;
+                z-index: 995;
                 position: relative;
                 box-shadow: var(--card-shadow-hover);
                 transform: translateZ(0);

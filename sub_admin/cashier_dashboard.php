@@ -1347,6 +1347,15 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
             z-index: 900;
         }
 
+        @media (min-width: 1025px) {
+            .clearance-section[open],
+            .clearance-section.expanded,
+            .clearance-section.expanded-full {
+                position: relative;
+                z-index: 995;
+            }
+        }
+
         .sidebar-backdrop {
             position: fixed;
             inset: 70px 0 0;
