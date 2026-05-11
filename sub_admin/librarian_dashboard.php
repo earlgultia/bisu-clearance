@@ -5510,9 +5510,13 @@ function getActivityIcon($action)
                                                     $file_ext = strtolower(pathinfo($clearance['student_proof_file'], PATHINFO_EXTENSION));
                                                     $is_image = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
                                                     $safeProofFile = (string) ($clearance['student_proof_file'] ?? '');
+                                                    $studentProofServePath = 'serve_proof.php?file=' . rawurlencode(ltrim(
+                                                        str_replace('\\', '/', preg_replace('#^(?:\.\./|\./)+#', '', $safeProofFile)),
+                                                        '/'
+                                                    ));
                                                     ?>
                                                     <?php if ($is_image): ?>
-                                                        <img src="<?php echo htmlspecialchars('serve_proof.php?file=' . rawurlencode(ltrim((string) preg_replace('#^(?:\.\./|\./)+#', '', str_replace('\\', '/', (string) $safeProofFile), '/')), ENT_QUOTES, 'UTF-8'); ?>"
+                                                        <img src="<?php echo htmlspecialchars($studentProofServePath, ENT_QUOTES, 'UTF-8'); ?>"
                                                             style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; cursor: pointer;"
                                                             data-clearance-id="<?php echo htmlspecialchars($clearance['clearance_id'], ENT_QUOTES, 'UTF-8'); ?>"
                                                             data-proof-file="<?php echo htmlspecialchars($safeProofFile, ENT_QUOTES, 'UTF-8'); ?>"
@@ -5536,9 +5540,14 @@ function getActivityIcon($action)
                                                     <?php
                                                     $file_ext = strtolower(pathinfo($clearance['proof_file'], PATHINFO_EXTENSION));
                                                     $is_image = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+                                                    $safeProofFile = (string) ($clearance['proof_file'] ?? '');
+                                                    $librarianProofServePath = 'serve_proof.php?file=' . rawurlencode(ltrim(
+                                                        str_replace('\\', '/', preg_replace('#^(?:\.\./|\./)+#', '', $safeProofFile)),
+                                                        '/'
+                                                    ));
                                                     ?>
                                                     <?php if ($is_image): ?>
-                                                        <img src="<?php echo htmlspecialchars('serve_proof.php?file=' . rawurlencode(ltrim((string) preg_replace('#^(?:\.\./|\./)+#', '', str_replace('\\', '/', (string) ($clearance['proof_file'] ?? ''))), '/')), ENT_QUOTES, 'UTF-8'); ?>"
+                                                        <img src="<?php echo htmlspecialchars($librarianProofServePath, ENT_QUOTES, 'UTF-8'); ?>"
                                                             style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; cursor: pointer;"
                                                             onclick="viewLibrarianProof('<?php echo $clearance['proof_file']; ?>', '<?php echo htmlspecialchars(addslashes($clearance['proof_remarks'] ?? '')); ?>', '<?php echo htmlspecialchars(($clearance['proof_by_fname'] ?? '') . ' ' . ($clearance['proof_by_lname'] ?? '')); ?>', '<?php echo $clearance['proof_uploaded_at']; ?>')">
                                                     <?php else: ?>
