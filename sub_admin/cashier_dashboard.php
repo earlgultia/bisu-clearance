@@ -3418,6 +3418,49 @@ $dashboard_recent_activity = array_slice($stats['recent_activities'] ?? [], 0, 5
             }
         }
     </style>
+    <style>
+        /* Pending actions alignment — unify button layout in pending rows */
+        .actions-cell > div,
+        .pending-action-stack,
+        .pending-action-form,
+        .action-btns {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .actions-cell > div button,
+        .pending-action-stack .pending-action-btn,
+        .pending-action-form .pending-action-btn,
+        button.btn-modern,
+        button.btn-modern-small {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.36rem 0.6rem;
+            font-size: 0.92rem;
+            border-radius: 6px;
+            min-height: 36px;
+            line-height: 1;
+        }
+        .actions-cell > div button i,
+        .pending-action-btn i {
+            font-size: 1rem;
+            margin: 0;
+        }
+        @media (max-width: 768px) {
+            .actions-cell > div,
+            .pending-action-stack {
+                justify-content: flex-start;
+            }
+            .actions-cell > div button,
+            .pending-action-stack .pending-action-btn {
+                padding: 0.32rem 0.5rem;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(versionedUrl('assets/img/favicon.png'), ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="manifest" href="<?php echo htmlspecialchars(versionedUrl('manifest.webmanifest'), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="theme-color" content="#412886">
