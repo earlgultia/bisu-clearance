@@ -23,7 +23,8 @@ if ($normalized_path === '' || strpos($normalized_path, '..') !== false) {
 }
 
 $allowed_prefixes = [
-    'uploads/proofs/'
+    'uploads/proofs/',
+    'uploads/library_returns/'
 ];
 
 $is_allowed = false;
