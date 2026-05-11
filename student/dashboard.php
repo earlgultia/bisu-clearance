@@ -4936,6 +4936,28 @@ function getOrganizationIcon($org_type)
             justify-content: flex-end;
         }
 
+        .print-history-btn {
+            min-height: 40px;
+            border: 1px solid var(--primary);
+            border-radius: 999px;
+            background: var(--primary);
+            color: var(--white);
+            font-weight: 700;
+            font-size: 0.82rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.45rem 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .print-history-btn:hover {
+            background: color-mix(in srgb, var(--primary) 90%, black);
+            border-color: color-mix(in srgb, var(--primary) 90%, black);
+        }
+
         .history-toggle-btn {
             min-height: 40px;
             border: 1px solid var(--border);
@@ -8637,6 +8659,21 @@ function getOrganizationIcon($org_type)
                                                 <i class="fas fa-clock"></i>
                                                 <?php echo !empty($last_processed['processed_date']) ? 'Completed: ' . date('M d, Y', strtotime($last_processed['processed_date'])) : 'N/A'; ?>
                                             </div>
+                                            <?php 
+                                            $first_app = !empty($group['applications']) ? $group['applications'][0] : null;
+                                            $print_clearance_id = $first_app ? (int) ($first_app['clearance_id'] ?? 0) : 0;
+                                            if ($print_clearance_id > 0): 
+                                            ?>
+                                                <a href="print_student_clearance.php?clearance_id=<?php echo $print_clearance_id; ?>" 
+                                                   target="_blank" 
+                                                   rel="noopener noreferrer" 
+                                                   class="print-history-btn"
+                                                   title="Print clearance certificate"
+                                                   onclick="event.stopPropagation();">
+                                                    <i class="fas fa-print"></i>
+                                                    <span>Print</span>
+                                                </a>
+                                            <?php endif; ?>
                                             <button type="button"
                                                 class="history-toggle-btn"
                                                 aria-controls="<?php echo $history_detail_id; ?>"
